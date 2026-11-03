@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TransCOM</title>
+  <meta name="description" content="">
+  <meta name="theme-color" content="#1b3a6b">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main" data-i18n="a11y.skip"></a>
+
+  <!-- ===== Header: brand, language toggle, tabs ===== -->
+  <header class="site-header">
+    <div class="header-bar">
+      <button type="button" class="brand" data-goto="home">
+        <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h9M8.5 5v2c0 4-2 7-4.5 8.5M6 10c1.5 2.5 3.5 4 6 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M13 20l4-9 4 9M14.5 17h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="brand-name" data-service-name></span>
+      </button>
+      <div class="lang-toggle" role="group" data-i18n-aria="a11y.lang">
+        <button type="button" data-lang="th" aria-pressed="true" lang="th">TH</button>
+        <button type="button" data-lang="en" aria-pressed="false" lang="en">EN</button>
+      </div>
+    </div>
+    <nav class="tabs-wrap" data-i18n-aria="a11y.nav">
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" id="tab-home" aria-controls="home" data-tab="home" data-i18n="nav.home"></button>
+        <button type="button" role="tab" id="tab-services" aria-controls="services" data-tab="services" data-i18n="nav.services"></button>
+        <button type="button" role="tab" id="tab-pricing" aria-controls="pricing" data-tab="pricing" data-i18n="nav.pricing"></button>
+        <button type="button" role="tab" id="tab-calculator" aria-controls="calculator" data-tab="calculator" data-i18n="nav.calculator"></button>
+        <button type="button" role="tab" id="tab-submit" aria-controls="submit" data-tab="submit" data-i18n="nav.submit"></button>
+        <button type="button" role="tab" id="tab-track" aria-controls="track" data-tab="track" data-i18n="nav.track"></button>
+        <button type="button" role="tab" id="tab-how" aria-controls="how" data-tab="how" data-i18n="nav.how"></button>
+        <button type="button" role="tab" id="tab-faq" aria-controls="faq" data-tab="faq" data-i18n="nav.faq"></button>
+        <button type="button" role="tab" id="tab-contact" aria-controls="contact" data-tab="contact" data-i18n="nav.contact"></button>
+        <button type="button" role="tab" id="tab-privacy" aria-controls="privacy" data-tab="privacy" data-i18n="nav.privacy"></button>
+      </div>
+    </nav>
+  </header>
+
+  <main id="main" tabindex="-1">
+
+    <!-- ===== 1. Home ===== -->
+    <section id="home" class="panel" role="tabpanel" aria-labelledby="tab-home">
+      <div class="hero">
+        <p class="eyebrow" data-i18n="home.eyebrow"></p>
+        <h1 data-i18n="home.title"></h1>
+        <p class="lead" data-i18n="home.lead"></p>
+        <div class="actions">
+          <button type="button" class="btn btn-primary btn-lg" data-goto="submit" data-i18n="home.cta"></button>
+          <button type="button" class="btn-link" data-goto="calculator" data-i18n="home.secondary"></button>
+        </div>
+      </div>
+      <ul class="features">
+        <li>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div><h2 class="h4" data-i18n="home.f1.title"></h2><p data-i18n="home.f1.text"></p></div>
+        </li>
+        <li>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 13.5L8 21l4-2 4 2-1-7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          <div><h2 class="h4" data-i18n="home.f2.title"></h2><p data-i18n="home.f2.text"></p></div>
+        </li>
+        <li>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+          <div><h2 class="h4" data-i18n="home.f3.title"></h2><p data-i18n="home.f3.text"></p></div>
+        </li>
+      </ul>
+    </section>
+
+    <!-- ===== 2. Services ===== -->
+    <section id="services" class="panel" role="tabpanel" aria-labelledby="tab-services" hidden>
+      <h1 data-i18n="services.title"></h1>
+      <p class="lead" data-i18n="services.lead"></p>
+      <ul class="cards">
+        <li class="card"><h2 class="h3" data-i18n="cat.official"></h2><p data-i18n="services.official"></p></li>
+        <li class="card"><h2 class="h3" data-i18n="cat.academic"></h2><p data-i18n="services.academic"></p></li>
+        <li class="card"><h2 class="h3" data-i18n="cat.business"></h2><p data-i18n="services.business"></p></li>
+        <li class="card"><h2 class="h3" data-i18n="cat.sports"></h2><p data-i18n="services.sports"></p></li>
+      </ul>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" data-goto="pricing" data-i18n="services.cta"></button>
+      </div>
+    </section>
+
+    <!-- ===== 3. Pricing (rows built from config.js) ===== -->
+    <section id="pricing" class="panel" role="tabpanel" aria-labelledby="tab-pricing" hidden>
+      <h1 data-i18n="pricing.title"></h1>
+      <p class="lead" data-i18n="pricing.lead"></p>
+      <div class="table-wrap">
+        <table class="price-table">
+          <thead>
+            <tr>
+              <th scope="col" data-i18n="pricing.colCategory"></th>
+              <th scope="col" class="num"><span data-i18n="pricing.colNormal"></span><small data-turnaround="normal"></small></th>
+              <th scope="col" class="num"><span data-i18n="pricing.colExpress"></span><small data-turnaround="express"></small></th>
+            </tr>
+          </thead>
+          <tbody id="price-rows"></tbody>
+        </table>
+      </div>
+      <p class="price-extra"><span data-i18n="pricing.cert"></span> <strong data-i18n="pricing.certValue"></strong></p>
+      <p class="note" data-i18n="pricing.note"></p>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" data-goto="calculator" data-i18n="pricing.cta"></button>
+      </div>
+    </section>
+
+    <!-- ===== 4. Price calculator (logic: Phase 2) ===== -->
+    <section id="calculator" class="panel" role="tabpanel" aria-labelledby="tab-calculator" hidden>
+      <h1 data-i18n="calc.title"></h1>
+      <p class="lead" data-i18n="calc.lead"></p>
+      <form id="calc-form" class="form" novalidate>
+        <div class="field">
+          <label for="c-category" data-i18n="calc.category"></label>
+          <select id="c-category" name="category" data-options="categories"></select>
+        </div>
+        <div class="field">
+          <label for="c-pages" data-i18n="calc.pages"></label>
+          <input id="c-pages" name="pages" type="number" inputmode="numeric" min="1" max="999" step="1" value="1">
+        </div>
+        <fieldset class="field">
+          <legend data-i18n="calc.urgency"></legend>
+          <div class="choice-row">
+            <label class="choice"><input type="radio" name="urgency" value="normal" checked><span data-i18n="calc.normal"></span></label>
+            <label class="choice"><input type="radio" name="urgency" value="express"><span data-i18n="calc.express"></span></label>
+          </div>
+        </fieldset>
+        <div class="field">
+          <label class="choice"><input type="checkbox" id="c-cert" name="certified"><span data-i18n="calc.cert"></span></label>
+        </div>
+        <div class="estimate" aria-live="polite">
+          <p class="estimate-label" data-i18n="calc.resultLabel"></p>
+          <p class="estimate-value" id="calc-result">—</p>
+          <p class="estimate-note" data-i18n="calc.disclaimer"></p>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn btn-primary" data-goto="submit" data-i18n="calc.cta"></button>
+        </div>
+      </form>
+    </section>
+
+    <!-- ===== 5. Submit job (validation: Phase 2, sending: Phase 3) ===== -->
+    <section id="submit" class="panel" role="tabpanel" aria-labelledby="tab-submit" hidden>
+      <h1 data-i18n="form.title"></h1>
+      <p class="lead" data-i18n="form.lead"></p>
+      <p class="note"><span aria-hidden="true">* </span><span data-i18n="form.requiredNote"></span></p>
+      <form id="job-form" class="form" novalidate>
+
+        <fieldset class="group">
+          <legend class="group-title" data-i18n="form.sec.contact"></legend>
+          <div class="field">
+            <label for="f-name"><span data-i18n="form.name"></span> <span class="req" aria-hidden="true">*</span><span class="sr-only" data-i18n="a11y.required"></span></label>
+            <input id="f-name" name="name" type="text" autocomplete="name" maxlength="120" required aria-describedby="f-name-err">
+            <p class="field-error" id="f-name-err" hidden></p>
+          </div>
+          <div class="field">
+            <label for="f-email"><span data-i18n="form.email"></span> <span class="req" aria-hidden="true">*</span><span class="sr-only" data-i18n="a11y.required"></span></label>
+            <input id="f-email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="160" required aria-describedby="f-email-err">
+            <p class="field-error" id="f-email-err" hidden></p>
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label for="f-line" data-i18n="form.line"></label>
+              <input id="f-line" name="line" type="text" autocomplete="off" maxlength="60" aria-describedby="f-line-err">
+              <p class="field-error" id="f-line-err" hidden></p>
+            </div>
+            <div class="field">
+              <label for="f-phone" data-i18n="form.phone"></label>
+              <input id="f-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" aria-describedby="f-phone-err">
+              <p class="field-error" id="f-phone-err" hidden></p>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset class="group">
+          <legend class="group-title" data-i18n="form.sec.document"></legend>
+          <div class="grid-2">
+            <div class="field">
+              <label for="f-langPair"><span data-i18n="form.langPair"></span> <span class="req" aria-hidden="true">*</span><span class="sr-only" data-i18n="a11y.required"></span></label>
+              <select id="f-langPair" name="langPair" required data-options="languagePairs" aria-describedby="f-langPair-err"></select>
+              <p class="field-error" id="f-langPair-err" hidden></p>
+            </div>
+            <div class="field">
+              <label for="f-category"><span data-i18n="form.category"></span> <span class="req" aria-hidden="true">*</span><span class="sr-only" data-i18n="a11y.required"></span></label>
+              <select id="f-category" name="category" required data-options="categories" aria-describedby="f-category-err"></select>
+              <p class="field-error" id="f-category-err" hidden></p>
+            </div>
+            <div class="field">
+              <label for="f-pages" data-i18n="form.pages"></label>
+              <input id="f-pages" name="pages" type="number" inputmode="numeric" min="1" max="999" step="1" aria-describedby="f-pages-err">
+              <p class="field-error" id="f-pages-err" hidden></p>
+            </div>
+            <div class="field">
+              <label for="f-neededBy"><span data-i18n="form.neededBy"></span> <span class="req" aria-hidden="true">*</span><span class="sr-only" data-i18n="a11y.required"></span></label>
+              <input id="f-neededBy" name="neededBy" type="date" required aria-describedby="f-neededBy-err">
+              <p class="field-error" id="f-neededBy-err" hidden></p>
+            </div>
+          </div>
+          <fieldset class="field">
+            <legend data-i18n="form.certified"></legend>
+            <div class="choice-row">
+              <label class="choice"><input type="radio" name="certified" value="yes"><span data-i18n="form.yes"></span></label>
+              <label class="choice"><input type="radio" name="certified" value="no" checked><span data-i18n="form.no"></span></label>
+            </div>
+          </fieldset>
+          <div class="field">
+            <label for="f-nameSpelling" data-i18n="form.nameSpelling"></label>
+            <input id="f-nameSpelling" name="nameSpelling" type="text" autocomplete="off" autocapitalize="characters" maxlength="200" aria-describedby="f-nameSpelling-hint">
+            <p class="hint" id="f-nameSpelling-hint" data-i18n="form.nameSpellingHint"></p>
+          </div>
+          <div class="field">
+            <label for="f-notes" data-i18n="form.notes"></label>
+            <textarea id="f-notes" name="notes" rows="4" maxlength="2000" data-i18n-placeholder="form.notesPh"></textarea>
+          </div>
+        </fieldset>
+
+        <fieldset class="group">
+          <legend class="group-title" data-i18n="form.sec.files"></legend>
+          <div class="field">
+            <span class="label-like" id="f-files-label"><span data-i18n="form.files"></span> <span class="req" aria-hidden="true">*</span><span class="sr-only" data-i18n="a11y.required"></span></span>
+            <label class="file-drop" for="f-files">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 15v4h14v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="file-drop-btn" data-i18n="form.filesButton"></span>
+              <span class="hint" id="f-files-hint" data-i18n="form.filesHint"></span>
+            </label>
+            <input id="f-files" class="file-input" name="files" type="file" multiple required
+                   accept=".pdf,.jpg,.jpeg,.png,.docx,application/pdf,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                   aria-labelledby="f-files-label" aria-describedby="f-files-hint f-files-err">
+            <ul class="file-list" id="file-list"><li class="muted" data-i18n="form.filesNone"></li></ul>
+            <p class="field-error" id="f-files-err" hidden></p>
+          </div>
+        </fieldset>
+
+        <div class="field consent">
+          <label class="choice choice-top">
+            <input type="checkbox" id="f-consent" name="consent" required aria-describedby="f-consent-err">
+            <span><span data-i18n="form.consent"></span> <button type="button" class="btn-link inline" data-goto="privacy" data-i18n="form.consentLink"></button> <span class="req" aria-hidden="true">*</span><span class="sr-only" data-i18n="a11y.required"></span></span>
+          </label>
+          <p class="field-error" id="f-consent-err" hidden></p>
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="btn btn-primary btn-lg btn-block" data-i18n="form.submit"></button>
+        </div>
+        <div id="form-status" class="form-status" role="status" aria-live="polite" hidden></div>
+      </form>
+    </section>
+
+    <!-- ===== 6. Track job (lookup: Phase 4) ===== -->
+    <section id="track" class="panel" role="tabpanel" aria-labelledby="tab-track" hidden>
+      <h1 data-i18n="track.title"></h1>
+      <p class="lead" data-i18n="track.lead"></p>
+      <form id="track-form" class="form" novalidate>
+        <div class="field">
+          <label for="t-jobNo" data-i18n="track.jobNo"></label>
+          <input id="t-jobNo" name="jobNo" type="text" autocomplete="off" autocapitalize="characters" maxlength="20" placeholder="TR-2569-0001" aria-describedby="t-jobNo-err">
+          <p class="field-error" id="t-jobNo-err" hidden></p>
+        </div>
+        <div class="field">
+          <label for="t-email" data-i18n="track.email"></label>
+          <input id="t-email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="160" aria-describedby="t-email-err">
+          <p class="field-error" id="t-email-err" hidden></p>
+        </div>
+        <div class="actions">
+          <button type="submit" class="btn btn-primary btn-block" data-i18n="track.submit"></button>
+        </div>
+        <div id="track-result" class="form-status" role="status" aria-live="polite" hidden></div>
+      </form>
+    </section>
+
+    <!-- ===== 7. How it works ===== -->
+    <section id="how" class="panel" role="tabpanel" aria-labelledby="tab-how" hidden>
+      <h1 data-i18n="how.title"></h1>
+      <ol class="steps">
+        <li><h2 class="h4" data-i18n="how.s1.title"></h2><p data-i18n="how.s1.text"></p></li>
+        <li><h2 class="h4" data-i18n="how.s2.title"></h2><p data-i18n="how.s2.text"></p></li>
+        <li><h2 class="h4" data-i18n="how.s3.title"></h2><p data-i18n="how.s3.text"></p></li>
+        <li><h2 class="h4" data-i18n="how.s4.title"></h2><p data-i18n="how.s4.text"></p></li>
+        <li><h2 class="h4" data-i18n="how.s5.title"></h2><p data-i18n="how.s5.text"></p></li>
+      </ol>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" data-goto="submit" data-i18n="how.cta"></button>
+      </div>
+    </section>
+
+    <!-- ===== 8. FAQ ===== -->
+    <section id="faq" class="panel" role="tabpanel" aria-labelledby="tab-faq" hidden>
+      <h1 data-i18n="faq.title"></h1>
+      <div class="accordion">
+        <details><summary data-i18n="faq.q1"></summary><p data-i18n="faq.a1"></p></details>
+        <details><summary data-i18n="faq.q2"></summary><p data-i18n="faq.a2"></p></details>
+        <details><summary data-i18n="faq.q3"></summary><p data-i18n="faq.a3"></p></details>
+        <details><summary data-i18n="faq.q4"></summary><p data-i18n="faq.a4"></p></details>
+        <details><summary data-i18n="faq.q5"></summary><p data-i18n="faq.a5"></p></details>
+        <details><summary data-i18n="faq.q6"></summary><p data-i18n="faq.a6"></p></details>
+      </div>
+    </section>
+
+    <!-- ===== 9. Contact ===== -->
+    <section id="contact" class="panel" role="tabpanel" aria-labelledby="tab-contact" hidden>
+      <h1 data-i18n="contact.title"></h1>
+      <p class="lead" data-i18n="contact.lead"></p>
+      <div class="actions">
+        <a class="btn btn-primary btn-lg btn-block" data-contact="line" target="_blank" rel="noopener noreferrer">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4C7 4 3 7.2 3 11.2c0 3.6 3.2 6.6 7.5 7.1l-.4 2.2c-.1.4.3.7.7.5 2.4-1.4 7.2-4.6 8.7-7.2.6-.8.9-1.7.9-2.6C21 7.2 17 4 12 4z" fill="currentColor"/></svg>
+          <span data-i18n="contact.line"></span>
+          <span class="sr-only" data-i18n="a11y.newTab"></span>
+        </a>
+      </div>
+      <ul class="contact-list">
+        <li>
+          <a class="contact-item" data-contact="phone" target="_blank" rel="noopener">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 3.5l2.6.4 1.3 4-2 1.6a12 12 0 0 0 6 6l1.6-2 4 1.3.4 2.6c.1.9-.6 1.6-1.5 1.6C10.3 19 5 13.7 5 5c0-.9.7-1.6 1.6-1.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            <span><span class="contact-label" data-i18n="contact.call"></span><span class="contact-value" data-contact-text="phone"></span></span>
+          </a>
+        </li>
+        <li>
+          <a class="contact-item" data-contact="email" target="_blank" rel="noopener">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 7l8.5 6 8.5-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            <span><span class="contact-label" data-i18n="contact.email"></span><span class="contact-value" data-contact-text="email"></span></span>
+          </a>
+        </li>
+        <li>
+          <div class="contact-item static">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span><span class="contact-label" data-i18n="contact.hours"></span><span class="contact-value" data-contact-text="hours"></span></span>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <!-- ===== 10. Privacy policy (PDPA) ===== -->
+    <section id="privacy" class="panel prose" role="tabpanel" aria-labelledby="tab-privacy" hidden>
+      <h1 data-i18n="privacy.title"></h1>
+      <p class="note"><span data-i18n="privacy.updated"></span>: <span data-privacy-updated></span></p>
+      <p data-i18n="privacy.intro"></p>
+      <h2 class="h3" data-i18n="privacy.h1"></h2><p data-i18n="privacy.p1"></p>
+      <h2 class="h3" data-i18n="privacy.h2"></h2><p data-i18n="privacy.p2"></p>
+      <h2 class="h3" data-i18n="privacy.h3"></h2><p data-i18n="privacy.p3"></p>
+      <h2 class="h3" data-i18n="privacy.h4"></h2><p data-i18n="privacy.p4"></p>
+      <h2 class="h3" data-i18n="privacy.h5"></h2><p data-i18n="privacy.p5"></p>
+      <h2 class="h3" data-i18n="privacy.h6"></h2>
+      <p><a data-contact="email" target="_blank" rel="noopener"><span data-contact-text="email"></span></a></p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p data-i18n="footer.rights"></p>
+    <button type="button" class="btn-link" data-goto="privacy" data-i18n="footer.privacy"></button>
+  </footer>
+
+  <noscript><p class="noscript">Please enable JavaScript. / กรุณาเปิดใช้งาน JavaScript</p></noscript>
+
+  <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
