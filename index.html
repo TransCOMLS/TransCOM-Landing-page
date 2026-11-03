@@ -103,6 +103,19 @@
       <h1 data-i18n="services.title"></h1>
       <p class="lead" data-i18n="services.lead"></p>
       <ul class="cards">
+        <li class="card card-featured">
+          <span class="icon-circle" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="8.5" cy="11" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 16c.6-1.6 1.9-2.4 3.5-2.4s2.9.8 3.5 2.4M14 10h4.5M14 13.5h4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+          <div class="card-body">
+            <p class="badge" data-i18n="services.civilBadge"></p>
+            <h2 class="h3" data-i18n="cat.civil"></h2>
+            <p data-i18n="services.civil"></p>
+            <p class="card-note" data-i18n="civil.idNote"></p>
+            <details class="doc-list">
+              <summary data-civil-count></summary>
+              <ul id="civil-docs"></ul>
+            </details>
+          </div>
+        </li>
         <li class="card"><span class="icon-circle" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3.5h7l4 4V20.5H7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3.5v4h4M10 12h5M10 15.5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><h2 class="h3" data-i18n="cat.official"></h2><p data-i18n="services.official"></p></li>
         <li class="card"><span class="icon-circle" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.5 9.5L12 5l9.5 4.5L12 14z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M6.5 11.5v4.5c1.5 1.5 3.5 2.2 5.5 2.2s4-.7 5.5-2.2v-4.5M21.5 9.5v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><h2 class="h3" data-i18n="cat.academic"></h2><p data-i18n="services.academic"></p></li>
         <li class="card"><span class="icon-circle" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.5" y="7.5" width="17" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 7.5V5.5h6v2M3.5 12.5h17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span><h2 class="h3" data-i18n="cat.business"></h2><p data-i18n="services.business"></p></li>
@@ -131,6 +144,7 @@
       </div>
       <p class="price-extra"><span data-i18n="pricing.cert"></span> <strong data-i18n="pricing.certValue"></strong></p>
       <p class="note" data-i18n="pricing.note"></p>
+      <p class="note" data-i18n="pricing.civilNote"></p>
       <div class="actions">
         <button type="button" class="btn btn-primary" data-goto="calculator" data-i18n="pricing.cta"></button>
       </div>
@@ -145,6 +159,7 @@
           <label for="c-category" data-i18n="calc.category"></label>
           <select id="c-category" name="category" data-options="categories"></select>
         </div>
+        <p class="notice notice-warn" id="calc-civil-note" data-i18n="civil.idNote" hidden></p>
         <div class="field">
           <label for="c-pages" data-i18n="calc.pages"></label>
           <input id="c-pages" name="pages" type="number" inputmode="numeric" min="1" max="999" step="1" value="1" aria-describedby="c-pages-err">
@@ -282,6 +297,36 @@
             <ul class="file-list" id="file-list"><li class="muted" data-i18n="form.filesNone"></li></ul>
             <p class="hint" id="file-total" aria-live="polite" hidden></p>
             <p class="field-error" id="f-files-err" hidden></p>
+          </div>
+        </fieldset>
+
+        <!-- Civil registration documents only: ID required, deleted N days after the customer confirms -->
+        <fieldset class="group" id="id-section" hidden>
+          <legend class="group-title" data-i18n="civil.idTitle"></legend>
+          <div class="notice notice-warn">
+            <p data-i18n="civil.idWhy"></p>
+            <p><strong data-i18n="civil.idDelete"></strong></p>
+          </div>
+          <div class="field">
+            <span class="label-like" id="f-idFiles-label"><span data-i18n="civil.idFiles"></span> <span class="req" aria-hidden="true">*</span><span class="sr-only" data-i18n="a11y.required"></span></span>
+            <label class="file-drop" for="f-idFiles">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 15v4h14v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="file-drop-btn" data-i18n="form.filesButton"></span>
+              <span class="hint" id="f-idFiles-hint" data-i18n="form.filesHint"></span>
+            </label>
+            <input id="f-idFiles" class="file-input" name="idFiles" type="file" multiple
+                   accept=".pdf,.jpg,.jpeg,.png,.docx,application/pdf,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                   aria-labelledby="f-idFiles-label" aria-describedby="f-idFiles-hint f-idFiles-err">
+            <ul class="file-list" id="id-file-list"></ul>
+            <p class="hint" id="id-file-total" aria-live="polite" hidden></p>
+            <p class="field-error" id="f-idFiles-err" hidden></p>
+          </div>
+          <div class="field consent">
+            <label class="choice choice-top">
+              <input type="checkbox" id="f-idConsent" name="idConsent" aria-describedby="f-idConsent-err">
+              <span><span data-i18n="civil.idConsent"></span> <span class="req" aria-hidden="true">*</span><span class="sr-only" data-i18n="a11y.required"></span></span>
+            </label>
+            <p class="field-error" id="f-idConsent-err" hidden></p>
           </div>
         </fieldset>
 

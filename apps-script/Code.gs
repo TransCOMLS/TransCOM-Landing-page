@@ -20,7 +20,9 @@ var CONFIG = {
   codeResendSec: 60,     // wait before another code can be sent to the same email
   codeMaxPerHour: 5,     // codes per email per hour
   sessionDays: 30,       // how long a sign-in lasts
-  maxJobs: 50            // jobs returned in the account history
+  maxJobs: 50,           // jobs returned in the account history
+  idRetentionDays: 15    // civil registration jobs (ID attached): delete data this many
+                         // days after the customer confirms the translation (Phase 3)
 };
 
 var SHEETS = { users: 'Users', jobs: 'Jobs', sessions: '_sessions' };
@@ -56,7 +58,10 @@ var JOB_COLS = [
   ['nameSpelling', 'การสะกดชื่อ'],
   ['notes', 'หมายเหตุ'],
   ['folder', 'โฟลเดอร์ไฟล์'],
-  ['lang', 'ภาษาลูกค้า']
+  ['lang', 'ภาษาลูกค้า'],
+  ['requiresId', 'แนบบัตร (ทะเบียนราษฎร)'],
+  ['confirmedAt', 'ลูกค้ายืนยันความถูกต้องเมื่อ'],
+  ['deleteBy', 'กำหนดลบข้อมูล']
 ];
 
 var SESSION_COLS = [

@@ -36,6 +36,7 @@
     return {
       serviceName: CFG.serviceName[state.lang] || CFG.serviceName.th,
       retentionDays: CFG.retentionDays,
+      idRetentionDays: CFG.idRetentionDays,
       revisionDays: CFG.revisionDays,
       maxFileMB: CFG.maxFileMB,
       normalDays: CFG.turnaround.normal,
@@ -85,6 +86,7 @@
 
     renderPriceRows();
     renderSelectOptions();
+    renderCivilDocs();
 
     $all(".lang-toggle [data-lang]").forEach(function (btn) {
       btn.setAttribute("aria-pressed", String(btn.getAttribute("data-lang") === state.lang));
@@ -106,6 +108,13 @@
       var th = document.createElement("th");
       th.scope = "row";
       th.textContent = categoryLabel(cat.id);
+      if (cat.requiresId) {
+        var badge = document.createElement("span");
+        badge.className = "badge badge-inline";
+        badge.textContent = t("services.civilBadge");
+        th.appendChild(document.createTextNode(" "));
+        th.appendChild(badge);
+      }
       tr.appendChild(th);
       [cat.normal, cat.express].forEach(function (price) {
         var td = document.createElement("td");
@@ -115,6 +124,20 @@
       });
       tbody.appendChild(tr);
     });
+  }
+
+  function renderCivilDocs() {
+    var docs = CFG.civilDocuments || [];
+    var list = $("#civil-docs");
+    if (list) {
+      list.textContent = "";
+      docs.forEach(function (d) {
+        var li = document.createElement("li");
+        li.textContent = d[state.lang] || d.th;
+        list.appendChild(li);
+      });
+    }
+    $all("[data-civil-count]").forEach(function (el) { el.textContent = t("services.civilList", { count: docs.length }); });
   }
 
   function renderSelectOptions() {
@@ -348,6 +371,8 @@
     var pagesBad = v.pagesRaw !== "" && v.pages === null;
 
     setFieldError($("#c-pages"), pagesBad ? [t("err.pages")] : null);
+    var civilNote = $("#calc-civil-note");
+    if (civilNote) civilNote.hidden = !(cat && cat.requiresId);
 
     if (!cat || v.pages === null) {
       result.textContent = t("calc.resultEmpty");
@@ -379,7 +404,7 @@
     if (cta) cta.addEventListener("click", function () {
       var v = calcValues();
       var used = false;
-      if (findCategory(v.category)) { $("#f-category").value = v.category; clearFieldError($("#f-category")); used = true; }
+      if (findCategory(v.category)) { $("#f-category").value = v.category; clearFieldError($("#f-category")); updateIdSection(); used = true; }
       if (v.pages !== null) { $("#f-pages").value = v.pages; clearFieldError($("#f-pages")); used = true; }
       var cert = $('#job-form input[name="certified"][value="' + (v.certified ? "yes" : "no") + '"]');
       if (cert && used) cert.checked = true;
@@ -444,7 +469,30 @@
   }
 
   /* ---------- Phase 2: job form ---------- */
-  var selectedFiles = [];
+  // File pickers: documents to translate, and (civil registration documents only) ID files
+  var pickers = {
+    "f-files":   { files: [], list: "#file-list",    total: "#file-total",    required: "err.filesRequired" },
+    "f-idFiles": { files: [], list: "#id-file-list", total: "#id-file-total", required: "err.idRequired", onlyIf: needsId }
+  };
+  var selectedFiles = pickers["f-files"].files;
+
+  // Categories with requiresId (civil registration documents) need an ID attached
+  function needsId() {
+    var el = document.getElementById("f-category");
+    var cat = el ? findCategory(el.value) : null;
+    return !!(cat && cat.requiresId);
+  }
+
+  function filesRule(id) {
+    return function () {
+      var pk = pickers[id];
+      if (pk.onlyIf && !pk.onlyIf()) return [];
+      if (!pk.files.length) return [t(pk.required)];
+      var out = [];
+      pk.files.forEach(function (f) { out = out.concat(fileProblems(f)); });
+      return out;
+    };
+  }
 
   // Each validator returns an array of messages ([] = valid)
   var jobRules = {
@@ -475,12 +523,9 @@
       if (!v) return [t("err.date")];
       return v < todayISO() ? [t("err.datePast")] : [];
     },
-    "f-files": function () {
-      if (!selectedFiles.length) return [t("err.filesRequired")];
-      var out = [];
-      selectedFiles.forEach(function (f) { out = out.concat(fileProblems(f)); });
-      return out;
-    },
+    "f-files": filesRule("f-files"),
+    "f-idFiles": filesRule("f-idFiles"),
+    "f-idConsent": function (el) { return !needsId() || el.checked ? [] : [t("err.idConsent")]; },
     "f-consent": function (el) { return el.checked ? [] : [t("err.consent")]; }
   };
 
@@ -523,12 +568,14 @@
     el.hidden = !text;
   }
 
-  function renderFileList() {
-    var list = $("#file-list");
-    var total = $("#file-total");
+  function renderFileList(id) {
+    if (!id) { Object.keys(pickers).forEach(renderFileList); return; }
+    var pk = pickers[id];
+    var list = $(pk.list);
+    var total = $(pk.total);
     if (!list) return;
     list.textContent = "";
-    if (!selectedFiles.length) {
+    if (!pk.files.length) {
       var empty = document.createElement("li");
       empty.className = "muted";
       empty.textContent = t("form.filesNone");
@@ -537,7 +584,7 @@
       return;
     }
     var bytes = 0;
-    selectedFiles.forEach(function (f, i) {
+    pk.files.forEach(function (f, i) {
       bytes += f.size;
       var li = document.createElement("li");
       li.className = "file-item" + (fileProblems(f).length ? " is-bad" : "");
@@ -553,10 +600,10 @@
       rm.textContent = t("form.remove");
       rm.setAttribute("aria-label", t("form.removeFile", { name: f.name }));
       rm.addEventListener("click", function () {
-        selectedFiles.splice(i, 1);
-        renderFileList();
-        if (touched["f-files"]) validateField("f-files");
-        var next = $("#file-list .file-remove") || $("#f-files");
+        pk.files.splice(i, 1);
+        renderFileList(id);
+        if (touched[id]) validateField(id);
+        var next = $(pk.list + " .file-remove") || document.getElementById(id);
         if (next) next.focus();
       });
       li.appendChild(name);
@@ -565,43 +612,58 @@
       list.appendChild(li);
     });
     if (total) {
-      total.textContent = t("form.filesCount", { count: selectedFiles.length, size: formatSize(bytes) });
+      total.textContent = t("form.filesCount", { count: pk.files.length, size: formatSize(bytes) });
       total.hidden = false;
     }
   }
 
   // New picks are added to the list (phones often pick one photo at a time)
-  function addFiles(fileList) {
+  function addFiles(id, fileList) {
+    var pk = pickers[id];
     Array.prototype.slice.call(fileList || []).forEach(function (f) {
-      var dup = selectedFiles.some(function (g) { return g.name === f.name && g.size === f.size && g.lastModified === f.lastModified; });
-      if (!dup) selectedFiles.push(f);
+      var dup = pk.files.some(function (g) { return g.name === f.name && g.size === f.size && g.lastModified === f.lastModified; });
+      if (!dup) pk.files.push(f);
     });
-    touched["f-files"] = true;
-    renderFileList();
-    validateField("f-files");
+    touched[id] = true;
+    renderFileList(id);
+    validateField(id);
   }
 
   function initFiles() {
-    var input = $("#f-files");
-    var drop = $(".file-drop");
-    if (!input) return;
-    input.addEventListener("change", function () {
-      addFiles(input.files);
-      try { input.value = ""; } catch (e) { /* old browsers — ignore */ }
+    Object.keys(pickers).forEach(function (id) {
+      var input = document.getElementById(id);
+      if (!input) return;
+      var drop = input.parentElement.querySelector(".file-drop");
+      input.addEventListener("change", function () {
+        addFiles(id, input.files);
+        try { input.value = ""; } catch (e) { /* old browsers — ignore */ }
+      });
+      if (drop) {
+        ["dragenter", "dragover"].forEach(function (type) {
+          drop.addEventListener(type, function (e) { e.preventDefault(); drop.classList.add("dragover"); });
+        });
+        ["dragleave", "drop"].forEach(function (type) {
+          drop.addEventListener(type, function () { drop.classList.remove("dragover"); });
+        });
+        drop.addEventListener("drop", function (e) {
+          e.preventDefault();
+          if (e.dataTransfer) addFiles(id, e.dataTransfer.files);
+        });
+      }
     });
-    if (drop) {
-      ["dragenter", "dragover"].forEach(function (type) {
-        drop.addEventListener(type, function (e) { e.preventDefault(); drop.classList.add("dragover"); });
-      });
-      ["dragleave", "drop"].forEach(function (type) {
-        drop.addEventListener(type, function () { drop.classList.remove("dragover"); });
-      });
-      drop.addEventListener("drop", function (e) {
-        e.preventDefault();
-        if (e.dataTransfer) addFiles(e.dataTransfer.files);
-      });
-    }
     renderFileList();
+  }
+
+  // Show the ID section only for civil registration documents
+  function updateIdSection() {
+    var section = $("#id-section");
+    if (!section) return;
+    var on = needsId();
+    section.hidden = !on;
+    var consent = $("#f-idConsent");
+    if (consent) consent.required = on;
+    if (!on) ["f-idFiles", "f-idConsent"].forEach(function (id) { setFieldError(document.getElementById(id), null); refreshErrorSummary(); });
+    else ["f-idFiles", "f-idConsent"].forEach(function (id) { if (touched[id]) validateField(id); });
   }
 
   function initJobForm() {
@@ -609,13 +671,16 @@
     if (!form) return;
     var date = $("#f-neededBy");
     var status = $("#form-status");
+    var category = $("#f-category");
+    if (category) category.addEventListener("change", updateIdSection);
+    updateIdSection();
 
     function refreshMinDate() { if (date) date.min = todayISO(); }
     refreshMinDate();
 
     Object.keys(jobRules).forEach(function (id) {
       var el = document.getElementById(id);
-      if (!el || id === "f-files") return;
+      if (!el || pickers[id]) return;
       // Show an error once the person leaves a field; then update it live as they fix it
       el.addEventListener("blur", function () {
         if (el.value !== "" || el.type === "checkbox") { touched[id] = true; validateField(id); }
@@ -632,7 +697,7 @@
       var r = validateJobForm();
       if (!r.ok) {
         showStatus(status, "error", t("form.errSummary", { count: r.count }));
-        var target = r.firstBad && r.firstBad.id === "f-files" ? $(".file-drop") : r.firstBad;
+        var target = r.firstBad && pickers[r.firstBad.id] ? r.firstBad.parentElement.querySelector(".file-drop") : r.firstBad;
         if (r.firstBad) {
           if (target && target.scrollIntoView) target.scrollIntoView({ block: "center" });
           r.firstBad.focus({ preventScroll: true });
@@ -675,7 +740,10 @@
       notes: val("f-notes"),
       consent: $("#f-consent").checked,
       lang: state.lang,
-      files: selectedFiles.slice()
+      files: selectedFiles.slice(),
+      requiresId: needsId(),
+      idFiles: needsId() ? pickers["f-idFiles"].files.slice() : [],
+      idConsent: needsId() ? $("#f-idConsent").checked : false
     };
   }
 

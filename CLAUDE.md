@@ -24,6 +24,8 @@ provider manages all jobs from one Google Sheet, with no paid server.
 - `js/config.js` — `window.APP_CONFIG`: service name, Apps Script URL, contact,
   language pairs, categories + per-page prices, turnaround, certification fee
   (per job), revision/retention days, upload limits. All editable values live here.
+  Category `civil` (civil registration documents, `requiresId: true`) has a lower
+  "special rate"; `civilDocuments` lists the 18 documents (TH/EN); `idRetentionDays: 15`.
 - `js/i18n.js` — `window.I18N.th` / `.en`, flat keys. Every key must exist in both.
   `{tokens}` are filled from config (`{serviceName}`, `{retentionDays}`, …).
 - `js/app.js` — IIFE; exposes `window.App` (`t`, `config`, `getLang`, `showTab`,
@@ -72,10 +74,18 @@ provider manages all jobs from one Google Sheet, with no paid server.
       `files` as File objects); track form fires `tracksubmit`. Phase 3/4 hook these and
       call `preventDefault()`; otherwise a "not open yet" notice is shown.
 - [x] Accounts (owner's request between phases) — see `js/account.js` / `Code.gs` above.
+- [x] Civil registration documents (owner's request): special-rate category `civil`;
+      the job form then requires ID files (`f-idFiles`, separate picker) and an
+      acknowledgement (`f-idConsent`); notice that all data for the job, incl. the ID copy,
+      is deleted within 15 days of the customer confirming the translation is correct.
+      `jobsubmit` detail has `requiresId`, `idFiles`, `idConsent`.
 - [ ] Phase 3 — `apps-script/Code.gs`: doPost action "submitJob" (base64 files → Drive folder per job,
       row in "Jobs" sheet, running job no. `TR-<พ.ศ.>-0001`), setup(), status dropdown
       with colours, emails via MailApp (provider, customer receipt, status change via
-      installable onEdit trigger); connect the form.
+      installable onEdit trigger); connect the form. Civil jobs: store ID files in the job
+      folder, fill "แนบบัตร (ทะเบียนราษฎร)"; add a customer "translation is correct" step
+      that sets "ลูกค้ายืนยันความถูกต้องเมื่อ" + "กำหนดลบข้อมูล" (+15 days), and a daily
+      time-driven trigger that deletes the Drive folder and personal data when due.
 - [ ] Phase 4 — doGet status lookup (job no. + email, status only), "Dashboard" and
       "Glossary" sheets, Thai README with deployment steps (GitHub Pages, Apps Script
       Web App "Anyone", Google Sites embed).
@@ -91,6 +101,6 @@ console errors, `node --check js/*.js` passes, and i18n keys match between th/en
 The owner keeps a matching preview copy on claude.ai: https://claude.ai/artifact/WrtJLSJG77T717XyWkqMrF
 After each phase, republish it with the Artifact tool, passing that URL as `url` (read it first).
 Publish `index.html` with its `<!DOCTYPE>`, `<html>`, `<head>`/`<body>` tags and the charset/viewport
-metas removed (title, font links and the stylesheet link stay), plus `css/style.css`, the three
+metas removed (title, font links and the stylesheet link stay), plus `css/style.css`, the four
 `js/*.js` files (config, i18n, app, account) and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
 inline for that copy only.

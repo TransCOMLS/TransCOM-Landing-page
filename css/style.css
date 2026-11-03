@@ -653,3 +653,31 @@ a.contact-item:hover { border-color: var(--accent); }
   .acct-grid { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: start; }
   .acct-grid .acct-jobs { grid-row: span 2; }
 }
+
+/* ---------- Civil registration documents (special rate, ID required) ---------- */
+.badge {
+  display: inline-block; margin: 0 0 6px; padding: 1px 10px; border-radius: 999px;
+  background: #fff4d6; color: #7a4d00; font-size: 0.8125rem; font-weight: 700;
+}
+.badge-inline { margin: 0; vertical-align: 2px; }
+.notice-warn { background: #fffaeb; border-color: #fedf89; color: #5c3d00; }
+.notice-warn p { margin: 0; }
+.notice-warn p + p { margin-top: 8px; }
+.card-featured { text-align: left; border-color: #c9d6ec; background: #fff; }
+.card-featured .icon-circle { margin: 0 0 12px; }
+.card-featured .card-note { margin-top: 10px; font-size: 0.9375rem; color: #5c3d00; }
+.doc-list { margin-top: 12px; }
+.doc-list summary {
+  display: inline-flex; align-items: center; min-height: var(--tap); cursor: pointer;
+  color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 3px;
+}
+.doc-list ul { margin: 8px 0 0; padding-left: 1.2em; color: var(--text); columns: 1; column-gap: 32px; }
+.doc-list li { break-inside: avoid; padding: 2px 0; }
+#id-section .notice-warn { margin: 0 0 16px; }
+@media (min-width: 600px) {
+  .card-featured { grid-column: 1 / -1; display: flex; gap: 20px; align-items: flex-start; }
+  .card-featured .icon-circle { flex: none; }
+  .doc-list ul { columns: 2; }
+}
+@media (min-width: 1024px) { .doc-list ul { columns: 3; } }
+.consent > label.choice { display: flex; }

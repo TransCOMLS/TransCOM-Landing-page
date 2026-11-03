@@ -27,12 +27,39 @@ window.APP_CONFIG = {
   ],
 
   // ประเภทเอกสารและราคาต่อหน้า / Categories and price per page (THB)
+  // requiresId: ต้องแนบบัตรประชาชน/เอกสารที่ราชการออกให้ (ราคาพิเศษ — แสดงป้าย "ราคาพิเศษ")
   categories: [
+    { id: "civil",    normal: 300, express: 450, requiresId: true },
     { id: "official", normal: 400, express: 600 },
     { id: "academic", normal: 450, express: 650 },
     { id: "business", normal: 550, express: 800 },
     { id: "sports",   normal: 500, express: 700 }
   ],
+
+  // เอกสารทะเบียนราษฎร (ประเภท "civil") — แสดงในหน้าบริการ / Civil registration documents
+  civilDocuments: [
+    { th: "สูติบัตร", en: "Birth certificate" },
+    { th: "ทะเบียนบ้าน", en: "House registration" },
+    { th: "บัตรประจำตัวประชาชน", en: "Thai national ID card" },
+    { th: "ข้อมูลส่วนบุคคลขณะขอมีบัตร", en: "Personal record from ID card application" },
+    { th: "หนังสือรับรองการใช้คำนำหน้านาม", en: "Certificate of use of title" },
+    { th: "ทะเบียนฐานะแห่งครอบครัว", en: "Family status registration" },
+    { th: "แบบรับรองรายการทะเบียนราษฎร", en: "Certified civil registration record" },
+    { th: "ใบสำคัญการสมรส", en: "Marriage certificate" },
+    { th: "ทะเบียนสมรส", en: "Marriage registration" },
+    { th: "ทะเบียนหย่า", en: "Divorce registration" },
+    { th: "ใบสำคัญการหย่า", en: "Divorce certificate" },
+    { th: "หนังสือสำคัญการจัดตั้งนามสกุล", en: "Surname registration certificate" },
+    { th: "หนังสือสำคัญการเปลี่ยนชื่อ", en: "Change of first name certificate" },
+    { th: "หนังสือสำคัญแสดงการจดทะเบียนเปลี่ยนชื่อ-สกุล", en: "Change of name and surname certificate" },
+    { th: "มรณบัตร", en: "Death certificate" },
+    { th: "หนังสือรับรองการใช้อำนาจปกครองบุตร", en: "Certificate of parental authority" },
+    { th: "หนังสือรับรองการใช้คำนำหน้านามหญิง", en: "Certificate of use of a woman's title" },
+    { th: "หนังสือรับรองสถานภาพการสมรส", en: "Certificate of marital status" }
+  ],
+
+  // ลบข้อมูลและไฟล์งานประเภท requiresId ภายในกี่วัน นับจากวันที่ลูกค้ายืนยันว่าเอกสารแปลถูกต้อง
+  idRetentionDays: 15,
 
   // ระยะเวลาดำเนินการ (วันทำการ) / Turnaround in working days
   turnaround: {
