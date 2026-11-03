@@ -1,5 +1,5 @@
 /*
- * app.js — Phase 1: tabs, language toggle, content from config.js
+ * app.js — Phase 1: pages + menu, language toggle, content from config.js
  *          Phase 2: price calculator, client-side validation (job + track forms)
  * Phase 3 hooks "jobsubmit", Phase 4 hooks "tracksubmit" (call preventDefault to take over).
  */
@@ -9,7 +9,7 @@
   var CFG = window.APP_CONFIG;
   var I18N = window.I18N;
   var LANG_KEY = "tr_lang";
-  var TAB_IDS = ["home", "services", "pricing", "calculator", "submit", "track", "how", "faq", "contact", "privacy"];
+  var TAB_IDS = ["home", "services", "pricing", "calculator", "submit", "track", "how", "faq", "contact", "privacy", "account"];
 
   var state = { lang: "th", tab: "home" };
 
@@ -19,6 +19,9 @@
 
   function storageGet(key) {
     try { return window.localStorage.getItem(key); } catch (e) { return null; }
+  }
+  function storageRemove(key) {
+    try { window.localStorage.removeItem(key); } catch (e) { /* storage blocked — ignore */ }
   }
   function storageSet(key, value) {
     try { window.localStorage.setItem(key, value); } catch (e) { /* storage blocked — ignore */ }
@@ -33,6 +36,7 @@
     return {
       serviceName: CFG.serviceName[state.lang] || CFG.serviceName.th,
       retentionDays: CFG.retentionDays,
+      idRetentionDays: CFG.idRetentionDays,
       revisionDays: CFG.revisionDays,
       maxFileMB: CFG.maxFileMB,
       normalDays: CFG.turnaround.normal,
@@ -82,6 +86,7 @@
 
     renderPriceRows();
     renderSelectOptions();
+    renderCivilDocs();
 
     $all(".lang-toggle [data-lang]").forEach(function (btn) {
       btn.setAttribute("aria-pressed", String(btn.getAttribute("data-lang") === state.lang));
@@ -103,6 +108,13 @@
       var th = document.createElement("th");
       th.scope = "row";
       th.textContent = categoryLabel(cat.id);
+      if (cat.requiresId) {
+        var badge = document.createElement("span");
+        badge.className = "badge badge-inline";
+        badge.textContent = t("services.civilBadge");
+        th.appendChild(document.createTextNode(" "));
+        th.appendChild(badge);
+      }
       tr.appendChild(th);
       [cat.normal, cat.express].forEach(function (price) {
         var td = document.createElement("td");
@@ -112,6 +124,20 @@
       });
       tbody.appendChild(tr);
     });
+  }
+
+  function renderCivilDocs() {
+    var docs = CFG.civilDocuments || [];
+    var list = $("#civil-docs");
+    if (list) {
+      list.textContent = "";
+      docs.forEach(function (d) {
+        var li = document.createElement("li");
+        li.textContent = d[state.lang] || d.th;
+        list.appendChild(li);
+      });
+    }
+    $all("[data-civil-count]").forEach(function (el) { el.textContent = t("services.civilList", { count: docs.length }); });
   }
 
   function renderSelectOptions() {
@@ -144,7 +170,7 @@
       email: "mailto:" + c.email,
       line: c.lineUrl
     };
-    var texts = { phone: c.phoneDisplay, email: c.email };
+    var texts = { phone: c.phoneDisplay, email: c.email, line: c.lineId };
     $all("[data-contact]").forEach(function (a) {
       a.setAttribute("href", hrefs[a.getAttribute("data-contact")]);
     });
@@ -154,21 +180,24 @@
     });
   }
 
-  /* ---------- tabs (in-page navigation, no page loads) ---------- */
+  /* ---------- pages (in-page navigation, no page loads) ---------- */
   function showTab(id, opts) {
     opts = opts || {};
     if (TAB_IDS.indexOf(id) === -1) id = "home";
     state.tab = id;
 
-    $all('[role="tab"]').forEach(function (tab) {
-      var on = tab.getAttribute("data-tab") === id;
-      tab.setAttribute("aria-selected", String(on));
-      tab.tabIndex = on ? 0 : -1;
-      if (on) keepTabVisible(tab);
+    // Highlight the current page in the menu, and the dropdown that holds it
+    $all(".main-nav [data-tab]").forEach(function (btn) {
+      if (btn.getAttribute("data-tab") === id) btn.setAttribute("aria-current", "page");
+      else btn.removeAttribute("aria-current");
     });
-    $all('[role="tabpanel"]').forEach(function (panel) {
+    $all(".nav-group").forEach(function (g) {
+      g.classList.toggle("is-current", !!$('[data-tab="' + id + '"]', g));
+    });
+    $all("main > .panel").forEach(function (panel) {
       panel.hidden = panel.id !== id;
     });
+    closeMenus();
 
     try { history.replaceState(null, "", "#" + id); } catch (e) { /* sandboxed — ignore */ }
 
@@ -182,39 +211,95 @@
     document.dispatchEvent(new CustomEvent("tabchange", { detail: { tab: id } }));
   }
 
-  // Scroll only the tab strip (scrollIntoView could also scroll the Google Sites page)
-  function keepTabVisible(tab) {
-    var strip = tab.parentElement;
-    if (!strip || strip.scrollWidth <= strip.clientWidth) return;
-    var left = tab.offsetLeft - strip.offsetLeft;
-    var right = left + tab.offsetWidth;
-    if (left < strip.scrollLeft + 16) strip.scrollLeft = Math.max(0, left - 16);
-    else if (right > strip.scrollLeft + strip.clientWidth - 48) strip.scrollLeft = right - strip.clientWidth + 48;
+  /* ---------- menu: dropdowns (PC) and the menu-button panel (phone/tablet) ---------- */
+  var wideMQ = window.matchMedia ? window.matchMedia("(min-width: 1024px)") : null;
+  function isWide() { return !!(wideMQ && wideMQ.matches); }
+
+  function setGroup(toggle, open) { toggle.setAttribute("aria-expanded", String(open)); }
+
+  function setMobileMenu(open) {
+    var header = $(".site-header");
+    var btn = $(".menu-btn");
+    if (!header || !btn) return;
+    header.classList.toggle("menu-open", open);
+    btn.setAttribute("aria-expanded", String(open));
+    // In the panel every group starts open, so all pages are one tap away
+    if (open) $all(".nav-toggle").forEach(function (t) { setGroup(t, true); });
+  }
+
+  function closeMenus() {
+    $all(".nav-toggle").forEach(function (t) { setGroup(t, false); });
+    setMobileMenu(false);
   }
 
   function initTabs() {
-    var tabs = $all('[role="tab"]');
-    tabs.forEach(function (tab, i) {
-      tab.addEventListener("click", function () { showTab(tab.getAttribute("data-tab")); });
-      tab.addEventListener("keydown", function (e) {
-        var next = null;
-        // Left/Right on phone & tablet, Up/Down when the menu is a sidebar (PC)
-        if (e.key === "ArrowRight" || e.key === "ArrowDown") next = tabs[(i + 1) % tabs.length];
-        else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = tabs[(i - 1 + tabs.length) % tabs.length];
-        else if (e.key === "Home") next = tabs[0];
-        else if (e.key === "End") next = tabs[tabs.length - 1];
-        if (next) {
-          e.preventDefault();
-          next.focus();
-          showTab(next.getAttribute("data-tab"));
-        }
+    $all(".main-nav [data-tab]").forEach(function (btn) {
+      btn.addEventListener("click", function () { showTab(btn.getAttribute("data-tab"), { focusHeading: true }); });
+    });
+
+    $all(".nav-toggle").forEach(function (toggle) {
+      toggle.addEventListener("click", function () {
+        var open = toggle.getAttribute("aria-expanded") !== "true";
+        if (isWide()) $all(".nav-toggle").forEach(function (t) { if (t !== toggle) setGroup(t, false); });
+        setGroup(toggle, open);
+      });
+      // PC: Down arrow opens the dropdown and moves into it
+      toggle.addEventListener("keydown", function (e) {
+        if (e.key !== "ArrowDown" || !isWide()) return;
+        e.preventDefault();
+        setGroup(toggle, true);
+        var first = $(".nav-sublink", toggle.parentElement);
+        if (first) first.focus();
+      });
+    });
+
+    // Up/Down move between items inside an open dropdown
+    $all(".nav-sub").forEach(function (sub) {
+      sub.addEventListener("keydown", function (e) {
+        if (!isWide() || (e.key !== "ArrowDown" && e.key !== "ArrowUp")) return;
+        var items = $all(".nav-sublink", sub);
+        var i = items.indexOf(document.activeElement);
+        if (i === -1) return;
+        e.preventDefault();
+        items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length].focus();
+      });
+    });
+
+    var menuBtn = $(".menu-btn");
+    if (menuBtn) menuBtn.addEventListener("click", function () {
+      setMobileMenu(menuBtn.getAttribute("aria-expanded") !== "true");
+    });
+
+    // Escape closes whatever is open and puts focus back on its button
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape") return;
+      var openToggle = $('.nav-toggle[aria-expanded="true"]');
+      var panelOpen = menuBtn && menuBtn.getAttribute("aria-expanded") === "true";
+      if (!openToggle && !panelOpen) return;
+      var back = panelOpen ? menuBtn : openToggle;
+      closeMenus();
+      back.focus();
+    });
+
+    // Click or tap outside the header closes menus
+    document.addEventListener("click", function (e) {
+      if (!e.target.closest(".site-header")) closeMenus();
+    });
+    // PC: a dropdown closes when focus leaves it
+    $all(".nav-group").forEach(function (g) {
+      g.addEventListener("focusout", function (e) {
+        if (isWide() && !g.contains(e.relatedTarget)) setGroup($(".nav-toggle", g), false);
       });
     });
 
     document.addEventListener("click", function (e) {
+      var opener = e.target.closest("[data-modal]");
+      if (opener) { e.preventDefault(); openPrivacy(opener); return; }
       var btn = e.target.closest("[data-goto]");
       if (!btn) return;
       e.preventDefault();
+      // While filling in the job form, show the policy as a pop-up instead of leaving the form
+      if (btn.getAttribute("data-goto") === "privacy" && state.tab === "submit") { openPrivacy(btn); return; }
       showTab(btn.getAttribute("data-goto"), { focusHeading: true });
     });
 
@@ -223,19 +308,66 @@
       if (id && id !== state.tab && TAB_IDS.indexOf(id) !== -1) showTab(id);
     });
 
-    // Sidebar on PC is a vertical tab list
-    var list = $('[role="tablist"]');
-    var wide = window.matchMedia ? window.matchMedia("(min-width: 1024px)") : null;
-    function setOrientation() {
-      if (list) list.setAttribute("aria-orientation", wide && wide.matches ? "vertical" : "horizontal");
-    }
-    setOrientation();
-    if (wide) {
-      if (wide.addEventListener) wide.addEventListener("change", setOrientation);
-      else if (wide.addListener) wide.addListener(setOrientation);
+    // Switching between phone and PC layout resets the menu
+    if (wideMQ) {
+      if (wideMQ.addEventListener) wideMQ.addEventListener("change", closeMenus);
+      else if (wideMQ.addListener) wideMQ.addListener(closeMenus);
     }
 
     showTab(location.hash.replace("#", "") || "home", { initial: true });
+    undoLoadJump();
+  }
+
+  // Tab ids double as #hash routes, so on load the browser jumps to the <section> and
+  // hides the header (inside Google Sites this can scroll the outer page too).
+  // Put the page back at the top unless the person has already started scrolling.
+  function undoLoadJump() {
+    var touched = false;
+    function mark() { touched = true; }
+    ["wheel", "touchstart", "keydown", "mousedown"].forEach(function (type) {
+      window.addEventListener(type, mark, { once: true, passive: true });
+    });
+    function reset() { if (!touched && window.scrollY) window.scrollTo(0, 0); }
+    if (document.readyState === "complete") setTimeout(reset, 0);
+    else window.addEventListener("load", function () { setTimeout(reset, 0); });
+  }
+
+  /* ---------- privacy policy pop-up ---------- */
+  var lastOpener = null;
+
+  function openPrivacy(opener) {
+    var dlg = $("#privacy-dialog");
+    var body = $("#privacy-dialog-body");
+    // No <dialog> support (very old browsers): fall back to the page
+    if (!dlg || !body || typeof dlg.showModal !== "function") { showTab("privacy", { focusHeading: true }); return; }
+    // Copy the policy from its page, in the current language (title is in the pop-up header)
+    body.textContent = "";
+    Array.prototype.forEach.call($("#privacy").children, function (node) {
+      if (node.tagName !== "H1") body.appendChild(node.cloneNode(true));
+    });
+    lastOpener = opener || null;
+    document.documentElement.classList.add("modal-open");
+    dlg.showModal();
+    body.scrollTop = 0;
+    var close = $(".modal-close", dlg);
+    if (close) close.focus();
+  }
+
+  function initPrivacyDialog() {
+    var dlg = $("#privacy-dialog");
+    if (!dlg) return;
+    $all("[data-close-modal]", dlg).forEach(function (b) {
+      b.addEventListener("click", function () { dlg.close(); });
+    });
+    // Click on the dimmed background closes it
+    dlg.addEventListener("click", function (e) { if (e.target === dlg) dlg.close(); });
+    dlg.addEventListener("close", function () {
+      document.documentElement.classList.remove("modal-open");
+      if (lastOpener && document.contains(lastOpener)) lastOpener.focus({ preventScroll: true });
+      lastOpener = null;
+    });
+    // Re-copy in the new language if the language changes while it is open
+    document.addEventListener("langchange", function () { if (dlg.open) openPrivacy(lastOpener); });
   }
 
   /* ---------- small UI bits ---------- */
@@ -281,6 +413,8 @@
     var pagesBad = v.pagesRaw !== "" && v.pages === null;
 
     setFieldError($("#c-pages"), pagesBad ? [t("err.pages")] : null);
+    var civilNote = $("#calc-civil-note");
+    if (civilNote) civilNote.hidden = !(cat && cat.requiresId);
 
     if (!cat || v.pages === null) {
       result.textContent = t("calc.resultEmpty");
@@ -312,7 +446,7 @@
     if (cta) cta.addEventListener("click", function () {
       var v = calcValues();
       var used = false;
-      if (findCategory(v.category)) { $("#f-category").value = v.category; clearFieldError($("#f-category")); used = true; }
+      if (findCategory(v.category)) { $("#f-category").value = v.category; clearFieldError($("#f-category")); updateIdSection(); used = true; }
       if (v.pages !== null) { $("#f-pages").value = v.pages; clearFieldError($("#f-pages")); used = true; }
       var cert = $('#job-form input[name="certified"][value="' + (v.certified ? "yes" : "no") + '"]');
       if (cert && used) cert.checked = true;
@@ -377,7 +511,30 @@
   }
 
   /* ---------- Phase 2: job form ---------- */
-  var selectedFiles = [];
+  // File pickers: documents to translate, and (civil registration documents only) ID files
+  var pickers = {
+    "f-files":   { files: [], list: "#file-list",    total: "#file-total",    required: "err.filesRequired" },
+    "f-idFiles": { files: [], list: "#id-file-list", total: "#id-file-total", required: "err.idRequired", onlyIf: needsId }
+  };
+  var selectedFiles = pickers["f-files"].files;
+
+  // Categories with requiresId (civil registration documents) need an ID attached
+  function needsId() {
+    var el = document.getElementById("f-category");
+    var cat = el ? findCategory(el.value) : null;
+    return !!(cat && cat.requiresId);
+  }
+
+  function filesRule(id) {
+    return function () {
+      var pk = pickers[id];
+      if (pk.onlyIf && !pk.onlyIf()) return [];
+      if (!pk.files.length) return [t(pk.required)];
+      var out = [];
+      pk.files.forEach(function (f) { out = out.concat(fileProblems(f)); });
+      return out;
+    };
+  }
 
   // Each validator returns an array of messages ([] = valid)
   var jobRules = {
@@ -408,12 +565,9 @@
       if (!v) return [t("err.date")];
       return v < todayISO() ? [t("err.datePast")] : [];
     },
-    "f-files": function () {
-      if (!selectedFiles.length) return [t("err.filesRequired")];
-      var out = [];
-      selectedFiles.forEach(function (f) { out = out.concat(fileProblems(f)); });
-      return out;
-    },
+    "f-files": filesRule("f-files"),
+    "f-idFiles": filesRule("f-idFiles"),
+    "f-idConsent": function (el) { return !needsId() || el.checked ? [] : [t("err.idConsent")]; },
     "f-consent": function (el) { return el.checked ? [] : [t("err.consent")]; }
   };
 
@@ -456,12 +610,14 @@
     el.hidden = !text;
   }
 
-  function renderFileList() {
-    var list = $("#file-list");
-    var total = $("#file-total");
+  function renderFileList(id) {
+    if (!id) { Object.keys(pickers).forEach(renderFileList); return; }
+    var pk = pickers[id];
+    var list = $(pk.list);
+    var total = $(pk.total);
     if (!list) return;
     list.textContent = "";
-    if (!selectedFiles.length) {
+    if (!pk.files.length) {
       var empty = document.createElement("li");
       empty.className = "muted";
       empty.textContent = t("form.filesNone");
@@ -470,7 +626,7 @@
       return;
     }
     var bytes = 0;
-    selectedFiles.forEach(function (f, i) {
+    pk.files.forEach(function (f, i) {
       bytes += f.size;
       var li = document.createElement("li");
       li.className = "file-item" + (fileProblems(f).length ? " is-bad" : "");
@@ -486,10 +642,10 @@
       rm.textContent = t("form.remove");
       rm.setAttribute("aria-label", t("form.removeFile", { name: f.name }));
       rm.addEventListener("click", function () {
-        selectedFiles.splice(i, 1);
-        renderFileList();
-        if (touched["f-files"]) validateField("f-files");
-        var next = $("#file-list .file-remove") || $("#f-files");
+        pk.files.splice(i, 1);
+        renderFileList(id);
+        if (touched[id]) validateField(id);
+        var next = $(pk.list + " .file-remove") || document.getElementById(id);
         if (next) next.focus();
       });
       li.appendChild(name);
@@ -498,43 +654,58 @@
       list.appendChild(li);
     });
     if (total) {
-      total.textContent = t("form.filesCount", { count: selectedFiles.length, size: formatSize(bytes) });
+      total.textContent = t("form.filesCount", { count: pk.files.length, size: formatSize(bytes) });
       total.hidden = false;
     }
   }
 
   // New picks are added to the list (phones often pick one photo at a time)
-  function addFiles(fileList) {
+  function addFiles(id, fileList) {
+    var pk = pickers[id];
     Array.prototype.slice.call(fileList || []).forEach(function (f) {
-      var dup = selectedFiles.some(function (g) { return g.name === f.name && g.size === f.size && g.lastModified === f.lastModified; });
-      if (!dup) selectedFiles.push(f);
+      var dup = pk.files.some(function (g) { return g.name === f.name && g.size === f.size && g.lastModified === f.lastModified; });
+      if (!dup) pk.files.push(f);
     });
-    touched["f-files"] = true;
-    renderFileList();
-    validateField("f-files");
+    touched[id] = true;
+    renderFileList(id);
+    validateField(id);
   }
 
   function initFiles() {
-    var input = $("#f-files");
-    var drop = $(".file-drop");
-    if (!input) return;
-    input.addEventListener("change", function () {
-      addFiles(input.files);
-      try { input.value = ""; } catch (e) { /* old browsers — ignore */ }
+    Object.keys(pickers).forEach(function (id) {
+      var input = document.getElementById(id);
+      if (!input) return;
+      var drop = input.parentElement.querySelector(".file-drop");
+      input.addEventListener("change", function () {
+        addFiles(id, input.files);
+        try { input.value = ""; } catch (e) { /* old browsers — ignore */ }
+      });
+      if (drop) {
+        ["dragenter", "dragover"].forEach(function (type) {
+          drop.addEventListener(type, function (e) { e.preventDefault(); drop.classList.add("dragover"); });
+        });
+        ["dragleave", "drop"].forEach(function (type) {
+          drop.addEventListener(type, function () { drop.classList.remove("dragover"); });
+        });
+        drop.addEventListener("drop", function (e) {
+          e.preventDefault();
+          if (e.dataTransfer) addFiles(id, e.dataTransfer.files);
+        });
+      }
     });
-    if (drop) {
-      ["dragenter", "dragover"].forEach(function (type) {
-        drop.addEventListener(type, function (e) { e.preventDefault(); drop.classList.add("dragover"); });
-      });
-      ["dragleave", "drop"].forEach(function (type) {
-        drop.addEventListener(type, function () { drop.classList.remove("dragover"); });
-      });
-      drop.addEventListener("drop", function (e) {
-        e.preventDefault();
-        if (e.dataTransfer) addFiles(e.dataTransfer.files);
-      });
-    }
     renderFileList();
+  }
+
+  // Show the ID section only for civil registration documents
+  function updateIdSection() {
+    var section = $("#id-section");
+    if (!section) return;
+    var on = needsId();
+    section.hidden = !on;
+    var consent = $("#f-idConsent");
+    if (consent) consent.required = on;
+    if (!on) ["f-idFiles", "f-idConsent"].forEach(function (id) { setFieldError(document.getElementById(id), null); refreshErrorSummary(); });
+    else ["f-idFiles", "f-idConsent"].forEach(function (id) { if (touched[id]) validateField(id); });
   }
 
   function initJobForm() {
@@ -542,13 +713,16 @@
     if (!form) return;
     var date = $("#f-neededBy");
     var status = $("#form-status");
+    var category = $("#f-category");
+    if (category) category.addEventListener("change", updateIdSection);
+    updateIdSection();
 
     function refreshMinDate() { if (date) date.min = todayISO(); }
     refreshMinDate();
 
     Object.keys(jobRules).forEach(function (id) {
       var el = document.getElementById(id);
-      if (!el || id === "f-files") return;
+      if (!el || pickers[id]) return;
       // Show an error once the person leaves a field; then update it live as they fix it
       el.addEventListener("blur", function () {
         if (el.value !== "" || el.type === "checkbox") { touched[id] = true; validateField(id); }
@@ -565,7 +739,7 @@
       var r = validateJobForm();
       if (!r.ok) {
         showStatus(status, "error", t("form.errSummary", { count: r.count }));
-        var target = r.firstBad && r.firstBad.id === "f-files" ? $(".file-drop") : r.firstBad;
+        var target = r.firstBad && pickers[r.firstBad.id] ? r.firstBad.parentElement.querySelector(".file-drop") : r.firstBad;
         if (r.firstBad) {
           if (target && target.scrollIntoView) target.scrollIntoView({ block: "center" });
           r.firstBad.focus({ preventScroll: true });
@@ -608,7 +782,10 @@
       notes: val("f-notes"),
       consent: $("#f-consent").checked,
       lang: state.lang,
-      files: selectedFiles.slice()
+      files: selectedFiles.slice(),
+      requiresId: needsId(),
+      idFiles: needsId() ? pickers["f-idFiles"].files.slice() : [],
+      idConsent: needsId() ? $("#f-idConsent").checked : false
     };
   }
 
@@ -671,6 +848,7 @@
     applyLanguage(saved === "en" ? "en" : "th");
     initLanguageToggle();
     initTabs();
+    initPrivacyDialog();
     initCalculator();
     initFiles();
     initJobForm();
@@ -689,6 +867,9 @@
     getJobData: getJobData,
     validateJobForm: validateJobForm,
     showStatus: showStatus,
+    setFieldError: setFieldError,
+    storage: { get: storageGet, set: storageSet, remove: storageRemove },
+    rules: { email: EMAIL_RE, line: LINE_RE },
     todayISO: todayISO
   };
 

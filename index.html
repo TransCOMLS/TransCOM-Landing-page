@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>TransCOM</title>
   <meta name="description" content="">
-  <meta name="theme-color" content="#1b3a6b">
+  <meta name="theme-color" content="#01417b">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap">
@@ -14,48 +14,72 @@
 <body>
   <a class="skip-link" href="#main" data-i18n="a11y.skip"></a>
 
-  <!-- ===== Header: brand + language toggle ===== -->
+  <!-- ===== Header: brand, menu, language toggle ===== -->
   <header class="site-header">
     <div class="header-bar">
       <button type="button" class="brand" data-goto="home">
-        <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h9M8.5 5v2c0 4-2 7-4.5 8.5M6 10c1.5 2.5 3.5 4 6 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M13 20l4-9 4 9M14.5 17h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span class="brand-name" data-service-name></span>
+        <img class="brand-logo" src="img/logo.svg" width="1309" height="473" alt="">
+        <span class="sr-only" data-service-name></span>
+      </button>
+      <!-- Menu: top bar with dropdowns (PC), panel behind the menu button (phone/tablet) -->
+      <nav class="main-nav" id="main-nav" data-i18n-aria="a11y.nav">
+        <ul class="nav-list">
+        <li><button type="button" class="nav-link" data-tab="home" data-i18n="nav.home"></button></li>
+        <li class="nav-group">
+          <button type="button" class="nav-link nav-toggle" aria-expanded="false" aria-controls="menu-services"><span data-i18n="nav.g.services"></span><svg class="chev" viewBox="0 0 12 8" aria-hidden="true"><path d="M1 1.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <ul class="nav-sub" id="menu-services">
+            <li><button type="button" class="nav-sublink" data-tab="services" data-i18n="nav.services"></button></li>
+            <li><button type="button" class="nav-sublink" data-tab="pricing" data-i18n="nav.pricing"></button></li>
+            <li><button type="button" class="nav-sublink" data-tab="calculator" data-i18n="nav.calculator"></button></li>
+          </ul>
+        </li>
+        <li class="nav-group">
+          <button type="button" class="nav-link nav-toggle" aria-expanded="false" aria-controls="menu-order"><span data-i18n="nav.g.order"></span><svg class="chev" viewBox="0 0 12 8" aria-hidden="true"><path d="M1 1.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <ul class="nav-sub" id="menu-order">
+            <li><button type="button" class="nav-sublink" data-tab="how" data-i18n="nav.how"></button></li>
+            <li><button type="button" class="nav-sublink" data-tab="submit" data-i18n="nav.submit"></button></li>
+            <li><button type="button" class="nav-sublink" data-tab="track" data-i18n="nav.track"></button></li>
+          </ul>
+        </li>
+        <li class="nav-group">
+          <button type="button" class="nav-link nav-toggle" aria-expanded="false" aria-controls="menu-help"><span data-i18n="nav.g.help"></span><svg class="chev" viewBox="0 0 12 8" aria-hidden="true"><path d="M1 1.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <ul class="nav-sub" id="menu-help">
+            <li><button type="button" class="nav-sublink" data-tab="faq" data-i18n="nav.faq"></button></li>
+            <li><button type="button" class="nav-sublink" data-tab="privacy" data-i18n="nav.privacy"></button></li>
+          </ul>
+        </li>
+        <li><button type="button" class="nav-link" data-tab="contact" data-i18n="nav.contact"></button></li>
+        <li class="nav-account"><button type="button" class="nav-link" data-tab="account"><span data-i18n="nav.account"></span></button></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+      <button type="button" class="btn btn-primary btn-sm header-cta" data-goto="submit" data-i18n="nav.submit"></button>
+      <button type="button" class="account-btn" data-goto="account">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M4.5 20c1.2-3.6 4-5.5 7.5-5.5s6.3 1.9 7.5 5.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+        <span class="account-label" data-account-label data-i18n="acct.signIn"></span>
       </button>
       <div class="lang-toggle" role="group" data-i18n-aria="a11y.lang">
         <button type="button" data-lang="th" aria-pressed="true" lang="th">TH</button>
         <button type="button" data-lang="en" aria-pressed="false" lang="en">EN</button>
       </div>
+      <button type="button" class="menu-btn" aria-expanded="false" aria-controls="main-nav" data-i18n-aria="a11y.menu">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path class="i-open" d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path class="i-close" d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      </div>
     </div>
   </header>
-
-  <div class="layout">
-  <!-- Menu: scrolling strip (phone), wrapped rows (tablet), sidebar (PC) -->
-  <nav class="tabs-wrap" data-i18n-aria="a11y.nav">
-    <div class="tabs" role="tablist" aria-orientation="horizontal">
-      <button type="button" role="tab" id="tab-home" aria-controls="home" data-tab="home" data-i18n="nav.home"></button>
-      <button type="button" role="tab" id="tab-services" aria-controls="services" data-tab="services" data-i18n="nav.services"></button>
-      <button type="button" role="tab" id="tab-pricing" aria-controls="pricing" data-tab="pricing" data-i18n="nav.pricing"></button>
-      <button type="button" role="tab" id="tab-calculator" aria-controls="calculator" data-tab="calculator" data-i18n="nav.calculator"></button>
-      <button type="button" role="tab" id="tab-submit" aria-controls="submit" data-tab="submit" data-i18n="nav.submit"></button>
-      <button type="button" role="tab" id="tab-track" aria-controls="track" data-tab="track" data-i18n="nav.track"></button>
-      <button type="button" role="tab" id="tab-how" aria-controls="how" data-tab="how" data-i18n="nav.how"></button>
-      <button type="button" role="tab" id="tab-faq" aria-controls="faq" data-tab="faq" data-i18n="nav.faq"></button>
-      <button type="button" role="tab" id="tab-contact" aria-controls="contact" data-tab="contact" data-i18n="nav.contact"></button>
-      <button type="button" role="tab" id="tab-privacy" aria-controls="privacy" data-tab="privacy" data-i18n="nav.privacy"></button>
-    </div>
-  </nav>
 
   <main id="main" tabindex="-1">
 
     <!-- ===== 1. Home ===== -->
-    <section id="home" class="panel" role="tabpanel" aria-labelledby="tab-home">
+    <section id="home" class="panel">
       <div class="hero">
         <p class="eyebrow" data-i18n="home.eyebrow"></p>
         <h1 data-i18n="home.title"></h1>
         <p class="lead" data-i18n="home.lead"></p>
         <div class="actions">
           <button type="button" class="btn btn-primary btn-lg" data-goto="submit" data-i18n="home.cta"></button>
-          <button type="button" class="btn-link" data-goto="calculator" data-i18n="home.secondary"></button>
+          <button type="button" class="btn btn-outline-light btn-lg" data-goto="calculator" data-i18n="home.secondary"></button>
         </div>
       </div>
       <ul class="features">
@@ -75,14 +99,27 @@
     </section>
 
     <!-- ===== 2. Services ===== -->
-    <section id="services" class="panel" role="tabpanel" aria-labelledby="tab-services" hidden>
+    <section id="services" class="panel" hidden>
       <h1 data-i18n="services.title"></h1>
       <p class="lead" data-i18n="services.lead"></p>
       <ul class="cards">
-        <li class="card"><h2 class="h3" data-i18n="cat.official"></h2><p data-i18n="services.official"></p></li>
-        <li class="card"><h2 class="h3" data-i18n="cat.academic"></h2><p data-i18n="services.academic"></p></li>
-        <li class="card"><h2 class="h3" data-i18n="cat.business"></h2><p data-i18n="services.business"></p></li>
-        <li class="card"><h2 class="h3" data-i18n="cat.sports"></h2><p data-i18n="services.sports"></p></li>
+        <li class="card card-featured">
+          <span class="icon-circle" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="8.5" cy="11" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 16c.6-1.6 1.9-2.4 3.5-2.4s2.9.8 3.5 2.4M14 10h4.5M14 13.5h4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+          <div class="card-body">
+            <p class="badge" data-i18n="services.civilBadge"></p>
+            <h2 class="h3" data-i18n="cat.civil"></h2>
+            <p data-i18n="services.civil"></p>
+            <p class="card-note" data-i18n="civil.idNote"></p>
+            <details class="doc-list">
+              <summary data-civil-count></summary>
+              <ul id="civil-docs"></ul>
+            </details>
+          </div>
+        </li>
+        <li class="card"><span class="icon-circle" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3.5h7l4 4V20.5H7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3.5v4h4M10 12h5M10 15.5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><h2 class="h3" data-i18n="cat.official"></h2><p data-i18n="services.official"></p></li>
+        <li class="card"><span class="icon-circle" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.5 9.5L12 5l9.5 4.5L12 14z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M6.5 11.5v4.5c1.5 1.5 3.5 2.2 5.5 2.2s4-.7 5.5-2.2v-4.5M21.5 9.5v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><h2 class="h3" data-i18n="cat.academic"></h2><p data-i18n="services.academic"></p></li>
+        <li class="card"><span class="icon-circle" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.5" y="7.5" width="17" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 7.5V5.5h6v2M3.5 12.5h17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span><h2 class="h3" data-i18n="cat.business"></h2><p data-i18n="services.business"></p></li>
+        <li class="card"><span class="icon-circle" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="14.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 10L6 3.5h4l2 4.5 2-4.5h4L15.5 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 12.5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><h2 class="h3" data-i18n="cat.sports"></h2><p data-i18n="services.sports"></p></li>
       </ul>
       <div class="actions">
         <button type="button" class="btn btn-primary" data-goto="pricing" data-i18n="services.cta"></button>
@@ -90,7 +127,7 @@
     </section>
 
     <!-- ===== 3. Pricing (rows built from config.js) ===== -->
-    <section id="pricing" class="panel" role="tabpanel" aria-labelledby="tab-pricing" hidden>
+    <section id="pricing" class="panel" hidden>
       <h1 data-i18n="pricing.title"></h1>
       <p class="lead" data-i18n="pricing.lead"></p>
       <div class="table-wrap">
@@ -107,13 +144,14 @@
       </div>
       <p class="price-extra"><span data-i18n="pricing.cert"></span> <strong data-i18n="pricing.certValue"></strong></p>
       <p class="note" data-i18n="pricing.note"></p>
+      <p class="note" data-i18n="pricing.civilNote"></p>
       <div class="actions">
         <button type="button" class="btn btn-primary" data-goto="calculator" data-i18n="pricing.cta"></button>
       </div>
     </section>
 
     <!-- ===== 4. Price calculator (logic: Phase 2) ===== -->
-    <section id="calculator" class="panel" role="tabpanel" aria-labelledby="tab-calculator" hidden>
+    <section id="calculator" class="panel" hidden>
       <h1 data-i18n="calc.title"></h1>
       <p class="lead" data-i18n="calc.lead"></p>
       <form id="calc-form" class="form" novalidate>
@@ -121,6 +159,7 @@
           <label for="c-category" data-i18n="calc.category"></label>
           <select id="c-category" name="category" data-options="categories"></select>
         </div>
+        <p class="notice notice-warn" id="calc-civil-note" data-i18n="civil.idNote" hidden></p>
         <div class="field">
           <label for="c-pages" data-i18n="calc.pages"></label>
           <input id="c-pages" name="pages" type="number" inputmode="numeric" min="1" max="999" step="1" value="1" aria-describedby="c-pages-err">
@@ -150,11 +189,29 @@
     </section>
 
     <!-- ===== 5. Submit job (validation: Phase 2, sending: Phase 3) ===== -->
-    <section id="submit" class="panel" role="tabpanel" aria-labelledby="tab-submit" hidden>
+    <section id="submit" class="panel" hidden>
       <h1 data-i18n="form.title"></h1>
       <p class="lead" data-i18n="form.lead"></p>
       <p class="note"><span aria-hidden="true">* </span><span data-i18n="form.requiredNote"></span></p>
       <p class="notice" id="form-prefilled" data-i18n="form.prefilled" hidden></p>
+      <p class="notice notice-soft" id="acct-prefill" hidden>
+        <span id="acct-prefill-ask"><span data-i18n="acct.prefillAsk"></span> <button type="button" class="btn-link inline" data-goto="account" data-i18n="acct.prefillLink"></button></span>
+        <span id="acct-prefill-done" data-i18n="acct.prefilled" hidden></span>
+      </p>
+      <!-- PC only: what happens next + help (hidden on phone/tablet to keep the form short) -->
+      <aside class="side-card" aria-labelledby="side-next">
+        <h2 class="h4" id="side-next" data-i18n="form.aside.title"></h2>
+        <ol class="mini-steps">
+          <li data-i18n="how.s2.title"></li>
+          <li data-i18n="how.s3.title"></li>
+          <li data-i18n="how.s4.title"></li>
+          <li data-i18n="how.s5.title"></li>
+        </ol>
+        <p class="note" data-i18n="form.aside.help"></p>
+        <a class="btn btn-outline btn-block" data-contact="line" target="_blank" rel="noopener noreferrer">
+          <span data-i18n="contact.line"></span><span class="sr-only" data-i18n="a11y.newTab"></span>
+        </a>
+      </aside>
       <form id="job-form" class="form" novalidate>
 
         <fieldset class="group">
@@ -243,10 +300,40 @@
           </div>
         </fieldset>
 
+        <!-- Civil registration documents only: ID required, deleted N days after the customer confirms -->
+        <fieldset class="group" id="id-section" hidden>
+          <legend class="group-title" data-i18n="civil.idTitle"></legend>
+          <div class="notice notice-warn">
+            <p data-i18n="civil.idWhy"></p>
+            <p><strong data-i18n="civil.idDelete"></strong></p>
+          </div>
+          <div class="field">
+            <span class="label-like" id="f-idFiles-label"><span data-i18n="civil.idFiles"></span> <span class="req" aria-hidden="true">*</span><span class="sr-only" data-i18n="a11y.required"></span></span>
+            <label class="file-drop" for="f-idFiles">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 15v4h14v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="file-drop-btn" data-i18n="form.filesButton"></span>
+              <span class="hint" id="f-idFiles-hint" data-i18n="form.filesHint"></span>
+            </label>
+            <input id="f-idFiles" class="file-input" name="idFiles" type="file" multiple
+                   accept=".pdf,.jpg,.jpeg,.png,.docx,application/pdf,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                   aria-labelledby="f-idFiles-label" aria-describedby="f-idFiles-hint f-idFiles-err">
+            <ul class="file-list" id="id-file-list"></ul>
+            <p class="hint" id="id-file-total" aria-live="polite" hidden></p>
+            <p class="field-error" id="f-idFiles-err" hidden></p>
+          </div>
+          <div class="field consent">
+            <label class="choice choice-top">
+              <input type="checkbox" id="f-idConsent" name="idConsent" aria-describedby="f-idConsent-err">
+              <span><span data-i18n="civil.idConsent"></span> <span class="req" aria-hidden="true">*</span><span class="sr-only" data-i18n="a11y.required"></span></span>
+            </label>
+            <p class="field-error" id="f-idConsent-err" hidden></p>
+          </div>
+        </fieldset>
+
         <div class="field consent">
           <label class="choice choice-top">
             <input type="checkbox" id="f-consent" name="consent" required aria-describedby="f-consent-err">
-            <span><span data-i18n="form.consent"></span> <button type="button" class="btn-link inline" data-goto="privacy" data-i18n="form.consentLink"></button> <span class="req" aria-hidden="true">*</span><span class="sr-only" data-i18n="a11y.required"></span></span>
+            <span><span data-i18n="form.consent"></span> <button type="button" class="btn-link inline" data-modal="privacy" aria-haspopup="dialog" data-i18n="form.consentLink"></button> <span class="req" aria-hidden="true">*</span><span class="sr-only" data-i18n="a11y.required"></span></span>
           </label>
           <p class="field-error" id="f-consent-err" hidden></p>
         </div>
@@ -259,7 +346,7 @@
     </section>
 
     <!-- ===== 6. Track job (lookup: Phase 4) ===== -->
-    <section id="track" class="panel" role="tabpanel" aria-labelledby="tab-track" hidden>
+    <section id="track" class="panel" hidden>
       <h1 data-i18n="track.title"></h1>
       <p class="lead" data-i18n="track.lead"></p>
       <form id="track-form" class="form" novalidate>
@@ -280,8 +367,122 @@
       </form>
     </section>
 
+    <!-- ===== 11. My account (sign in with an emailed code; backend: apps-script/Code.gs) ===== -->
+    <section id="account" class="panel" hidden>
+      <h1 data-i18n="acct.title"></h1>
+      <p class="notice" id="acct-offline" data-i18n="acct.offline" hidden></p>
+      <p class="muted" id="acct-loading" role="status" data-i18n="acct.loading" hidden></p>
+
+      <!-- Signed out -->
+      <div id="acct-signin" class="acct-signin" hidden>
+        <div class="acct-intro">
+          <p class="lead" data-i18n="acct.lead"></p>
+          <ul class="benefits">
+            <li data-i18n="acct.b1"></li>
+            <li data-i18n="acct.b2"></li>
+            <li data-i18n="acct.b3"></li>
+          </ul>
+          <p class="note" data-i18n="acct.optional"></p>
+        </div>
+        <div class="acct-box">
+          <form id="acct-email-form" class="form" novalidate>
+            <div class="field">
+              <label for="a-email" data-i18n="acct.email"></label>
+              <input id="a-email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="160" aria-describedby="a-email-err">
+              <p class="field-error" id="a-email-err" hidden></p>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block" data-i18n="acct.sendCode"></button>
+          </form>
+          <form id="acct-code-form" class="form" novalidate hidden>
+            <p class="notice" id="acct-code-sent"></p>
+            <div class="field">
+              <label for="a-code" data-i18n="acct.code"></label>
+              <input id="a-code" class="code-input" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" aria-describedby="a-code-err">
+              <p class="field-error" id="a-code-err" hidden></p>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block" data-i18n="acct.verify"></button>
+            <div class="acct-links">
+              <button type="button" class="btn-link" id="a-resend"></button>
+              <button type="button" class="btn-link" id="a-change" data-i18n="acct.changeEmail"></button>
+            </div>
+          </form>
+          <div id="acct-signin-status" class="form-status" role="status" aria-live="polite" hidden></div>
+        </div>
+      </div>
+
+      <!-- Signed in -->
+      <div id="acct-home" hidden>
+        <p class="lead" id="acct-hello"></p>
+        <p class="notice" id="acct-welcome" data-i18n="acct.welcomeNew" hidden></p>
+        <div class="acct-grid">
+          <section class="acct-card acct-jobs" aria-labelledby="acct-jobs-h">
+            <div class="acct-card-head">
+              <h2 class="h3" id="acct-jobs-h" data-i18n="acct.jobs"></h2>
+              <button type="button" class="btn-link" id="a-refresh" data-i18n="acct.refresh"></button>
+            </div>
+            <ul class="job-list" id="acct-jobs" aria-live="polite"></ul>
+            <div class="actions">
+              <button type="button" class="btn btn-primary" data-goto="submit" data-i18n="acct.newJob"></button>
+            </div>
+          </section>
+
+          <section class="acct-card" aria-labelledby="acct-profile-h">
+            <h2 class="h3" id="acct-profile-h" data-i18n="acct.profile"></h2>
+            <p class="note" data-i18n="acct.profileHint"></p>
+            <form id="acct-profile" class="form" novalidate>
+              <div class="field">
+                <label for="p-email" data-i18n="acct.email"></label>
+                <input id="p-email" type="email" readonly>
+              </div>
+              <div class="field">
+                <label for="p-name" data-i18n="form.name"></label>
+                <input id="p-name" name="name" type="text" autocomplete="name" maxlength="120">
+              </div>
+              <div class="grid-2">
+                <div class="field">
+                  <label for="p-line" data-i18n="form.line"></label>
+                  <input id="p-line" name="line" type="text" autocomplete="off" maxlength="60" aria-describedby="p-line-err">
+                  <p class="field-error" id="p-line-err" hidden></p>
+                </div>
+                <div class="field">
+                  <label for="p-phone" data-i18n="form.phone"></label>
+                  <input id="p-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" aria-describedby="p-phone-err">
+                  <p class="field-error" id="p-phone-err" hidden></p>
+                </div>
+              </div>
+              <div class="field">
+                <label for="p-nameSpelling" data-i18n="form.nameSpelling"></label>
+                <input id="p-nameSpelling" name="nameSpelling" type="text" autocomplete="off" autocapitalize="characters" maxlength="200">
+              </div>
+              <div class="field">
+                <label for="p-langPair" data-i18n="acct.langPair"></label>
+                <select id="p-langPair" name="langPair" data-options="languagePairs"></select>
+              </div>
+              <button type="submit" class="btn btn-outline" data-i18n="acct.save"></button>
+              <div id="acct-profile-status" class="form-status" role="status" aria-live="polite" hidden></div>
+            </form>
+          </section>
+
+          <section class="acct-card" aria-labelledby="acct-manage-h">
+            <h2 class="h3" id="acct-manage-h" data-i18n="acct.manage"></h2>
+            <div class="acct-links">
+              <button type="button" class="btn btn-outline" id="a-logout" data-i18n="acct.logout"></button>
+              <button type="button" class="btn-link danger" id="a-delete" data-i18n="acct.delete"></button>
+            </div>
+            <div class="confirm-box" id="acct-delete-confirm" hidden>
+              <p data-i18n="acct.deleteConfirm"></p>
+              <div class="acct-links">
+                <button type="button" class="btn btn-danger" id="a-delete-yes" data-i18n="acct.deleteYes"></button>
+                <button type="button" class="btn-link" id="a-delete-no" data-i18n="acct.cancel"></button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== 7. How it works ===== -->
-    <section id="how" class="panel" role="tabpanel" aria-labelledby="tab-how" hidden>
+    <section id="how" class="panel" hidden>
       <h1 data-i18n="how.title"></h1>
       <ol class="steps">
         <li><h2 class="h4" data-i18n="how.s1.title"></h2><p data-i18n="how.s1.text"></p></li>
@@ -296,7 +497,7 @@
     </section>
 
     <!-- ===== 8. FAQ ===== -->
-    <section id="faq" class="panel" role="tabpanel" aria-labelledby="tab-faq" hidden>
+    <section id="faq" class="panel" hidden>
       <h1 data-i18n="faq.title"></h1>
       <div class="accordion">
         <details><summary data-i18n="faq.q1"></summary><p data-i18n="faq.a1"></p></details>
@@ -309,7 +510,7 @@
     </section>
 
     <!-- ===== 9. Contact ===== -->
-    <section id="contact" class="panel" role="tabpanel" aria-labelledby="tab-contact" hidden>
+    <section id="contact" class="panel" hidden>
       <h1 data-i18n="contact.title"></h1>
       <p class="lead" data-i18n="contact.lead"></p>
       <div class="actions">
@@ -342,7 +543,7 @@
     </section>
 
     <!-- ===== 10. Privacy policy (PDPA) ===== -->
-    <section id="privacy" class="panel prose" role="tabpanel" aria-labelledby="tab-privacy" hidden>
+    <section id="privacy" class="panel prose" hidden>
       <h1 data-i18n="privacy.title"></h1>
       <p class="note"><span data-i18n="privacy.updated"></span>: <span data-privacy-updated></span></p>
       <p data-i18n="privacy.intro"></p>
@@ -355,11 +556,53 @@
       <p><a data-contact="email" target="_blank" rel="noopener"><span data-contact-text="email"></span></a></p>
     </section>
   </main>
-  </div>
+
+  <!-- Privacy policy as a pop-up, so people filling in the job form never leave it -->
+  <dialog class="modal" id="privacy-dialog" aria-labelledby="privacy-dialog-title">
+    <div class="modal-head">
+      <h2 class="h3" id="privacy-dialog-title" data-i18n="privacy.title"></h2>
+      <button type="button" class="modal-close" data-close-modal data-i18n-aria="a11y.close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="modal-body prose" id="privacy-dialog-body"></div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-primary btn-block" data-close-modal data-i18n="privacy.dialogDone"></button>
+    </div>
+  </dialog>
 
   <footer class="site-footer">
-    <p data-i18n="footer.rights"></p>
-    <button type="button" class="btn-link" data-goto="privacy" data-i18n="footer.privacy"></button>
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <p class="footer-name">
+          <img class="footer-logo" src="img/logo-white.svg" width="1309" height="473" alt="" loading="lazy">
+          <span class="sr-only" data-service-name></span>
+        </p>
+        <p data-i18n="footer.tagline"></p>
+      </div>
+      <nav class="footer-col" data-i18n-aria="footer.menu">
+        <h2 class="footer-title" data-i18n="footer.menu"></h2>
+        <ul>
+          <li><button type="button" class="footer-link" data-goto="services" data-i18n="nav.services"></button></li>
+          <li><button type="button" class="footer-link" data-goto="pricing" data-i18n="nav.pricing"></button></li>
+          <li><button type="button" class="footer-link" data-goto="submit" data-i18n="nav.submit"></button></li>
+          <li><button type="button" class="footer-link" data-goto="track" data-i18n="nav.track"></button></li>
+        </ul>
+      </nav>
+      <div class="footer-col">
+        <h2 class="footer-title" data-i18n="footer.contactTitle"></h2>
+        <ul>
+          <li><a class="footer-link" data-contact="line" target="_blank" rel="noopener noreferrer">LINE <span data-contact-text="line"></span><span class="sr-only" data-i18n="a11y.newTab"></span></a></li>
+          <li><a class="footer-link" data-contact="phone" target="_blank" rel="noopener"><span data-contact-text="phone"></span></a></li>
+          <li><a class="footer-link" data-contact="email" target="_blank" rel="noopener"><span data-contact-text="email"></span></a></li>
+          <li class="footer-hours" data-contact-text="hours"></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p data-i18n="footer.rights"></p>
+      <button type="button" class="footer-link" data-goto="privacy" data-i18n="footer.privacy"></button>
+    </div>
   </footer>
 
   <noscript><p class="noscript">Please enable JavaScript. / กรุณาเปิดใช้งาน JavaScript</p></noscript>
@@ -367,5 +610,6 @@
   <script src="js/config.js"></script>
   <script src="js/i18n.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/account.js"></script>
 </body>
 </html>
