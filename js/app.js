@@ -37,6 +37,8 @@
       serviceName: CFG.serviceName[state.lang] || CFG.serviceName.th,
       retentionDays: CFG.retentionDays,
       idRetentionDays: CFG.idRetentionDays,
+      civilFrom: formatNumber(minPrice(function (c) { return c.requiresId; })),
+      minPrice: formatNumber(minPrice()),
       revisionDays: CFG.revisionDays,
       maxFileMB: CFG.maxFileMB,
       normalDays: CFG.turnaround.normal,
@@ -44,6 +46,12 @@
       certFee: formatNumber(CFG.certificationFee),
       year: state.lang === "th" ? year + 543 : year   // พ.ศ. for Thai
     };
+  }
+
+  // Lowest normal per-page price, optionally among categories matching a test
+  function minPrice(test) {
+    var prices = CFG.categories.filter(function (c) { return !test || test(c); }).map(function (c) { return c.normal; });
+    return prices.length ? Math.min.apply(null, prices) : 0;
   }
 
   function fill(str, vars) {
@@ -863,6 +871,8 @@
     getLang: function () { return state.lang; },
     showTab: showTab,
     formatNumber: formatNumber,
+    fill: function (str, extra) { var v = tokens(); if (extra) for (var k in extra) v[k] = extra[k]; return fill(str, v); },
+    findCategory: findCategory,
     // Phase 2 → used by Phase 3/4
     getJobData: getJobData,
     validateJobForm: validateJobForm,

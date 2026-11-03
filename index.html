@@ -74,14 +74,47 @@
     <!-- ===== 1. Home ===== -->
     <section id="home" class="panel">
       <div class="hero">
-        <p class="eyebrow" data-i18n="home.eyebrow"></p>
-        <h1 data-i18n="home.title"></h1>
-        <p class="lead" data-i18n="home.lead"></p>
-        <div class="actions">
-          <button type="button" class="btn btn-primary btn-lg" data-goto="submit" data-i18n="home.cta"></button>
-          <button type="button" class="btn btn-outline-light btn-lg" data-goto="calculator" data-i18n="home.secondary"></button>
+        <div class="hero-text">
+          <p class="eyebrow" data-i18n="home.eyebrow"></p>
+          <h1 data-i18n="home.title"></h1>
+          <p class="lead" data-i18n="home.lead"></p>
+          <div class="actions">
+            <button type="button" class="btn btn-primary btn-lg" data-goto="submit" data-i18n="home.cta"></button>
+            <button type="button" class="btn btn-outline-light btn-lg" data-goto="calculator" data-i18n="home.secondary"></button>
+          </div>
+          <ul class="hero-trust">
+            <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="home.trust1"></span></li>
+            <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="home.trust2"></span></li>
+            <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="home.trust3"></span></li>
+          </ul>
         </div>
+
+        <!-- Instant estimate: carries the choice into the calculator -->
+        <form class="quick-quote" id="quick-quote" novalidate aria-labelledby="qq-title">
+          <h2 class="h4" id="qq-title" data-i18n="home.quick.title"></h2>
+          <div class="grid-qq">
+            <div class="field">
+              <label for="q-category" data-i18n="calc.category"></label>
+              <select id="q-category" name="category" data-options="categories"></select>
+            </div>
+            <div class="field">
+              <label for="q-pages" data-i18n="calc.pages"></label>
+              <input id="q-pages" name="pages" type="number" inputmode="numeric" min="1" max="999" step="1" value="1">
+            </div>
+          </div>
+          <div class="qq-result" aria-live="polite">
+            <p class="qq-empty" id="qq-empty" data-i18n="home.quick.empty"></p>
+            <dl class="qq-prices" id="qq-prices" hidden>
+              <div><dt id="qq-normal-label"></dt><dd id="qq-normal"></dd></div>
+              <div><dt id="qq-express-label"></dt><dd id="qq-express"></dd></div>
+            </dl>
+            <p class="qq-civil" id="qq-civil" data-i18n="home.quick.civil" hidden></p>
+          </div>
+          <button type="submit" class="btn btn-outline btn-block" data-i18n="home.quick.more"></button>
+          <p class="qq-note" data-i18n="calc.disclaimer"></p>
+        </form>
       </div>
+
       <ul class="features">
         <li>
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -96,6 +129,61 @@
           <div><h2 class="h4" data-i18n="home.f3.title"></h2><p data-i18n="home.f3.text"></p></div>
         </li>
       </ul>
+
+      <!-- Offers & highlights (config.promotions, or the "Promotions" sheet via Apps Script) -->
+      <section class="home-block" id="home-promos" aria-labelledby="promo-h">
+        <h2 class="block-title" id="promo-h" data-i18n="home.promo.title"></h2>
+        <ul class="promo-list" id="promo-list"></ul>
+      </section>
+
+      <section class="home-block" aria-labelledby="pop-h">
+        <h2 class="block-title" id="pop-h" data-i18n="home.popular.title"></h2>
+        <p class="block-lead" data-i18n="home.popular.lead"></p>
+        <ul class="doc-chips" id="popular-docs"></ul>
+      </section>
+
+      <section class="home-block" aria-labelledby="hhow-h">
+        <div class="block-head">
+          <h2 class="block-title" id="hhow-h" data-i18n="home.how.title"></h2>
+          <button type="button" class="btn-link" data-goto="how" data-i18n="home.how.more"></button>
+        </div>
+        <ol class="mini-flow">
+          <li data-i18n="how.s1.title"></li>
+          <li data-i18n="how.s2.title"></li>
+          <li data-i18n="how.s3.title"></li>
+          <li data-i18n="how.s4.title"></li>
+          <li data-i18n="how.s5.title"></li>
+        </ol>
+      </section>
+
+      <!-- News (config.news, or the "News" sheet via Apps Script); hidden when empty -->
+      <section class="home-block" id="home-news" aria-labelledby="news-h" hidden>
+        <h2 class="block-title" id="news-h" data-i18n="home.news.title"></h2>
+        <ul class="news-list" id="news-list"></ul>
+      </section>
+
+      <section class="home-block" aria-labelledby="hfaq-h">
+        <div class="block-head">
+          <h2 class="block-title" id="hfaq-h" data-i18n="home.faq.title"></h2>
+          <button type="button" class="btn-link" data-goto="faq" data-i18n="home.faq.more"></button>
+        </div>
+        <div class="accordion">
+          <details><summary data-i18n="faq.q1"></summary><p data-i18n="faq.a1"></p></details>
+          <details><summary data-i18n="faq.q5"></summary><p data-i18n="faq.a5"></p></details>
+          <details><summary data-i18n="faq.q2"></summary><p data-i18n="faq.a2"></p></details>
+        </div>
+      </section>
+
+      <section class="cta-band" aria-labelledby="cta-h">
+        <div>
+          <h2 id="cta-h" data-i18n="home.cta.title"></h2>
+          <p data-i18n="home.cta.text"></p>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn btn-primary btn-lg" data-goto="submit" data-i18n="nav.submit"></button>
+          <a class="btn btn-outline-light btn-lg" data-contact="line" target="_blank" rel="noopener noreferrer"><span data-i18n="contact.line"></span><span class="sr-only" data-i18n="a11y.newTab"></span></a>
+        </div>
+      </section>
     </section>
 
     <!-- ===== 2. Services ===== -->
@@ -611,5 +699,6 @@
   <script src="js/i18n.js"></script>
   <script src="js/app.js"></script>
   <script src="js/account.js"></script>
+  <script src="js/home.js"></script>
 </body>
 </html>

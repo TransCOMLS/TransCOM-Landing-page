@@ -36,13 +36,20 @@ provider manages all jobs from one Google Sheet, with no paid server.
   Privacy policy pop-up (`<dialog id="privacy-dialog">`, content copied from `#privacy`):
   opened by `[data-modal="privacy"]` (consent link in the job form) and by any
   `data-goto="privacy"` while on the submit page, so customers never leave the form.
+- `js/home.js` — home page: instant estimate in the hero (carries into the calculator),
+  offers & highlights (`config.promotions`), popular documents (`config.popularDocs`,
+  open the calculator), compact steps, news (`config.news`), FAQ teaser, closing CTA.
+  When Apps Script is connected, offers/news come from the "Promotions" / "News" sheets
+  (action `getContent`, 5-min cache) if they have ticked rows. Only real offers — no
+  invented reviews, statistics or discounts. Account offer shows only once connected.
 - `js/account.js` — customer accounts (optional; guests can still submit): sign in with a
   6-digit code emailed by Apps Script (no passwords), job history, profile that fills in
   the job form, sign out, delete account (PDPA). Exposes `App.api(action, payload)` and
   `App.account` (`token()`, `profile()`, `isSignedIn()`). Session token in localStorage
   key `tr_session`; if storage is blocked (e.g. some iframes) the sign-in lasts until reload.
 - `apps-script/Code.gs` — Web App bound to the Sheet. `doPost` actions: requestCode,
-  verifyCode, getAccount, updateProfile, logout, deleteAccount. Sheets: "Users", "Jobs"
+  verifyCode, getAccount, updateProfile, logout, deleteAccount, getContent. Sheets: "Users", "Jobs",
+  "Promotions", "News"
   (columns defined in `JOB_COLS`, written by Phase 3), hidden "_sessions". Codes live in
   CacheService (10 min, 5 tries, 1/min, 5/hour); codes and tokens are stored only as
   salted SHA-256; customer text is escaped against Sheets formulas. Run `setup()` once.
@@ -104,6 +111,6 @@ console errors, `node --check js/*.js` passes, and i18n keys match between th/en
 The owner keeps a matching preview copy on claude.ai: https://claude.ai/artifact/WrtJLSJG77T717XyWkqMrF
 After each phase, republish it with the Artifact tool, passing that URL as `url` (read it first).
 Publish `index.html` with its `<!DOCTYPE>`, `<html>`, `<head>`/`<body>` tags and the charset/viewport
-metas removed (title, font links and the stylesheet link stay), plus `css/style.css`, the four
-`js/*.js` files (config, i18n, app, account) and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
+metas removed (title, font links and the stylesheet link stay), plus `css/style.css`, the five
+`js/*.js` files (config, i18n, app, account, home) and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
 inline for that copy only.

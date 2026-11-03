@@ -61,6 +61,66 @@ window.APP_CONFIG = {
   // ลบข้อมูลและไฟล์งานประเภท requiresId ภายในกี่วัน นับจากวันที่ลูกค้ายืนยันว่าเอกสารแปลถูกต้อง
   idRetentionDays: 15,
 
+  // ===== หน้าแรก / Home page =====
+  // โปรโมชั่นและบริการเด่น — เมื่อเชื่อม Apps Script แล้ว ระบบจะใช้ข้อมูลจากชีต "Promotions"
+  // แทนรายการนี้ (ถ้าชีตมีรายการที่เปิดแสดงอย่างน้อย 1 รายการ)
+  // start / end: "YYYY-MM-DD" (เว้นว่าง = ไม่จำกัด) · cta: หน้าที่ปุ่มพาไป
+  // ใช้ {civilFrom} {minPrice} {expressDays} {normalDays} {certFee} ในข้อความได้
+  // โปรดใส่เฉพาะข้อเสนอที่มีจริง
+  promotions: [
+    {
+      tag: { th: "ราคาพิเศษ", en: "Special rate" },
+      title: { th: "เอกสารทะเบียนราษฎร เริ่มต้น {civilFrom} บาท/หน้า", en: "Civil registration documents from {civilFrom} THB a page" },
+      text: { th: "สูติบัตร ทะเบียนบ้าน บัตรประจำตัวประชาชน ทะเบียนสมรส มรณบัตร และเอกสารอื่นรวม 18 รายการ ในอัตราต่ำกว่าเอกสารราชการทั่วไป",
+              en: "Birth certificates, house registrations, ID cards, marriage registrations, death certificates and more — 18 documents at a lower rate than other official documents." },
+      cta: "services", start: "", end: ""
+    },
+    {
+      tag: { th: "งานด่วน", en: "Express" },
+      title: { th: "รับงานแปลภายใน {expressDays} วันทำการ", en: "Your translation in {expressDays} working days" },
+      text: { th: "เลือกบริการแบบด่วนเมื่อต้องใช้เอกสารเร่งด่วน ตรวจสอบราคาได้ทันทีในหน้าคำนวณราคา",
+              en: "Choose express when you need the document soon. See the price straight away in the calculator." },
+      cta: "calculator", start: "", end: ""
+    },
+    {
+      tag: { th: "ฟรี", en: "Free" },
+      title: { th: "สมัครบัญชีฟรี ไม่ต้องตั้งรหัสผ่าน", en: "Free account — no password needed" },
+      text: { th: "บันทึกข้อมูลไว้ครั้งเดียว ระบบกรอกแบบฟอร์มส่งงานให้อัตโนมัติ และดูสถานะงานทุกชิ้นได้ในที่เดียว",
+              en: "Save your details once. We fill in the job form for you and show all your jobs in one place." },
+      cta: "account", start: "", end: ""   // แสดงเมื่อเชื่อม Apps Script แล้วเท่านั้น
+    }
+  ],
+
+  // ข่าวสารและประกาศ — เมื่อเชื่อม Apps Script แล้ว ระบบจะใช้ข้อมูลจากชีต "News" แทน
+  news: [
+    {
+      date: "2026-11-03",
+      title: { th: "เพิ่มบริการแปลเอกสารทะเบียนราษฎรในอัตราพิเศษ", en: "New: civil registration documents at a special rate" },
+      text: { th: "แปลสูติบัตร ทะเบียนบ้าน ทะเบียนสมรส และเอกสารทะเบียนราษฎรอื่นรวม 18 รายการ ราคาเริ่มต้น {civilFrom} บาทต่อหน้า โปรดแนบบัตรประจำตัวประชาชนหรือเอกสารที่ราชการออกให้ทุกครั้ง",
+              en: "We now translate birth certificates, house registrations, marriage registrations and 15 other civil registration documents from {civilFrom} THB a page. Please always attach your ID card or other government-issued ID." }
+    },
+    {
+      date: "2026-11-03",
+      title: { th: "ลบข้อมูลเอกสารทะเบียนราษฎรภายใน {idRetentionDays} วัน", en: "Civil registration data deleted within {idRetentionDays} days" },
+      text: { th: "เพื่อคุ้มครองข้อมูลส่วนบุคคล ข้อมูลและสำเนาบัตรของงานเอกสารทะเบียนราษฎรจะถูกลบออกจากระบบภายใน {idRetentionDays} วัน นับจากวันที่ท่านยืนยันว่าเอกสารแปลถูกต้อง",
+              en: "To protect your personal data, all data and ID copies for civil registration jobs are deleted within {idRetentionDays} days of the day you confirm the translation is correct." }
+    }
+  ],
+
+  // ปุ่มลัด "เอกสารที่แปลบ่อย" (cat = id ประเภทเอกสารด้านบน)
+  popularDocs: [
+    { th: "สูติบัตร", en: "Birth certificate", cat: "civil" },
+    { th: "ทะเบียนบ้าน", en: "House registration", cat: "civil" },
+    { th: "บัตรประจำตัวประชาชน", en: "ID card", cat: "civil" },
+    { th: "ทะเบียนสมรส", en: "Marriage registration", cat: "civil" },
+    { th: "ใบแสดงผลการเรียน", en: "Transcript", cat: "academic" },
+    { th: "ปริญญาบัตร", en: "Degree certificate", cat: "academic" },
+    { th: "สัญญา", en: "Contract", cat: "business" },
+    { th: "หนังสือรับรองบริษัท", en: "Company certificate", cat: "business" },
+    { th: "ใบขับขี่", en: "Driving licence", cat: "official" },
+    { th: "หนังสือรับรองความประพฤติ", en: "Police clearance", cat: "official" }
+  ],
+
   // ระยะเวลาดำเนินการ (วันทำการ) / Turnaround in working days
   turnaround: {
     normal: "3–5",

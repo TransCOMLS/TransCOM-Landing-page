@@ -25,7 +25,7 @@ var CONFIG = {
                          // days after the customer confirms the translation (Phase 3)
 };
 
-var SHEETS = { users: 'Users', jobs: 'Jobs', sessions: '_sessions' };
+var SHEETS = { users: 'Users', jobs: 'Jobs', sessions: '_sessions', promotions: 'Promotions', news: 'News' };
 
 // Column headers (Thai, for the owner) and the keys the code uses.
 // Columns are found by header text, so the owner may reorder them.
@@ -63,6 +63,30 @@ var JOB_COLS = [
   ['confirmedAt', 'ลูกค้ายืนยันความถูกต้องเมื่อ'],
   ['deleteBy', 'กำหนดลบข้อมูล']
 ];
+
+// Home page content the owner edits in the Sheet (tick "แสดง" to publish).
+// Text may use {civilFrom} {minPrice} {expressDays} {normalDays} {certFee}.
+var PROMO_COLS = [
+  ['active', 'แสดง'],
+  ['start', 'เริ่ม'],
+  ['end', 'สิ้นสุด'],
+  ['tagTh', 'ป้าย (ไทย)'],
+  ['tagEn', 'ป้าย (EN)'],
+  ['titleTh', 'หัวข้อ (ไทย)'],
+  ['titleEn', 'หัวข้อ (EN)'],
+  ['textTh', 'รายละเอียด (ไทย)'],
+  ['textEn', 'รายละเอียด (EN)'],
+  ['cta', 'ปุ่มไปหน้า']
+];
+var NEWS_COLS = [
+  ['active', 'แสดง'],
+  ['date', 'วันที่'],
+  ['titleTh', 'หัวข้อ (ไทย)'],
+  ['titleEn', 'หัวข้อ (EN)'],
+  ['textTh', 'รายละเอียด (ไทย)'],
+  ['textEn', 'รายละเอียด (EN)']
+];
+var CTA_PAGES = ['services', 'pricing', 'calculator', 'submit', 'track', 'account', 'how', 'faq', 'contact'];
 
 var SESSION_COLS = [
   ['tokenHash', 'tokenHash'],
@@ -111,7 +135,8 @@ var ACTIONS = {
   getAccount: getAccount_,
   updateProfile: updateProfile_,
   logout: logout_,
-  deleteAccount: deleteAccount_
+  deleteAccount: deleteAccount_,
+  getContent: getContent_
 };
 
 /* ======================================================================
@@ -278,6 +303,49 @@ function statusCode_(label) {
 }
 
 /* ======================================================================
+   Home page content (public)
+   ====================================================================== */
+
+function getContent_() {
+  var cache = CacheService.getScriptCache();
+  var hit = parse_(cache.get('content'));
+  if (hit) return hit;
+  var tz = ss_().getSpreadsheetTimeZone();
+  var out = {
+    ok: true,
+    promotions: rowsIfSheet_(SHEETS.promotions, PROMO_COLS).filter(active_).map(function (r) {
+      return {
+        start: day_(r.start, tz), end: day_(r.end, tz),
+        tag: { th: str_(r.tagTh), en: str_(r.tagEn) },
+        title: { th: str_(r.titleTh), en: str_(r.titleEn) },
+        text: { th: str_(r.textTh), en: str_(r.textEn) },
+        cta: CTA_PAGES.indexOf(str_(r.cta)) > -1 ? str_(r.cta) : ''
+      };
+    }).filter(function (p) { return p.title.th || p.title.en; }),
+    news: rowsIfSheet_(SHEETS.news, NEWS_COLS).filter(active_).map(function (r) {
+      return {
+        date: day_(r.date, tz),
+        title: { th: str_(r.titleTh), en: str_(r.titleEn) },
+        text: { th: str_(r.textTh), en: str_(r.textEn) }
+      };
+    }).filter(function (n) { return n.title.th || n.title.en; })
+  };
+  cache.put('content', JSON.stringify(out), 300);   // 5 minutes
+  return out;
+}
+
+function rowsIfSheet_(name, cols) {
+  return ss_().getSheetByName(name) ? table_(name, cols).rows : [];
+}
+function active_(r) { return r.active === true || String(r.active).toUpperCase() === 'TRUE'; }
+function str_(v) { return String(v == null ? '' : v).trim().slice(0, 600); }
+function day_(v, tz) {
+  if (Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v)) return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+  var s = str_(v);
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : '';
+}
+
+/* ======================================================================
    Sessions
    ====================================================================== */
 
@@ -362,6 +430,18 @@ function setup() {
     jobs.setConditionalFormatRules(rules);
   }
   users.setColumnWidth(1, 240);
+
+  // Home page content: tick boxes in "แสดง"; one example row (not shown) to copy
+  [[SHEETS.promotions, PROMO_COLS, [false, '', '', 'ตัวอย่าง', 'Example', 'หัวข้อโปรโมชั่น', 'Offer title',
+     'รายละเอียดสั้น ๆ', 'Short description', 'calculator']],
+   [SHEETS.news, NEWS_COLS, [false, new Date(), 'หัวข้อข่าว', 'News title', 'รายละเอียด', 'Details']]]
+    .forEach(function (def) {
+      var isNew = !ss_().getSheetByName(def[0]);
+      var sh = ensureSheet_(def[0], def[1]);
+      if (isNew) sh.appendRow(def[2]);
+      var col = colIndex_(sh, 'แสดง');
+      if (col) sh.getRange(2, col, sh.getMaxRows() - 1, 1).insertCheckboxes();
+    });
   pepper_();
 }
 
