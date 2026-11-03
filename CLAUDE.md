@@ -8,7 +8,8 @@ provider manages all jobs from one Google Sheet, with no paid server.
 - Plain HTML + CSS + vanilla JavaScript. No frameworks, no build step, no npm deps.
 - Hosted on GitHub Pages, embedded in Google Sites via "Embed → By URL" (runs in an iframe).
 - Backend: Google Apps Script Web App (doPost/doGet) + Google Sheet + Google Drive.
-- Font: Google Fonts "Sarabun" with a sans-serif fallback stack.
+- Font: Google Fonts "Sarabun" — the web version of TH Sarabun New, the owner's chosen Thai
+  font — with a sans-serif fallback stack. Do not switch to other display fonts.
 
 ## Files
 - `index.html` — single page; 10 tab panels: home, services, pricing, calculator,
@@ -24,6 +25,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
 - `js/app.js` — IIFE; exposes `window.App` (`t`, `config`, `getLang`, `showTab`,
   `formatNumber`) and fires `langchange` / `tabchange` events on `document` for
   later phases to hook into.
+- `img/logo.svg` (header, on white) and `img/logo-white.svg` (footer, on `--footer-bg`):
+  the owner's logo, cropped to its content. Colours `#01417b` / `#006192` set `--accent`
+  and `--accent-bright`.
 - `apps-script/Code.gs` (Phase 3), `README.md` in Thai (Phase 4).
 
 ## Conventions
@@ -66,6 +70,6 @@ console errors, `node --check js/*.js` passes, and i18n keys match between th/en
 The owner keeps a matching preview copy on claude.ai: https://claude.ai/artifact/WrtJLSJG77T717XyWkqMrF
 After each phase, republish it with the Artifact tool, passing that URL as `url` (read it first).
 Publish `index.html` with its `<!DOCTYPE>`, `<html>`, `<head>`/`<body>` tags and the charset/viewport
-metas removed (title, font links and the stylesheet link stay), plus `css/style.css` and the three
-`js/*.js` files under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
+metas removed (title, font links and the stylesheet link stay), plus `css/style.css`, the three
+`js/*.js` files and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
 inline for that copy only.

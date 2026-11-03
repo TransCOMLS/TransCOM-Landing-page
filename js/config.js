@@ -12,7 +12,7 @@ window.APP_CONFIG = {
 
   // ช่องทางติดต่อ / Contact
   contact: {
-    email: "[email]",
+    email: "contact@prathaitranslation.com",
     phoneDisplay: "[xxx-xxx-xxxx]",
     phoneTel: "+66000000000",          // ใช้สำหรับปุ่มโทร (รูปแบบสากล ไม่มีขีด)
     lineId: "@xxxx",

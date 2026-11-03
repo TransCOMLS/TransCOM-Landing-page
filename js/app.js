@@ -236,6 +236,21 @@
     }
 
     showTab(location.hash.replace("#", "") || "home", { initial: true });
+    undoLoadJump();
+  }
+
+  // Tab ids double as #hash routes, so on load the browser jumps to the <section> and
+  // hides the header (inside Google Sites this can scroll the outer page too).
+  // Put the page back at the top unless the person has already started scrolling.
+  function undoLoadJump() {
+    var touched = false;
+    function mark() { touched = true; }
+    ["wheel", "touchstart", "keydown", "mousedown"].forEach(function (type) {
+      window.addEventListener(type, mark, { once: true, passive: true });
+    });
+    function reset() { if (!touched && window.scrollY) window.scrollTo(0, 0); }
+    if (document.readyState === "complete") setTimeout(reset, 0);
+    else window.addEventListener("load", function () { setTimeout(reset, 0); });
   }
 
   /* ---------- small UI bits ---------- */
