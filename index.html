@@ -611,12 +611,14 @@
       <aside class="side-card" aria-labelledby="faq-side">
         <h2 class="h4" id="faq-side" data-i18n="faq.aside.title"></h2>
         <p class="note" data-i18n="faq.aside.text"></p>
-        <a class="btn btn-outline btn-block" data-contact="line" target="_blank" rel="noopener noreferrer">
-          <span data-i18n="contact.line"></span><span class="sr-only" data-i18n="a11y.newTab"></span>
-        </a>
+        <ul class="side-contact">
+          <li><a data-contact="phone" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 3.5l2.6.4 1.3 4-2 1.6a12 12 0 0 0 6 6l1.6-2 4 1.3.4 2.6c.1.9-.6 1.6-1.5 1.6C10.3 19 5 13.7 5 5c0-.9.7-1.6 1.6-1.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span data-contact-text="phone"></span></a></li>
+          <li><a data-contact="email" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 7l8.5 6 8.5-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span data-contact-text="email"></span></a></li>
+          <li class="side-hours"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span data-contact-text="hours"></span></li>
+          <li><a data-contact="line" target="_blank" rel="noopener noreferrer"><span data-i18n="contact.line"></span><span class="sr-only" data-i18n="a11y.newTab"></span></a></li>
+        </ul>
         <ul class="side-links">
-          <li><button type="button" class="btn-link" data-goto="contact" data-i18n="faq.aside.contact"></button></li>
-          <li><button type="button" class="btn-link" data-goto="terms" data-i18n="faq.more"></button></li>
+          <li><button type="button" class="btn-link" data-goto="terms" data-i18n="footer.terms"></button></li>
           <li><button type="button" class="btn-link" data-goto="privacy" data-i18n="footer.privacy"></button></li>
         </ul>
       </aside>

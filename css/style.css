@@ -865,3 +865,18 @@ html.modal-open, html.modal-open body { overflow: hidden; }
   .cta-band .actions { margin-top: 0; flex: none; }
 }
 .promo-card .badge { align-self: flex-start; }
+
+/* FAQ side card: contact details + document links */
+.side-contact { list-style: none; margin: 12px 0 0; padding: 0; }
+.side-contact li { display: flex; }
+.side-contact a, .side-hours {
+  display: flex; align-items: center; gap: 10px; min-height: var(--tap); min-width: 0;
+  color: var(--text); font-weight: 600; text-decoration: none; overflow-wrap: anywhere;
+}
+.side-contact a:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.side-hours { font-weight: 400; color: var(--muted); font-size: 0.9375rem; }
+.side-contact .icon { width: 20px; height: 20px; flex: none; color: var(--accent-bright); }
+.side-links { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.side-links .btn-link { text-align: left; font-weight: 600; }
+.side-contact a[data-contact="email"] { font-size: 0.9375rem; overflow-wrap: normal; word-break: normal; }
+.side-contact a[data-contact="email"] span { min-width: 0; overflow-wrap: anywhere; }
