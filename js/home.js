@@ -1,5 +1,6 @@
 /*
- * home.js — home page: instant estimate, offers & highlights, popular documents, news.
+ * home.js — home page (instant estimate, offers & highlights, popular documents) and the
+ * News page (square posts; each opens in a pop-up).
  * Offers and news come from config.js, or from the "Promotions" / "News" sheets when
  * Apps Script is connected (action "getContent"; used only if it has active items).
  */
@@ -9,7 +10,7 @@
   var App = window.App;
   var CFG = App.config;
   var t = App.t;
-  var CTA_TABS = ["services", "pricing", "calculator", "submit", "track", "account", "how", "faq", "contact"];
+  var CTA_TABS = ["services", "pricing", "calculator", "submit", "track", "account", "how", "faq", "contact", "news", "privacy", "terms"];
 
   var content = {
     promotions: CFG.promotions || [],
@@ -175,36 +176,156 @@
     });
   }
 
-  /* ---------- news ---------- */
-  function renderNews() {
-    var list = $("#news-list");
-    if (!list) return;
-    var items = content.news
+  /* ---------- news & announcements: square posts + pop-up ---------- */
+  function newsItems() {
+    return content.news
       .filter(function (n) { return n.active !== false && pick(n.title) && (!n.date || String(n.date).slice(0, 10) <= today()); })
-      .sort(function (a, b) { return String(b.date || "").localeCompare(String(a.date || "")); })
-      .slice(0, 4);
-    $("#home-news").hidden = !items.length;
-    list.textContent = "";
-    items.forEach(function (n) {
+      .sort(function (a, b) { return String(b.date || "").localeCompare(String(a.date || "")); });
+  }
+
+  function safeImage(url) {
+    url = String(url || "").trim();
+    return /^https:\/\/[^\s"'<>]+$/.test(url) ? url : "";
+  }
+
+  // Square picture for a post: the owner's image, or a branded cover with the title
+  function postMedia(n, i) {
+    var box = document.createElement("div");
+    var img = safeImage(n.image);
+    if (img) {
+      box.className = "post-media";
+      var el = document.createElement("img");
+      el.src = img;
+      el.alt = pick(n.imageAlt) ? text(n.imageAlt) : "";
+      el.loading = "lazy";
+      el.decoding = "async";
+      // A broken link falls back to the cover
+      el.addEventListener("error", function () {
+        box.replaceWith(postCover(n, i));
+      });
+      box.appendChild(el);
+      return box;
+    }
+    return postCover(n, i);
+  }
+
+  function postCover(n, i) {
+    var box = document.createElement("div");
+    box.className = "post-media post-cover tone-" + (i % 3);
+    box.setAttribute("aria-hidden", "true");
+    var icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    icon.setAttribute("viewBox", "0 0 24 24");
+    icon.setAttribute("class", "post-cover-icon");
+    icon.innerHTML = '<path d="M4 10v4h3l6 4V6L7 10H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>';
+    var title = document.createElement("span");
+    title.className = "post-cover-title";
+    title.textContent = text(n.title);
+    var brand = document.createElement("span");
+    brand.className = "post-cover-brand";
+    brand.textContent = App.fill("{serviceName}");
+    box.appendChild(icon);
+    box.appendChild(title);
+    box.appendChild(brand);
+    return box;
+  }
+
+  function renderNews() {
+    var grid = $("#post-grid");
+    if (!grid) return;
+    var items = newsItems();
+    grid.textContent = "";
+    $("#post-empty").hidden = items.length > 0;
+    items.forEach(function (n, i) {
       var li = document.createElement("li");
-      li.className = "news-item";
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "post-card";
+      btn.setAttribute("aria-haspopup", "dialog");
+      btn.setAttribute("aria-label", t("news.open", { title: text(n.title) }));
+      btn.appendChild(postMedia(n, i));
+      var body = document.createElement("span");
+      body.className = "post-card-body";
       if (n.date) {
-        var time = document.createElement("time");
-        time.className = "news-date";
-        time.setAttribute("datetime", String(n.date).slice(0, 10));
-        time.textContent = fmtDate(n.date);
-        li.appendChild(time);
+        var d = document.createElement("span");
+        d.className = "post-date";
+        d.textContent = fmtDate(n.date);
+        body.appendChild(d);
       }
-      var h = document.createElement("h3");
-      h.className = "h4";
+      var h = document.createElement("span");
+      h.className = "post-title";
       h.textContent = text(n.title);
-      li.appendChild(h);
-      if (pick(n.text)) {
-        var p = document.createElement("p");
-        p.textContent = text(n.text);
-        li.appendChild(p);
-      }
-      list.appendChild(li);
+      body.appendChild(h);
+      btn.appendChild(body);
+      btn.addEventListener("click", function () { openPost(n, i, btn); });
+      li.appendChild(btn);
+      grid.appendChild(li);
+    });
+  }
+
+  var postOpener = null, openIndex = -1;
+
+  function openPost(n, i, opener) {
+    var dlg = $("#post-dialog");
+    if (!dlg || typeof dlg.showModal !== "function") return;
+    postOpener = opener || postOpener;
+    openIndex = i;
+    $("#post-dialog-date").textContent = n.date ? fmtDate(n.date) : "";
+    $("#post-dialog-title").textContent = text(n.title);
+    // Real pictures only — a generated cover would just repeat the title
+    var media = $("#post-dialog-media");
+    media.textContent = "";
+    var hasImage = !!safeImage(n.image);
+    media.hidden = !hasImage;
+    dlg.classList.toggle("has-media", hasImage);
+    if (hasImage) media.appendChild(postMedia(n, i));
+    var body = $("#post-dialog-text");
+    body.textContent = "";
+    text(n.text).split(/\n+/).forEach(function (para) {
+      if (!para.trim()) return;
+      var p = document.createElement("p");
+      p.textContent = para.trim();
+      body.appendChild(p);
+    });
+    var foot = $("#post-dialog-foot");
+    foot.textContent = "";
+    foot.hidden = CTA_TABS.indexOf(n.cta) === -1;
+    if (!foot.hidden) {
+      var go = document.createElement("button");
+      go.type = "button";
+      go.className = "btn btn-primary btn-block";
+      go.textContent = t("news.more");
+      go.addEventListener("click", function () { dlg.close(); App.showTab(n.cta, { focusHeading: true }); });
+      foot.appendChild(go);
+    }
+    if (!dlg.open) {
+      document.documentElement.classList.add("modal-open");
+      dlg.showModal();
+    }
+    $(".modal-body", dlg).scrollTop = 0;
+    $(".modal-close", dlg).focus();
+  }
+
+  function initPostDialog() {
+    var dlg = $("#post-dialog");
+    if (!dlg) return;
+    Array.prototype.forEach.call(dlg.querySelectorAll("[data-close-modal]"), function (b) {
+      b.addEventListener("click", function () { dlg.close(); });
+    });
+    dlg.addEventListener("click", function (e) { if (e.target === dlg) dlg.close(); });
+    dlg.addEventListener("close", function () {
+      document.documentElement.classList.remove("modal-open");
+      // The grid is rebuilt on a language switch, so fall back to the card at the same place
+      var back = postOpener && document.contains(postOpener) ? postOpener
+        : document.querySelectorAll("#post-grid .post-card")[openIndex];
+      if (back) back.focus({ preventScroll: true });
+      openIndex = -1;
+      postOpener = null;
+    });
+    // Language switch while open: show the same post in the new language
+    document.addEventListener("langchange", function () {
+      if (!dlg.open || openIndex < 0) return;
+      var items = newsItems();
+      if (items[openIndex]) openPost(items[openIndex], openIndex, null);
     });
   }
 
@@ -228,6 +349,7 @@
 
   function init() {
     initQuick();
+    initPostDialog();
     renderAll();
     loadSheetContent();
     document.addEventListener("langchange", renderAll);

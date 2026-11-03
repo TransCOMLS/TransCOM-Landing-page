@@ -831,18 +831,6 @@ html.modal-open, html.modal-open body { overflow: hidden; }
 }
 .mini-flow li:last-child::before { content: "✓"; background: var(--accent-bright); }
 
-/* News */
-.news-list { list-style: none; margin: 12px 0 0; padding: 0; }
-.news-item { padding: 16px 0; border-bottom: 1px solid var(--border); }
-.news-item:first-child { padding-top: 4px; }
-.news-date { display: block; font-size: 0.875rem; font-weight: 600; color: var(--accent-bright); }
-.news-item h3 { margin: 2px 0 4px; }
-.news-item p { margin: 0; color: var(--muted); }
-@media (min-width: 1024px) {
-  .news-item { display: grid; grid-template-columns: 200px minmax(0, 1fr); column-gap: 24px; }
-  .news-date { grid-row: span 2; padding-top: 2px; }
-}
-
 .home-block .accordion { max-width: none; }
 
 /* Closing call to action */
@@ -880,3 +868,53 @@ html.modal-open, html.modal-open body { overflow: hidden; }
 .side-links .btn-link { text-align: left; font-weight: 600; }
 .side-contact a[data-contact="email"] { font-size: 0.9375rem; overflow-wrap: normal; word-break: normal; }
 .side-contact a[data-contact="email"] span { min-width: 0; overflow-wrap: anywhere; }
+
+/* ---------- News & announcements: square posts ---------- */
+.post-grid { list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 640px) { .post-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; } }
+@media (min-width: 1280px) { .post-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.post-card {
+  display: flex; flex-direction: column; width: 100%; height: 100%; padding: 0; overflow: hidden;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: #fff;
+  cursor: pointer; font: inherit; text-align: left; color: var(--text);
+  transition: box-shadow .2s ease, transform .2s ease;
+}
+.post-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+.post-media { position: relative; aspect-ratio: 1 / 1; width: 100%; overflow: hidden; background: var(--bg-soft); }
+.post-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.post-card-body { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px 14px; }
+.post-date { font-size: 0.8125rem; font-weight: 600; color: var(--accent-bright); }
+.post-title {
+  font-weight: 600; line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* Cover used when a post has no picture */
+.post-cover {
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 8px;
+  padding: 8%; color: #fff; background: var(--hero-grad);
+}
+.post-cover.tone-1 { background: linear-gradient(150deg, #0a6fa8 0%, #01417b 70%); }
+.post-cover.tone-2 { background: linear-gradient(150deg, #01417b 0%, #0a1830 100%); }
+.post-cover-icon { position: absolute; top: 8%; left: 8%; width: 22%; height: auto; color: #8fc3ea; }
+.post-cover-title {
+  font-weight: 700; line-height: 1.35; font-size: clamp(0.9375rem, 0.75rem + 1vw, 1.25rem);
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+}
+.post-cover-brand { font-size: 0.75rem; letter-spacing: 0.08em; color: #b9d3ef; text-transform: uppercase; }
+
+/* Post pop-up */
+.modal-post { width: min(560px, calc(100vw - 32px)); }
+.post-dialog-date { margin: 0; font-size: 0.9375rem; font-weight: 600; color: var(--accent-bright); }
+.post-dialog-media { margin: 0 0 16px; border-radius: var(--radius); overflow: hidden; }
+.post-dialog-media .post-cover-title { font-size: clamp(1.25rem, 1rem + 1.5vw, 1.75rem); -webkit-line-clamp: 5; }
+#post-dialog-title { margin: 0 0 8px; }
+.post-dialog-text p { margin: 0 0 0.8em; color: #343c4c; }
+@media (prefers-reduced-motion: reduce) { .post-card:hover { transform: none; } }
+@media (min-width: 768px) {
+  .modal-post.has-media { width: min(920px, calc(100vw - 48px)); }
+  .modal-post.has-media .post-dialog-body {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start;
+  }
+  .modal-post.has-media .post-dialog-media { margin: 0; position: sticky; top: 0; }
+}

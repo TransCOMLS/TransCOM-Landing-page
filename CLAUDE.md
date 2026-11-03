@@ -12,10 +12,10 @@ provider manages all jobs from one Google Sheet, with no paid server.
   font — with a sans-serif fallback stack. Do not switch to other display fonts.
 
 ## Files
-- `index.html` — single page; 12 `.panel` sections in `<main>`: home, services, pricing,
-  calculator, submit, track, account, how, faq, contact, privacy, terms. Ids double as `#hash` routes.
+- `index.html` — single page; 13 `.panel` sections in `<main>`: home, services, pricing,
+  calculator, news, submit, track, account, how, faq, contact, privacy, terms. Ids double as `#hash` routes.
   Menu (`.main-nav` in the header): Home · Services & pricing ▾ (services, pricing,
-  calculator) · Orders ▾ (how, submit, track) · Help ▾ (faq, privacy, terms) · Contact.
+  calculator, news) · Orders ▾ (how, submit, track) · Help ▾ (faq, privacy, terms) · Contact.
   Items carry `data-tab`; other in-page links use `data-goto`. "My account" is the
   `.account-btn` in the header (≥640px) and a menu item below 1024px.
 - `css/style.css` — mobile-first. Breakpoints: phone/tablet (<1024px, menu button opens
@@ -46,7 +46,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
   the owner — do not reword without being asked). `**bold**` is rendered as <strong>.
 - `js/home.js` — home page: instant estimate in the hero (carries into the calculator),
   offers & highlights (`config.promotions`), popular documents (`config.popularDocs`,
-  open the calculator), compact steps, news (`config.news`), FAQ teaser, closing CTA.
+  open the calculator), compact steps, FAQ teaser, closing CTA. Also the News page
+  (`config.news`): square posts (owner's https image, or a generated navy cover with the
+  title) that open `#post-dialog`; a real picture sits beside the text on ≥768px.
   When Apps Script is connected, offers/news come from the "Promotions" / "News" sheets
   (action `getContent`, 5-min cache) if they have ticked rows. Only real offers — no
   invented reviews, statistics or discounts. Account offer shows only once connected.
@@ -57,7 +59,7 @@ provider manages all jobs from one Google Sheet, with no paid server.
   key `tr_session`; if storage is blocked (e.g. some iframes) the sign-in lasts until reload.
 - `apps-script/Code.gs` — Web App bound to the Sheet. `doPost` actions: requestCode,
   verifyCode, getAccount, updateProfile, logout, deleteAccount, getContent. Sheets: "Users", "Jobs",
-  "Promotions", "News"
+  "Promotions", "News" (incl. picture link — Drive share links are turned into image links)
   (columns defined in `JOB_COLS`, written by Phase 3), hidden "_sessions". Codes live in
   CacheService (10 min, 5 tries, 1/min, 5/hour); codes and tokens are stored only as
   salted SHA-256; customer text is escaped against Sheets formulas. Run `setup()` once.

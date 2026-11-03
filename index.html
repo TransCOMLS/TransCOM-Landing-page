@@ -31,6 +31,7 @@
             <li><button type="button" class="nav-sublink" data-tab="services" data-i18n="nav.services"></button></li>
             <li><button type="button" class="nav-sublink" data-tab="pricing" data-i18n="nav.pricing"></button></li>
             <li><button type="button" class="nav-sublink" data-tab="calculator" data-i18n="nav.calculator"></button></li>
+            <li><button type="button" class="nav-sublink" data-tab="news" data-i18n="nav.news"></button></li>
           </ul>
         </li>
         <li class="nav-group">
@@ -157,12 +158,6 @@
         </ol>
       </section>
 
-      <!-- News (config.news, or the "News" sheet via Apps Script); hidden when empty -->
-      <section class="home-block" id="home-news" aria-labelledby="news-h" hidden>
-        <h2 class="block-title" id="news-h" data-i18n="home.news.title"></h2>
-        <ul class="news-list" id="news-list"></ul>
-      </section>
-
       <section class="home-block" aria-labelledby="hfaq-h">
         <div class="block-head">
           <h2 class="block-title" id="hfaq-h" data-i18n="home.faq.title"></h2>
@@ -239,6 +234,14 @@
       <div class="actions">
         <button type="button" class="btn btn-primary" data-goto="calculator" data-i18n="pricing.cta"></button>
       </div>
+    </section>
+
+    <!-- ===== News & announcements: square posts, details in a pop-up (js/home.js) ===== -->
+    <section id="news" class="panel" hidden>
+      <h1 data-i18n="news.title"></h1>
+      <p class="lead" data-i18n="news.lead"></p>
+      <ul class="post-grid" id="post-grid"></ul>
+      <p class="muted" id="post-empty" data-i18n="news.empty" hidden></p>
     </section>
 
     <!-- ===== 4. Price calculator (logic: Phase 2) ===== -->
@@ -735,6 +738,24 @@
     <div class="modal-foot">
       <button type="button" class="btn btn-primary btn-block" data-close-modal data-i18n="privacy.dialogDone"></button>
     </div>
+  </dialog>
+
+  <!-- One news post, opened from the News page -->
+  <dialog class="modal modal-post" id="post-dialog" aria-labelledby="post-dialog-title">
+    <div class="modal-head">
+      <p class="post-dialog-date" id="post-dialog-date"></p>
+      <button type="button" class="modal-close" data-close-modal data-i18n-aria="a11y.close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="modal-body post-dialog-body">
+      <div class="post-dialog-media" id="post-dialog-media" hidden></div>
+      <div class="post-dialog-copy">
+        <h2 class="h3" id="post-dialog-title"></h2>
+        <div class="post-dialog-text" id="post-dialog-text"></div>
+      </div>
+    </div>
+    <div class="modal-foot" id="post-dialog-foot"></div>
   </dialog>
 
   <footer class="site-footer">

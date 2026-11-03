@@ -86,9 +86,11 @@ var NEWS_COLS = [
   ['titleTh', 'หัวข้อ (ไทย)'],
   ['titleEn', 'หัวข้อ (EN)'],
   ['textTh', 'รายละเอียด (ไทย)'],
-  ['textEn', 'รายละเอียด (EN)']
+  ['textEn', 'รายละเอียด (EN)'],
+  ['image', 'รูปภาพ (ลิงก์)'],     // square picture; a Google Drive share link works too
+  ['cta', 'ปุ่มไปหน้า']
 ];
-var CTA_PAGES = ['services', 'pricing', 'calculator', 'submit', 'track', 'account', 'how', 'faq', 'contact'];
+var CTA_PAGES = ['services', 'pricing', 'calculator', 'submit', 'track', 'account', 'how', 'faq', 'contact', 'news', 'privacy', 'terms'];
 
 var SESSION_COLS = [
   ['tokenHash', 'tokenHash'],
@@ -328,7 +330,9 @@ function getContent_() {
       return {
         date: day_(r.date, tz),
         title: { th: str_(r.titleTh), en: str_(r.titleEn) },
-        text: { th: str_(r.textTh), en: str_(r.textEn) }
+        text: { th: longStr_(r.textTh), en: longStr_(r.textEn) },
+        image: imageUrl_(r.image),
+        cta: CTA_PAGES.indexOf(str_(r.cta)) > -1 ? str_(r.cta) : ''
       };
     }).filter(function (n) { return n.title.th || n.title.en; })
   };
@@ -341,6 +345,16 @@ function rowsIfSheet_(name, cols) {
 }
 function active_(r) { return r.active === true || String(r.active).toUpperCase() === 'TRUE'; }
 function str_(v) { return String(v == null ? '' : v).trim().slice(0, 600); }
+function longStr_(v) { return String(v == null ? '' : v).trim().slice(0, 4000); }
+
+// https links only; a Google Drive share link becomes a direct image link
+// (the file must be shared as "Anyone with the link")
+function imageUrl_(v) {
+  var s = str_(v);
+  var m = /drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=\w+&)?id=)([\w-]{10,})/.exec(s);
+  if (m) return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w1080';
+  return /^https:\/\/[^\s"'<>]+$/.test(s) ? s : '';
+}
 function day_(v, tz) {
   if (Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v)) return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
   var s = str_(v);
@@ -436,7 +450,7 @@ function setup() {
   // Home page content: tick boxes in "แสดง"; one example row (not shown) to copy
   [[SHEETS.promotions, PROMO_COLS, [false, '', '', 'ตัวอย่าง', 'Example', 'หัวข้อโปรโมชั่น', 'Offer title',
      'รายละเอียดสั้น ๆ', 'Short description', 'calculator']],
-   [SHEETS.news, NEWS_COLS, [false, new Date(), 'หัวข้อข่าว', 'News title', 'รายละเอียด', 'Details']]]
+   [SHEETS.news, NEWS_COLS, [false, new Date(), 'หัวข้อข่าว', 'News title', 'รายละเอียด', 'Details', '', 'services']]]
     .forEach(function (def) {
       var isNew = !ss_().getSheetByName(def[0]);
       var sh = ensureSheet_(def[0], def[1]);
