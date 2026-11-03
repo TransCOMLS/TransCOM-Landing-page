@@ -96,16 +96,17 @@ window.APP_CONFIG = {
   // ข่าวสารและประกาศ (หน้า "ข่าวสารและประกาศ" ในเมนูบริการและราคา) — โพสต์สี่เหลี่ยมจัตุรัส
   // กดแล้วเปิดป๊อปอัพ · image: ลิงก์รูป https (แนะนำ 1080×1080) หรือเว้นว่างเพื่อใช้ภาพปกอัตโนมัติ
   // text: ขึ้นบรรทัดใหม่ด้วย \n · cta: หน้าที่ปุ่มในป๊อปอัพพาไป (ไม่ใส่ก็ได้)
+  // active: true = แสดงบนเว็บ, false = ซ่อนไว้ (ฉบับร่าง) — ถ้าไม่มีโพสต์ที่แสดงเลย เมนูข่าวจะถูกซ่อน
   // เมื่อเชื่อม Apps Script แล้ว ระบบจะใช้ข้อมูลจากชีต "News" แทน
   news: [
     {
-      date: "2026-11-03", image: "", cta: "services",
+      active: false, date: "2026-11-03", image: "", cta: "services",
       title: { th: "เพิ่มบริการแปลเอกสารทะเบียนราษฎรในอัตราพิเศษ", en: "New: civil registration documents at a special rate" },
       text: { th: "แปลสูติบัตร ทะเบียนบ้าน ทะเบียนสมรส และเอกสารทะเบียนราษฎรอื่นรวม 18 รายการ ราคาเริ่มต้น {civilFrom} บาทต่อหน้า โปรดแนบบัตรประจำตัวประชาชนหรือเอกสารที่ราชการออกให้ทุกครั้ง",
               en: "We now translate birth certificates, house registrations, marriage registrations and 15 other civil registration documents from {civilFrom} THB a page. Please always attach your ID card or other government-issued ID." }
     },
     {
-      date: "2026-11-03", image: "", cta: "privacy",
+      active: false, date: "2026-11-03", image: "", cta: "privacy",
       title: { th: "ลบข้อมูลเอกสารทะเบียนราษฎรภายใน {idRetentionDays} วัน", en: "Civil registration data deleted within {idRetentionDays} days" },
       text: { th: "เพื่อคุ้มครองข้อมูลส่วนบุคคล ข้อมูลและสำเนาบัตรของงานเอกสารทะเบียนราษฎรจะถูกลบออกจากระบบภายใน {idRetentionDays} วัน นับจากวันที่ท่านยืนยันว่าเอกสารแปลถูกต้อง",
               en: "To protect your personal data, all data and ID copies for civil registration jobs are deleted within {idRetentionDays} days of the day you confirm the translation is correct." }
