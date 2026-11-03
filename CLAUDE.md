@@ -58,3 +58,11 @@ The owner asked to stop after each phase and show the result before continuing.
 No build or test runner. Serve the folder (`python3 -m http.server`) and check every
 tab at 320, 390, 768, 1024 and 1280px in both languages: no horizontal scroll, no
 console errors, `node --check js/*.js` passes, and i18n keys match between th/en.
+
+## Artifacts copy
+The owner keeps a matching preview copy on claude.ai: https://claude.ai/artifact/WrtJLSJG77T717XyWkqMrF
+After each phase, republish it with the Artifact tool, passing that URL as `url` (read it first).
+Publish `index.html` with its `<!DOCTYPE>`, `<html>`, `<head>`/`<body>` tags and the charset/viewport
+metas removed (title, font links and the stylesheet link stay), plus `css/style.css` and the three
+`js/*.js` files under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
+inline for that copy only.
