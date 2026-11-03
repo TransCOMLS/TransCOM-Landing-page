@@ -40,6 +40,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
   `data-i18n-aria`. No hard-coded UI text in HTML or JS.
 - Inside the Google Sites iframe: external links (incl. `tel:`, `mailto:`, LINE)
   use `target="_blank"`; navigation is in-page only; forms always `preventDefault`.
+- Device priority (owner's choice): 1. PC  2. phone  3. tablet. Design and review PC
+  first, then phone, then tablet. CSS stays mobile-first in code (base = phone, PC in
+  `min-width` queries); that is a coding technique, not the design priority.
 - Must work from 320px wide with no horizontal scroll, on tablet and on PC.
   Tap targets ≥44px. One primary button per section. White background, navy accent
   (`--accent` in `style.css`).
@@ -68,7 +71,7 @@ The owner asked to stop after each phase and show the result before continuing.
 
 ## Testing
 No build or test runner. Serve the folder (`python3 -m http.server`) and check every
-tab at 320, 390, 768, 1024 and 1280px in both languages: no horizontal scroll, no
+page in priority order — PC 1366, 1920, 1280, 1024; phone 390, 320; tablet 768 — in both languages: no horizontal scroll, no
 console errors, `node --check js/*.js` passes, and i18n keys match between th/en.
 
 ## Artifacts copy

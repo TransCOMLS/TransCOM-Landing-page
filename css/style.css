@@ -218,6 +218,8 @@ main { outline: none; }
 .btn-primary:disabled { opacity: .6; cursor: not-allowed; }
 .btn-lg { min-height: 54px; font-size: 1.125rem; padding: 0 28px; }
 .btn-sm { min-height: var(--tap); padding: 0 18px; font-size: 0.9375rem; }
+.btn-outline { background: #fff; border: 2px solid var(--accent); color: var(--accent); }
+.btn-outline:hover { background: var(--accent-soft); }
 .btn-outline-light { background: transparent; border: 2px solid rgba(255, 255, 255, 0.85); color: #fff; }
 .btn-outline-light:hover { background: #fff; color: var(--accent); }
 .btn-block { width: 100%; }
@@ -516,8 +518,25 @@ a.contact-item:hover { border-color: var(--accent); }
   }
 }
 
+/* Side card next to the job form — PC only */
+.side-card { display: none; }
+.mini-steps { list-style: none; margin: 12px 0 16px; padding: 0; counter-reset: ms; }
+.mini-steps li { position: relative; counter-increment: ms; padding: 6px 0 6px 38px; font-weight: 600; }
+.mini-steps li::before {
+  content: counter(ms); position: absolute; left: 0; top: 5px;
+  width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  background: #fff; border: 2px solid #dceaf4; color: var(--accent); font-size: 0.875rem;
+}
+
 /* PC: menu in the header, content full width */
 @media (min-width: 1024px) {
+  #submit { display: grid; grid-template-columns: minmax(0, 760px) 300px; column-gap: 48px; align-items: start; }
+  #submit > * { grid-column: 1; }
+  #submit > .side-card {
+    display: block; grid-column: 2; grid-row: 1 / span 6;
+    position: sticky; top: calc(var(--header-h) + 24px);
+    padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-soft);
+  }
   :root { --gutter: 32px; }
   .header-bar, .footer-inner { max-width: var(--maxw-wide); }
   .footer-bottom { max-width: calc(var(--maxw-wide) - 2 * var(--gutter)); }
