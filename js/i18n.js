@@ -176,18 +176,74 @@ window.I18N = {
     "how.cta": "เริ่มส่งงาน",
 
     "faq.title": "คำถามที่พบบ่อย",
-    "faq.q1": "ใช้ยื่นสถานทูตได้หรือไม่",
-    "faq.a1": "ได้ โปรดเลือก “ต้องการรับรองคำแปล” เมื่อส่งงาน ทั้งนี้ข้อกำหนดของแต่ละสถานทูตและหน่วยงานแตกต่างกัน บางแห่งอาจกำหนดให้รับรองโดยกรมการกงสุลหรือผู้แปลที่ขึ้นทะเบียน โปรดตรวจสอบข้อกำหนดของหน่วยงานปลายทางก่อนส่งงาน",
-    "faq.q2": "ต้องส่งเอกสารฉบับจริงหรือไม่",
-    "faq.a2": "ไม่ต้อง ใช้ไฟล์สแกนหรือภาพถ่ายที่ชัดเจนได้ เว้นแต่หน่วยงานปลายทางกำหนดให้ตรวจสอบฉบับจริง",
-    "faq.q3": "แก้ไขงานแปลได้หรือไม่",
-    "faq.a3": "แก้ไขข้อผิดพลาดจากการแปลได้โดยไม่มีค่าใช้จ่ายภายใน {revisionDays} วันหลังส่งมอบงาน หากมีการเปลี่ยนแปลงเนื้อหาต้นฉบับ จะคิดค่าบริการเพิ่มตามจริง",
-    "faq.q4": "ส่งเป็นไฟล์ภาพถ่ายได้หรือไม่",
-    "faq.a4": "ได้ รับไฟล์ JPG และ PNG โปรดถ่ายให้เห็นข้อความครบทุกมุม ไม่เบลอ และไม่มีแสงสะท้อน",
-    "faq.q5": "ใช้เวลาแปลนานเท่าใด",
-    "faq.a5": "งานปกติ {normalDays} วันทำการ งานด่วน {expressDays} วันทำการ นับจากวันที่ชำระเงิน เอกสารจำนวนมากอาจใช้เวลาเพิ่มเติม",
+
+    "faq.g1": "การส่งงานและเอกสาร",
+
+    "faq.q1": "ต้องส่งเอกสารฉบับจริงหรือไม่",
+
+    "faq.a1": "ไม่ต้อง ใช้ไฟล์สแกนหรือภาพถ่ายที่ชัดเจนได้ (PDF, JPG, PNG หรือ DOCX ไฟล์ละไม่เกิน {maxFileMB} MB) เว้นแต่หน่วยงานปลายทางกำหนดให้ตรวจสอบฉบับจริง",
+
+    "faq.q2": "ส่งเป็นไฟล์ภาพถ่ายได้หรือไม่",
+
+    "faq.a2": "ได้ โปรดถ่ายให้เห็นข้อความครบทุกมุม ไม่เบลอ และไม่มีแสงสะท้อน ส่วนที่อ่านไม่ออกจะระบุว่า [อ่านไม่ออก] ไว้ในงานแปล",
+
+    "faq.q3": "เอกสารทะเบียนราษฎรต้องแนบอะไรเพิ่มเติม",
+
+    "faq.a3": "เอกสารทะเบียนราษฎร เช่น สูติบัตร ทะเบียนบ้าน และทะเบียนสมรส คิดอัตราพิเศษ และต้องแนบสำเนาบัตรประจำตัวประชาชนหรือเอกสารที่ราชการออกให้ทุกครั้ง เพื่อตรวจสอบการสะกดชื่อและข้อมูลในคำแปล ข้อมูลและไฟล์ทั้งหมดของงานนี้ รวมถึงสำเนาบัตร จะถูกลบภายใน {idRetentionDays} วัน นับจากวันที่ท่านยืนยันว่าเอกสารแปลถูกต้อง",
+
+    "faq.q4": "ต้องสมัครบัญชีก่อนส่งงานหรือไม่",
+
+    "faq.a4": "ไม่จำเป็น ส่งงานโดยไม่มีบัญชีได้ บัญชีช่วยให้ดูประวัติงานและกรอกข้อมูลในแบบฟอร์มให้อัตโนมัติ เข้าสู่ระบบด้วยรหัส 6 หลักที่ส่งไปทางอีเมล ไม่ต้องตั้งรหัสผ่าน",
+
+    "faq.g2": "ราคา การชำระเงิน และการยกเลิก",
+
+    "faq.q5": "ราคาจากตัวคำนวณเป็นราคาจริงหรือไม่",
+
+    "faq.a5": "เป็นราคาประมาณการ ราคาที่ผูกพันคือราคาในใบเสนอราคาที่ส่งให้ทางอีเมล ซึ่งมีอายุ 7 วัน หากจำนวนหน้าหรือความยากของเอกสารต่างจากที่แจ้งไว้ ราคาอาจเปลี่ยนแปลงก่อนเริ่มงาน",
+
     "faq.q6": "ชำระเงินอย่างไร",
-    "faq.a6": "ชำระผ่าน PromptPay หลังได้รับใบเสนอราคา และส่งหลักฐานการชำระเงินทางอีเมลหรือ LINE",
+
+    "faq.a6": "ชำระผ่าน PromptPay หรือโอนเข้าบัญชีธนาคาร หลังได้รับใบเสนอราคา แล้วส่งหลักฐานการชำระเงินทางอีเมล ระบบสั่งงาน หรือ LINE งานจะเริ่มเมื่อตรวจสอบการชำระเงินแล้ว ค่าบริการไม่มีภาษีมูลค่าเพิ่ม เนื่องจากผู้ให้บริการยังไม่ได้จดทะเบียนภาษีมูลค่าเพิ่ม",
+
+    "faq.q7": "ยกเลิกงานแล้วจะได้เงินคืนเท่าใด",
+
+    "faq.a7": "ยกเลิกก่อนชำระเงิน ไม่มีค่าใช้จ่าย หากยกเลิกหลังชำระเงิน: ก่อนได้รับฉบับร่าง คืนเงิน 70% หลังได้รับฉบับร่างแล้ว คืนเงิน 30% และหลังส่งมอบฉบับสมบูรณ์แล้ว ไม่คืนเงิน (ข้อ 2.9 ของข้อกำหนดและเงื่อนไข)",
+
+    "faq.q8": "ถ้างานด่วนส่งล่าช้าจะได้รับอะไร",
+
+    "faq.a8": "หากงานด่วนส่งล่าช้าเพราะเหตุจากผู้ให้บริการ จะคืนเงิน 15% ของค่าแปลของงานนั้น (ไม่รวมค่ารับรองคำแปล)",
+
+    "faq.g3": "การแปล การรับรอง และการส่งมอบ",
+
+    "faq.q9": "ใช้เวลาแปลนานเท่าใด",
+
+    "faq.a9": "งานปกติ {normalDays} วันทำการ งานด่วน {expressDays} วันทำการ นับจากวันทำการถัดไปหลังยืนยันการชำระเงินและได้รับเอกสารครบ เอกสารหรือการชำระเงินที่ได้รับหลัง 17.00 น. หรือวันหยุด นับเป็นวันทำการถัดไป เอกสารจำนวนมากอาจใช้เวลาเพิ่มเติม",
+
+    "faq.q10": "ใช้ยื่นสถานทูตได้หรือไม่",
+
+    "faq.a10": "ได้ โปรดเลือก “ต้องการรับรองคำแปล” เมื่อส่งงาน (ค่ารับรอง {certFee} บาทต่องาน) ข้อกำหนดของแต่ละสถานทูตและหน่วยงานแตกต่างกัน บางแห่งอาจกำหนดให้รับรองโดยกรมการกงสุลหรือผู้แปลที่ขึ้นทะเบียน โปรดตรวจสอบกับหน่วยงานปลายทางก่อนส่งงาน เนื่องจากผู้ให้บริการไม่สามารถรับประกันการยอมรับของหน่วยงานได้",
+
+    "faq.q11": "แก้ไขงานแปลได้หรือไม่",
+
+    "faq.a11": "ได้ แจ้งข้อผิดพลาดภายใน {revisionDays} วันนับจากวันส่งมอบงาน ข้อผิดพลาดจากการแปลแก้ไขให้โดยไม่มีค่าใช้จ่าย ส่วนการปรับสำนวนตามความชอบ ข้อผิดพลาดที่มีอยู่ในต้นฉบับ ข้อมูลที่แจ้งผิด หรือการเปลี่ยนเนื้อหาต้นฉบับ คิดค่าบริการเพิ่ม หากไม่แจ้งภายในกำหนด ถือว่าได้ตรวจรับงานแล้ว",
+
+    "faq.q12": "ติดตามสถานะงานได้อย่างไร",
+
+    "faq.a12": "กรอกเลขที่งาน (เช่น TR-2569-0001) และอีเมลที่ใช้ส่งงานในหน้าติดตามงาน หรือดูประวัติงานทั้งหมดในหน้าบัญชีของฉัน",
+
+    "faq.g4": "ข้อมูลส่วนบุคคล",
+
+    "faq.q13": "เก็บข้อมูลและไฟล์ของฉันไว้นานเท่าใด",
+
+    "faq.a13": "เก็บไว้ไม่เกิน {retentionDays} วันนับจากวันส่งมอบงาน แล้วลบออกจากระบบ (เอกสารทะเบียนราษฎรลบภายใน {idRetentionDays} วันหลังท่านยืนยันความถูกต้อง) ยกเว้นทะเบียนการรับรองคำแปล ซึ่งเก็บเพียงเลขที่งาน ชื่อ ประเภทเอกสาร และวันที่รับรองไว้ 1 ปี ท่านขอลบข้อมูลได้ทางอีเมล และผู้มีบัญชีลบบัญชีได้เองที่หน้าบัญชีของฉัน",
+
+    "faq.more": "อ่านข้อกำหนดและเงื่อนไขฉบับเต็ม",
+
+    "faq.aside.title": "ยังมีคำถามอื่นอยู่หรือไม่",
+
+    "faq.aside.text": "สอบถามได้ทาง LINE อีเมล หรือโทรศัพท์ ในวันและเวลาทำการ",
+
+    "faq.aside.contact": "ช่องทางติดต่อทั้งหมด",
 
     "contact.title": "ติดต่อเรา",
     "contact.lead": "สอบถามข้อมูลก่อนส่งงานได้ทุกช่องทาง",
@@ -215,7 +271,7 @@ window.I18N = {
     "privacy.h6": "ติดต่อเรื่องข้อมูลส่วนบุคคล",
     "terms.title": "ข้อกำหนดและเงื่อนไขการรับบริการ",
     "terms.note": "โปรดอ่านข้อกำหนดนี้ก่อนส่งงาน การส่งงานหรือชำระค่าบริการถือว่าท่านยอมรับข้อกำหนดทุกข้อ",
-    "terms.toc": "สารบัญ",
+    "common.toc": "สารบัญ",
 
     "nav.account": "บัญชีของฉัน",
     "acct.signIn": "เข้าสู่ระบบ",
@@ -458,18 +514,74 @@ window.I18N = {
     "how.cta": "Start now",
 
     "faq.title": "Frequently asked questions",
-    "faq.q1": "Can I use the translation at an embassy?",
-    "faq.a1": "Yes. Choose “Certified translation” when you submit. Requirements differ between embassies and agencies — some require certification by the Department of Consular Affairs or a registered translator — so please check with the receiving office first.",
-    "faq.q2": "Do I need to send the original documents?",
-    "faq.a2": "No. A clear scan or photo is enough, unless the receiving office requires the original to be checked.",
-    "faq.q3": "Can I ask for revisions?",
-    "faq.a3": "Translation errors are corrected free of charge within {revisionDays} days of delivery. Changes to the source content are charged separately.",
-    "faq.q4": "Can I send photos of my documents?",
-    "faq.a4": "Yes, JPG and PNG are accepted. Make sure all text and corners are visible, in focus and free of glare.",
-    "faq.q5": "How long does it take?",
-    "faq.a5": "Normal: {normalDays} working days. Express: {expressDays} working days, counted from payment. Large jobs may take longer.",
+
+    "faq.g1": "Sending your documents",
+
+    "faq.q1": "Do I need to send the original documents?",
+
+    "faq.a1": "No. A clear scan or photo is enough (PDF, JPG, PNG or DOCX, up to {maxFileMB} MB per file), unless the receiving office requires the original to be checked.",
+
+    "faq.q2": "Can I send photos of my documents?",
+
+    "faq.a2": "Yes. Make sure all text and corners are visible, in focus and free of glare. Any part we cannot read is marked [illegible] in the translation.",
+
+    "faq.q3": "What else do I need for civil registration documents?",
+
+    "faq.a3": "Civil registration documents, such as birth certificates, house registration and marriage certificates, have a special rate, and you must always attach a copy of your national ID card or another government-issued ID so we can check names and details in the translation. All data and files for the job, including the ID copy, are deleted within {idRetentionDays} days of the day you confirm the translation is correct.",
+
+    "faq.q4": "Do I need an account to submit a job?",
+
+    "faq.a4": "No, you can submit as a guest. An account lets you see your job history and fills in the job form for you. You sign in with a 6-digit code sent to your email, with no password to remember.",
+
+    "faq.g2": "Prices, payment and cancellation",
+
+    "faq.q5": "Is the calculator price final?",
+
+    "faq.a5": "No, it is an estimate. The binding price is the one in the quote we email you, which is valid for 7 days. If the number of pages or the difficulty differs from what you told us, the price may change before work starts.",
+
     "faq.q6": "How do I pay?",
-    "faq.a6": "By PromptPay after you receive the quote. Send the payment slip by email or LINE.",
+
+    "faq.a6": "By PromptPay or bank transfer after you receive the quote. Send the payment slip by email, through the ordering system or by LINE. Work starts once payment is confirmed. No VAT is charged, as the provider is not VAT-registered.",
+
+    "faq.q7": "How much do I get back if I cancel?",
+
+    "faq.a7": "Cancelling before payment is free. After payment: before you receive the draft, 70% is refunded; after you receive the draft, 30%; after the final translation is delivered, nothing (Clause 2.9 of the Terms and Conditions).",
+
+    "faq.q8": "What if an express job is late?",
+
+    "faq.a8": "If an express job is late for reasons on our side, we refund 15% of the translation fee for that job (excluding the certification fee).",
+
+    "faq.g3": "Translation, certification and delivery",
+
+    "faq.q9": "How long does it take?",
+
+    "faq.a9": "Normal: {normalDays} working days. Express: {expressDays} working days, counted from the working day after payment is confirmed and all documents are received. Documents or payments received after 17:00 or on a holiday count from the next working day. Large jobs may take longer.",
+
+    "faq.q10": "Can I use the translation at an embassy?",
+
+    "faq.a10": "Yes. Choose “Certified translation” when you submit (certification fee THB {certFee} per job). Requirements differ between embassies and agencies — some require certification by the Department of Consular Affairs or a registered translator — so please check with the receiving office first, as we cannot guarantee that any office will accept it.",
+
+    "faq.q11": "Can I ask for revisions?",
+
+    "faq.a11": "Yes. Report errors within {revisionDays} days of delivery and translation errors are corrected free of charge. Style preferences, errors in the original, wrong details you gave us, or changes to the source content are charged separately. If you do not report anything within that time, the work is treated as accepted.",
+
+    "faq.q12": "How do I track my job?",
+
+    "faq.a12": "Enter your job number (e.g. TR-2569-0001) and the email you used on the Track a job page, or see all your jobs on the My account page.",
+
+    "faq.g4": "Your personal data",
+
+    "faq.q13": "How long do you keep my data and files?",
+
+    "faq.a13": "No more than {retentionDays} days after delivery, then they are deleted (civil registration documents within {idRetentionDays} days of your confirmation). The only exception is the register of certified translations, which keeps just the job number, name, document type and date for 1 year. You can ask us to delete your data by email, and account holders can delete their account on the My account page.",
+
+    "faq.more": "Read the full Terms and Conditions",
+
+    "faq.aside.title": "Still have a question?",
+
+    "faq.aside.text": "Ask us on LINE, by email or by phone during office hours.",
+
+    "faq.aside.contact": "All contact details",
 
     "contact.title": "Contact us",
     "contact.lead": "Questions before you submit? Reach us any way you like.",
@@ -497,7 +609,7 @@ window.I18N = {
     "privacy.h6": "Contact about personal data",
     "terms.title": "Terms and Conditions of Service",
     "terms.note": "Please read these Terms before submitting a job. Submitting a job or paying the fee means you accept all of them. If the Thai and English versions differ, the Thai version prevails.",
-    "terms.toc": "Contents",
+    "common.toc": "Contents",
 
     "nav.account": "My account",
     "acct.signIn": "Sign in",

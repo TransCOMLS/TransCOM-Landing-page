@@ -40,9 +40,13 @@ provider manages all jobs from one Google Sheet, with no paid server.
   later phases to hook into. Menu is a disclosure pattern (`aria-expanded`, current page
   `aria-current="page"`); Escape and outside clicks close it. After load it scrolls back
   to the top, since the browser jumps to the `#hash` section.
-  Renders `#terms-body` and its contents list (`#terms-toc`, clauses 1–9) from `window.TERMS`
-  on every language change. PC: contents sticky in the left column, text at reading width
-  (74ch), current clause highlighted while scrolling; phone/tablet: contents folded at the top.
+  Renders `#terms-body` from `window.TERMS` on every language change. Long pages (terms,
+  privacy; class `.prose.has-toc`) get a contents list: `<details class="doc-toc"
+  data-toc-for="<body id>">` built from the body's `<h2>`s (`buildTocs`/`initTocs`). PC: sticky
+  in the left column, text at reading width (74ch), current section highlighted while
+  scrolling; phone/tablet: folded at the top. The pop-up strips the list.
+  FAQ: 13 questions in 4 groups (`faq.g1`–`g4`, `faq.q1`–`q13`), answers match the terms and
+  use config tokens; PC shows a help side card (`.side-card`, as on the job form).
   Policy pop-up (`<dialog id="policy-dialog">`, content copied from `#privacy` or `#terms`,
   page `<h1>` becomes the title): opened by `[data-modal="privacy"|"terms"]` (the two links in
   the job-form consent) and by any `data-goto="privacy"|"terms"` while on the submit page, so

@@ -500,13 +500,46 @@
     <!-- ===== 8. FAQ ===== -->
     <section id="faq" class="panel" hidden>
       <h1 data-i18n="faq.title"></h1>
+      <!-- PC only: help beside the questions -->
+      <aside class="side-card" aria-labelledby="faq-side">
+        <h2 class="h4" id="faq-side" data-i18n="faq.aside.title"></h2>
+        <p class="note" data-i18n="faq.aside.text"></p>
+        <a class="btn btn-outline btn-block" data-contact="line" target="_blank" rel="noopener noreferrer">
+          <span data-i18n="contact.line"></span><span class="sr-only" data-i18n="a11y.newTab"></span>
+        </a>
+        <ul class="side-links">
+          <li><button type="button" class="btn-link" data-goto="contact" data-i18n="faq.aside.contact"></button></li>
+          <li><button type="button" class="btn-link" data-goto="terms" data-i18n="faq.more"></button></li>
+          <li><button type="button" class="btn-link" data-goto="privacy" data-i18n="footer.privacy"></button></li>
+        </ul>
+      </aside>
+      <h2 class="h3 faq-group" data-i18n="faq.g1"></h2>
       <div class="accordion">
         <details><summary data-i18n="faq.q1"></summary><p data-i18n="faq.a1"></p></details>
         <details><summary data-i18n="faq.q2"></summary><p data-i18n="faq.a2"></p></details>
         <details><summary data-i18n="faq.q3"></summary><p data-i18n="faq.a3"></p></details>
         <details><summary data-i18n="faq.q4"></summary><p data-i18n="faq.a4"></p></details>
+      </div>
+      <h2 class="h3 faq-group" data-i18n="faq.g2"></h2>
+      <div class="accordion">
         <details><summary data-i18n="faq.q5"></summary><p data-i18n="faq.a5"></p></details>
         <details><summary data-i18n="faq.q6"></summary><p data-i18n="faq.a6"></p></details>
+        <details><summary data-i18n="faq.q7"></summary><p data-i18n="faq.a7"></p></details>
+        <details><summary data-i18n="faq.q8"></summary><p data-i18n="faq.a8"></p></details>
+      </div>
+      <h2 class="h3 faq-group" data-i18n="faq.g3"></h2>
+      <div class="accordion">
+        <details><summary data-i18n="faq.q9"></summary><p data-i18n="faq.a9"></p></details>
+        <details><summary data-i18n="faq.q10"></summary><p data-i18n="faq.a10"></p></details>
+        <details><summary data-i18n="faq.q11"></summary><p data-i18n="faq.a11"></p></details>
+        <details><summary data-i18n="faq.q12"></summary><p data-i18n="faq.a12"></p></details>
+      </div>
+      <h2 class="h3 faq-group" data-i18n="faq.g4"></h2>
+      <div class="accordion">
+        <details><summary data-i18n="faq.q13"></summary><p data-i18n="faq.a13"></p></details>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn-link" data-goto="terms" data-i18n="faq.more"></button>
       </div>
     </section>
 
@@ -544,31 +577,39 @@
     </section>
 
     <!-- ===== 10. Privacy policy (PDPA) ===== -->
-    <section id="privacy" class="panel prose" hidden>
+    <section id="privacy" class="panel prose has-toc" hidden>
       <h1 data-i18n="privacy.title"></h1>
       <p class="note"><span data-i18n="privacy.updated"></span>: <span data-privacy-updated></span></p>
-      <p data-i18n="privacy.intro"></p>
-      <h2 class="h3" data-i18n="privacy.h1"></h2><p data-i18n="privacy.p1"></p>
-      <h2 class="h3" data-i18n="privacy.h2"></h2><p data-i18n="privacy.p2"></p>
-      <h2 class="h3" data-i18n="privacy.h3"></h2><p data-i18n="privacy.p3"></p>
-      <h2 class="h3" data-i18n="privacy.h4"></h2><p data-i18n="privacy.p4"></p>
-      <h2 class="h3" data-i18n="privacy.h5"></h2><p data-i18n="privacy.p5"></p>
-      <h2 class="h3" data-i18n="privacy.hSec"></h2><p data-i18n="privacy.pSec"></p>
-      <h2 class="h3" data-i18n="privacy.h6"></h2>
-      <p><a data-contact="email" target="_blank" rel="noopener"><span data-contact-text="email"></span></a></p>
+      <div class="doc-layout">
+        <details class="doc-toc" data-toc-for="privacy-body">
+          <summary data-i18n="common.toc"></summary>
+          <ol></ol>
+        </details>
+        <div class="doc-body" id="privacy-body">
+          <p data-i18n="privacy.intro"></p>
+          <h2 class="h3" data-i18n="privacy.h1"></h2><p data-i18n="privacy.p1"></p>
+          <h2 class="h3" data-i18n="privacy.h2"></h2><p data-i18n="privacy.p2"></p>
+          <h2 class="h3" data-i18n="privacy.h3"></h2><p data-i18n="privacy.p3"></p>
+          <h2 class="h3" data-i18n="privacy.h4"></h2><p data-i18n="privacy.p4"></p>
+          <h2 class="h3" data-i18n="privacy.h5"></h2><p data-i18n="privacy.p5"></p>
+          <h2 class="h3" data-i18n="privacy.hSec"></h2><p data-i18n="privacy.pSec"></p>
+          <h2 class="h3" data-i18n="privacy.h6"></h2>
+          <p><a data-contact="email" target="_blank" rel="noopener"><span data-contact-text="email"></span></a></p>
+        </div>
+      </div>
     </section>
 
     <!-- ===== 11. Terms and conditions (text in js/terms.js) ===== -->
-    <section id="terms" class="panel prose terms" hidden>
+    <section id="terms" class="panel prose has-toc" hidden>
       <h1 data-i18n="terms.title"></h1>
       <p class="note" data-i18n="terms.note"></p>
-      <div class="terms-layout">
+      <div class="doc-layout">
         <!-- Contents: sticky sidebar on PC, folded list on phone/tablet -->
-        <details class="terms-toc" id="terms-toc">
-          <summary data-i18n="terms.toc"></summary>
-          <ol id="terms-toc-list"></ol>
+        <details class="doc-toc" data-toc-for="terms-body">
+          <summary data-i18n="common.toc"></summary>
+          <ol></ol>
         </details>
-        <div id="terms-body" class="terms-body"></div>
+        <div id="terms-body" class="doc-body"></div>
       </div>
     </section>
   </main>

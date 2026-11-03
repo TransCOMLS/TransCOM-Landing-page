@@ -440,6 +440,7 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 
 /* ---------- FAQ accordion ---------- */
 .accordion { margin-top: 16px; border: 1px solid var(--border); border-radius: var(--radius); }
+.faq-group { margin: 28px 0 0; color: var(--accent); }
 .accordion details + details { border-top: 1px solid var(--border); }
 .accordion summary {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -472,27 +473,27 @@ a.contact-item:hover { border-color: var(--accent); }
 .prose h2 { margin-top: 1.4em; }
 .prose p { color: #343c4c; }
 .prose a { display: inline-flex; align-items: center; min-height: var(--tap); font-weight: 600; }
-.terms-body h2, .terms h2 { margin-top: 1.6em; }
+.doc-body h2 { margin-top: 1.6em; }
 .prose ul.terms-list { margin: 0 0 1em; padding-left: 1.4em; }
 .prose ul.terms-list li { margin: 0 0 0.4em; color: #343c4c; }
 .terms-closing { font-weight: 600; }
-.terms-toc {
+.doc-toc {
   margin: 16px 0 8px; border: 1px solid var(--border); border-radius: var(--radius);
   background: var(--bg-soft);
 }
-.terms-toc summary {
+.doc-toc summary {
   display: flex; align-items: center; min-height: var(--tap); padding: 0 16px;
   cursor: pointer; font-weight: 600; color: var(--accent);
 }
-.terms-toc ol { list-style: none; margin: 0; padding: 0 8px 10px; }
-.terms-toc button {
+.doc-toc ol { list-style: none; margin: 0; padding: 0 8px 10px; }
+.doc-toc button {
   display: block; width: 100%; min-height: var(--tap); padding: 8px 10px;
   border: 0; border-radius: var(--radius-sm); background: none; cursor: pointer;
   font: inherit; font-size: 0.9375rem; line-height: 1.4; text-align: left; color: var(--text);
 }
-.terms-toc button:hover { background: #fff; color: var(--accent); }
-.terms-toc button[aria-current="true"] { background: #fff; color: var(--accent); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent-bright); }
-.modal-body .terms-layout { display: block; }
+.doc-toc button:hover { background: #fff; color: var(--accent); }
+.doc-toc button[aria-current="true"] { background: #fff; color: var(--accent); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent-bright); }
+.modal-body .doc-layout { display: block; }
 
 /* ---------- Footer ---------- */
 .site-footer {
@@ -559,6 +560,7 @@ a.contact-item:hover { border-color: var(--accent); }
 
 /* Side card next to the job form — PC only */
 .side-card { display: none; }
+.side-links { list-style: none; margin: 12px 0 0; padding: 0; }
 .mini-steps { list-style: none; margin: 12px 0 16px; padding: 0; counter-reset: ms; }
 .mini-steps li { position: relative; counter-increment: ms; padding: 6px 0 6px 38px; font-weight: 600; }
 .mini-steps li::before {
@@ -571,8 +573,14 @@ a.contact-item:hover { border-color: var(--accent); }
 @media (min-width: 1024px) {
   #submit { display: grid; grid-template-columns: minmax(0, 760px) 300px; column-gap: 48px; align-items: start; }
   #submit > * { grid-column: 1; }
+  #faq { display: grid; grid-template-columns: minmax(0, 760px) 300px; column-gap: 48px; align-items: start; }
+  #faq > * { grid-column: 1; }
+  #submit > .side-card { grid-row: 1 / span 6; }
+  #faq > .side-card { grid-row: 2 / span 12; }
+  #faq > .actions { display: none; }   /* the side card carries the terms link on PC */
+  #faq > .side-card,
   #submit > .side-card {
-    display: block; grid-column: 2; grid-row: 1 / span 6;
+    display: block; grid-column: 2;
     position: sticky; top: calc(var(--header-h) + 24px);
     padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-soft);
   }
@@ -588,15 +596,15 @@ a.contact-item:hover { border-color: var(--accent); }
   .steps li:not(:last-child)::after { left: calc(50% + 30px); right: calc(-50% + 14px); top: 25px; bottom: auto; width: auto; height: 2px; }
   #job-form { max-width: 760px; }
   .prose { max-width: 72ch; }
-  /* Terms: contents in the left margin (sticky), text at reading width */
-  #terms.prose { max-width: var(--maxw-wide); }
-  .terms-layout { display: grid; grid-template-columns: 260px minmax(0, 74ch); column-gap: 56px; align-items: start; }
-  .terms-toc {
+  /* Terms, privacy: contents in the left margin (sticky), text at reading width */
+  .prose.has-toc { max-width: var(--maxw-wide); }
+  .doc-layout { display: grid; grid-template-columns: 260px minmax(0, 74ch); column-gap: 56px; align-items: start; }
+  .doc-toc {
     position: sticky; top: calc(var(--header-h) + 24px); margin-top: 20px;
     max-height: calc(100vh - var(--header-h) - 48px); overflow-y: auto; overscroll-behavior: contain;
   }
-  .terms-toc summary { display: none; }
-  .terms-toc ol { padding-top: 10px; }
+  .doc-toc summary { display: none; }
+  .doc-toc ol { padding-top: 10px; }
   .table-wrap, .price-extra, .accordion { max-width: 760px; }
 }
 

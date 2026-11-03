@@ -88,6 +88,7 @@
     renderSelectOptions();
     renderCivilDocs();
     renderTerms();
+    buildTocs();
 
     $all(".lang-toggle [data-lang]").forEach(function (btn) {
       btn.setAttribute("aria-pressed", String(btn.getAttribute("data-lang") === state.lang));
@@ -149,25 +150,13 @@
     if (!box || !all) return;
     var d = all[state.lang] || all.th;
     box.textContent = "";
-    var toc = $("#terms-toc-list");
-    if (toc) toc.textContent = "";
     function para(text) { box.appendChild(richText(document.createElement("p"), text)); }
     (d.intro || []).forEach(para);
     (d.sections || []).forEach(function (sec, i) {
       var h = document.createElement("h2");
       h.className = "h3";
-      h.id = "terms-s" + (i + 1);
       h.textContent = sec.title;
       box.appendChild(h);
-      if (toc) {
-        var li = document.createElement("li");
-        var b = document.createElement("button");
-        b.type = "button";
-        b.setAttribute("data-terms-target", h.id);
-        b.textContent = sec.title;
-        li.appendChild(b);
-        toc.appendChild(li);
-      }
       (sec.blocks || []).forEach(function (block) {
         if (typeof block === "string") { para(block); return; }
         var ul = document.createElement("ul");
@@ -185,43 +174,69 @@
     }
   }
 
-  // Contents list beside the terms: open on PC, folded on phone/tablet; jumps within the page
-  function initTermsToc() {
-    var details = $("#terms-toc");
-    if (!details) return;
+  /* Contents list beside long pages (terms, privacy): <details class="doc-toc" data-toc-for="<body id>">.
+     Open in the left column on PC, folded at the top on phone/tablet; jumps within the page. */
+  function buildTocs() {
+    $all(".doc-toc").forEach(function (details) {
+      var bodyId = details.getAttribute("data-toc-for");
+      var body = document.getElementById(bodyId);
+      var list = $("ol", details);
+      if (!body || !list) return;
+      list.textContent = "";
+      $all("h2", body).forEach(function (h, i) {
+        h.id = bodyId + "-s" + (i + 1);
+        var li = document.createElement("li");
+        var b = document.createElement("button");
+        b.type = "button";
+        b.setAttribute("data-toc-target", h.id);
+        b.textContent = h.textContent;
+        li.appendChild(b);
+        list.appendChild(li);
+      });
+    });
+  }
+
+  function initTocs() {
+    var tocs = $all(".doc-toc");
+    if (!tocs.length) return;
     var wide = window.matchMedia ? window.matchMedia("(min-width: 1024px)") : null;
-    function sync() { details.open = !!(wide && wide.matches); }
+    function isWide() { return !!(wide && wide.matches); }
+    function sync() { tocs.forEach(function (d) { d.open = isWide(); }); }
     sync();
     if (wide) {
       if (wide.addEventListener) wide.addEventListener("change", sync);
       else if (wide.addListener) wide.addListener(sync);
     }
     var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    details.addEventListener("click", function (e) {
-      var b = e.target.closest("[data-terms-target]");
-      if (!b) return;
-      var h = document.getElementById(b.getAttribute("data-terms-target"));
-      if (!h) return;
-      // Fold the list first (phone/tablet), so the measured position does not shift afterwards
-      if (!(wide && wide.matches)) details.open = false;
-      var header = $(".site-header");
-      var top = h.getBoundingClientRect().top + window.scrollY - (header ? header.offsetHeight : 0) - 16;
-      // scrollTo, not scrollIntoView: inside Google Sites the latter can scroll the outer page too
-      window.scrollTo({ top: Math.max(0, top), behavior: reduce ? "auto" : "smooth" });
-      h.tabIndex = -1;
-      h.focus({ preventScroll: true });
+    function headerH() { var hd = $(".site-header"); return hd ? hd.offsetHeight : 0; }
+    tocs.forEach(function (details) {
+      details.addEventListener("click", function (e) {
+        var b = e.target.closest("[data-toc-target]");
+        if (!b) return;
+        var h = document.getElementById(b.getAttribute("data-toc-target"));
+        if (!h) return;
+        // Fold the list first (phone/tablet), so the measured position does not shift afterwards
+        if (!isWide()) details.open = false;
+        var top = h.getBoundingClientRect().top + window.scrollY - headerH() - 16;
+        // scrollTo, not scrollIntoView: inside Google Sites the latter can scroll the outer page too
+        window.scrollTo({ top: Math.max(0, top), behavior: reduce ? "auto" : "smooth" });
+        h.tabIndex = -1;
+        h.focus({ preventScroll: true });
+      });
     });
-    // Highlight the clause being read
+    // Highlight the section being read on the page that is showing
     var ticking = false;
     function spy() {
       ticking = false;
-      if (state.tab !== "terms") return;
-      var header = $(".site-header");
-      var line = (header ? header.offsetHeight : 0) + 40;
+      var details = $("#" + state.tab + " .doc-toc");
+      if (!details) return;
+      var body = document.getElementById(details.getAttribute("data-toc-for"));
+      if (!body) return;
+      var line = headerH() + 40;
       var current = null;
-      $all("#terms-body h2").forEach(function (h) { if (h.getBoundingClientRect().top <= line) current = h.id; });
-      $all("[data-terms-target]", details).forEach(function (b) {
-        if (b.getAttribute("data-terms-target") === current) b.setAttribute("aria-current", "true");
+      $all("h2", body).forEach(function (h) { if (h.getBoundingClientRect().top <= line) current = h.id; });
+      $all("[data-toc-target]", details).forEach(function (b) {
+        if (b.getAttribute("data-toc-target") === current) b.setAttribute("aria-current", "true");
         else b.removeAttribute("aria-current");
       });
     }
@@ -458,7 +473,7 @@
       else body.appendChild(node.cloneNode(true));
     });
     // The contents list is only for the full page; copied ids would clash with the page
-    $all(".terms-toc", body).forEach(function (el) { el.parentNode.removeChild(el); });
+    $all(".doc-toc", body).forEach(function (el) { el.parentNode.removeChild(el); });
     $all("[id]", body).forEach(function (el) { el.removeAttribute("id"); });
     lastOpener = opener || null;
     lastPage = page;
@@ -966,7 +981,7 @@
     initLanguageToggle();
     initTabs();
     initPolicyDialog();
-    initTermsToc();
+    initTocs();
     initCalculator();
     initFiles();
     initJobForm();
