@@ -1,6 +1,7 @@
 /*
  * app.js — Phase 1: tabs, language toggle, content from config.js
- * (Phase 2 adds: price calculator, form validation. Phase 3–4: backend.)
+ *          Phase 2: price calculator, client-side validation (job + track forms)
+ * Phase 3 hooks "jobsubmit", Phase 4 hooks "tracksubmit" (call preventDefault to take over).
  */
 (function () {
   "use strict";
@@ -244,28 +245,416 @@
     });
   }
 
-  function initFileList() {
-    var input = $("#f-files");
-    var list = $("#file-list");
-    if (!input || !list) return;
-    function render() {
-      list.textContent = "";
-      var files = Array.prototype.slice.call(input.files || []);
-      if (!files.length) {
-        var li = document.createElement("li");
-        li.className = "muted";
-        li.setAttribute("data-i18n", "form.filesNone");
-        li.textContent = t("form.filesNone");
-        list.appendChild(li);
-        return;
+  /* ---------- Phase 2: price calculator ---------- */
+  function findCategory(id) {
+    for (var i = 0; i < CFG.categories.length; i++) if (CFG.categories[i].id === id) return CFG.categories[i];
+    return null;
+  }
+
+  // Whole number 1–999, or null. Empty string → null.
+  function parsePages(raw) {
+    var v = String(raw == null ? "" : raw).trim();
+    if (!/^\d{1,3}$/.test(v)) return null;
+    var n = parseInt(v, 10);
+    return n >= 1 && n <= 999 ? n : null;
+  }
+
+  function calcValues() {
+    var urgencyEl = $('#calc-form input[name="urgency"]:checked');
+    return {
+      category: $("#c-category").value,
+      pagesRaw: $("#c-pages").value,
+      pages: parsePages($("#c-pages").value),
+      urgency: urgencyEl ? urgencyEl.value : "normal",
+      certified: $("#c-cert").checked
+    };
+  }
+
+  function updateCalculator() {
+    var form = $("#calc-form");
+    if (!form) return;
+    var v = calcValues();
+    var cat = findCategory(v.category);
+    var result = $("#calc-result");
+    var breakdown = $("#calc-breakdown");
+    var turnaround = $("#calc-turnaround");
+    var pagesBad = v.pagesRaw !== "" && v.pages === null;
+
+    setFieldError($("#c-pages"), pagesBad ? [t("err.pages")] : null);
+
+    if (!cat || v.pages === null) {
+      result.textContent = t("calc.resultEmpty");
+      result.classList.add("is-empty");
+      breakdown.textContent = "";
+      turnaround.textContent = "";
+      return null;
+    }
+    var perPage = cat[v.urgency];
+    var total = perPage * v.pages + (v.certified ? CFG.certificationFee : 0);
+    result.classList.remove("is-empty");
+    result.textContent = formatNumber(total) + " " + t("common.baht");
+    breakdown.textContent = t(v.certified ? "calc.breakdownCert" : "calc.breakdown", {
+      perPage: formatNumber(perPage), pages: v.pages
+    });
+    turnaround.textContent = t("calc.turnaround", { days: CFG.turnaround[v.urgency] });
+    return total;
+  }
+
+  function initCalculator() {
+    var form = $("#calc-form");
+    if (!form) return;
+    form.addEventListener("input", updateCalculator);
+    form.addEventListener("change", updateCalculator);
+    document.addEventListener("langchange", updateCalculator);
+
+    // Carry the estimate over to the job form (the button's data-goto then opens the tab)
+    var cta = $("#calc-to-submit");
+    if (cta) cta.addEventListener("click", function () {
+      var v = calcValues();
+      var used = false;
+      if (findCategory(v.category)) { $("#f-category").value = v.category; clearFieldError($("#f-category")); used = true; }
+      if (v.pages !== null) { $("#f-pages").value = v.pages; clearFieldError($("#f-pages")); used = true; }
+      var cert = $('#job-form input[name="certified"][value="' + (v.certified ? "yes" : "no") + '"]');
+      if (cert && used) cert.checked = true;
+      var note = $("#form-prefilled");
+      if (note) note.hidden = !used;
+    });
+    updateCalculator();
+  }
+
+  /* ---------- Phase 2: field errors ---------- */
+  function errorSlot(input) { return input ? $("#" + input.id + "-err") : null; }
+
+  // messages: array of strings (shown one per line) or null to clear
+  function setFieldError(input, messages) {
+    var slot = errorSlot(input);
+    var bad = !!(messages && messages.length);
+    if (input) {
+      if (bad) input.setAttribute("aria-invalid", "true");
+      else input.removeAttribute("aria-invalid");
+      var field = input.closest(".field");
+      if (field) field.classList.toggle("has-error", bad);
+    }
+    if (!slot) return;
+    slot.textContent = "";
+    if (bad) messages.forEach(function (m) {
+      var span = document.createElement("span");
+      span.className = "err-line";
+      span.textContent = m;
+      slot.appendChild(span);
+    });
+    slot.hidden = !bad;
+  }
+  function clearFieldError(input) { setFieldError(input, null); }
+
+  var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@.]{2,}$/;
+  var LINE_RE = /^[A-Za-z0-9._\-@]{1,60}$/;
+  var JOBNO_RE = /^TR-\d{4}-\d{4,}$/;
+
+  // Local date as YYYY-MM-DD (toISOString would use UTC and be a day off in Thailand)
+  function todayISO() {
+    var d = new Date();
+    function p(n) { return (n < 10 ? "0" : "") + n; }
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+  }
+
+  function fileExt(name) {
+    var m = /\.([^.]+)$/.exec(name || "");
+    return m ? m[1].toLowerCase() : "";
+  }
+
+  function fileProblems(f) {
+    var out = [];
+    if (CFG.allowedExtensions.indexOf(fileExt(f.name)) === -1) out.push(t("err.fileType", { name: f.name }));
+    else if (f.size === 0) out.push(t("err.fileEmpty", { name: f.name }));
+    if (f.size > CFG.maxFileMB * 1048576) out.push(t("err.fileSize", { name: f.name }));
+    return out;
+  }
+
+  function formatSize(bytes) {
+    if (bytes < 1048576) return Math.max(1, Math.round(bytes / 1024)) + "\u00a0KB";
+    return (bytes / 1048576).toFixed(1) + "\u00a0MB";
+  }
+
+  /* ---------- Phase 2: job form ---------- */
+  var selectedFiles = [];
+
+  // Each validator returns an array of messages ([] = valid)
+  var jobRules = {
+    "f-name": function (el) { return el.value.trim() ? [] : [t("err.required")]; },
+    "f-email": function (el) {
+      var v = el.value.trim();
+      if (!v) return [t("err.required")];
+      return EMAIL_RE.test(v) ? [] : [t("err.email")];
+    },
+    "f-line": function (el) {
+      var v = el.value.trim();
+      return !v || LINE_RE.test(v) ? [] : [t("err.line")];
+    },
+    "f-phone": function (el) {
+      var v = el.value.trim();
+      if (!v) return [];
+      var digits = v.replace(/\D/g, "");
+      return /^[+\d][\d\s\-()]*$/.test(v) && digits.length >= 9 && digits.length <= 15 ? [] : [t("err.phone")];
+    },
+    "f-langPair": function (el) { return el.value ? [] : [t("err.select")]; },
+    "f-category": function (el) { return el.value ? [] : [t("err.select")]; },
+    "f-pages": function (el) {
+      return el.value === "" && !(el.validity && el.validity.badInput) ? []
+        : parsePages(el.value) !== null ? [] : [t("err.pages")];
+    },
+    "f-neededBy": function (el) {
+      var v = el.value;
+      if (!v) return [t("err.date")];
+      return v < todayISO() ? [t("err.datePast")] : [];
+    },
+    "f-files": function () {
+      if (!selectedFiles.length) return [t("err.filesRequired")];
+      var out = [];
+      selectedFiles.forEach(function (f) { out = out.concat(fileProblems(f)); });
+      return out;
+    },
+    "f-consent": function (el) { return el.checked ? [] : [t("err.consent")]; }
+  };
+
+  var touched = {};
+
+  function validateField(id) {
+    var el = document.getElementById(id);
+    if (!el || !jobRules[id]) return true;
+    var errs = jobRules[id](el);
+    setFieldError(el, errs);
+    refreshErrorSummary();
+    return !errs.length;
+  }
+
+  // Keep the "please correct N fields" line in step with the fields as they are fixed
+  function refreshErrorSummary() {
+    var status = $("#form-status");
+    if (!status || status.hidden || !status.classList.contains("error")) return;
+    var bad = $all('#job-form [aria-invalid="true"]').length;
+    if (bad) showStatus(status, "error", t("form.errSummary", { count: bad }));
+    else showStatus(status, "", "");
+  }
+
+  function validateJobForm() {
+    var firstBad = null, count = 0;
+    Object.keys(jobRules).forEach(function (id) {
+      touched[id] = true;
+      if (!validateField(id)) {
+        count++;
+        if (!firstBad) firstBad = document.getElementById(id);
       }
-      files.forEach(function (f) {
-        var li = document.createElement("li");
-        li.textContent = f.name + " (" + (f.size / 1048576).toFixed(1) + " MB)";
-        list.appendChild(li);
+    });
+    return { ok: count === 0, count: count, firstBad: firstBad };
+  }
+
+  function showStatus(el, kind, text) {
+    if (!el) return;
+    el.className = "form-status" + (kind ? " " + kind : "");
+    el.textContent = text;
+    el.hidden = !text;
+  }
+
+  function renderFileList() {
+    var list = $("#file-list");
+    var total = $("#file-total");
+    if (!list) return;
+    list.textContent = "";
+    if (!selectedFiles.length) {
+      var empty = document.createElement("li");
+      empty.className = "muted";
+      empty.textContent = t("form.filesNone");
+      list.appendChild(empty);
+      if (total) total.hidden = true;
+      return;
+    }
+    var bytes = 0;
+    selectedFiles.forEach(function (f, i) {
+      bytes += f.size;
+      var li = document.createElement("li");
+      li.className = "file-item" + (fileProblems(f).length ? " is-bad" : "");
+      var name = document.createElement("span");
+      name.className = "file-name";
+      name.textContent = f.name;
+      var size = document.createElement("span");
+      size.className = "file-size";
+      size.textContent = formatSize(f.size);
+      var rm = document.createElement("button");
+      rm.type = "button";
+      rm.className = "file-remove";
+      rm.textContent = t("form.remove");
+      rm.setAttribute("aria-label", t("form.removeFile", { name: f.name }));
+      rm.addEventListener("click", function () {
+        selectedFiles.splice(i, 1);
+        renderFileList();
+        if (touched["f-files"]) validateField("f-files");
+        var next = $("#file-list .file-remove") || $("#f-files");
+        if (next) next.focus();
+      });
+      li.appendChild(name);
+      li.appendChild(size);
+      li.appendChild(rm);
+      list.appendChild(li);
+    });
+    if (total) {
+      total.textContent = t("form.filesCount", { count: selectedFiles.length, size: formatSize(bytes) });
+      total.hidden = false;
+    }
+  }
+
+  // New picks are added to the list (phones often pick one photo at a time)
+  function addFiles(fileList) {
+    Array.prototype.slice.call(fileList || []).forEach(function (f) {
+      var dup = selectedFiles.some(function (g) { return g.name === f.name && g.size === f.size && g.lastModified === f.lastModified; });
+      if (!dup) selectedFiles.push(f);
+    });
+    touched["f-files"] = true;
+    renderFileList();
+    validateField("f-files");
+  }
+
+  function initFiles() {
+    var input = $("#f-files");
+    var drop = $(".file-drop");
+    if (!input) return;
+    input.addEventListener("change", function () {
+      addFiles(input.files);
+      try { input.value = ""; } catch (e) { /* old browsers — ignore */ }
+    });
+    if (drop) {
+      ["dragenter", "dragover"].forEach(function (type) {
+        drop.addEventListener(type, function (e) { e.preventDefault(); drop.classList.add("dragover"); });
+      });
+      ["dragleave", "drop"].forEach(function (type) {
+        drop.addEventListener(type, function () { drop.classList.remove("dragover"); });
+      });
+      drop.addEventListener("drop", function (e) {
+        e.preventDefault();
+        if (e.dataTransfer) addFiles(e.dataTransfer.files);
       });
     }
-    input.addEventListener("change", render);
+    renderFileList();
+  }
+
+  function initJobForm() {
+    var form = $("#job-form");
+    if (!form) return;
+    var date = $("#f-neededBy");
+    var status = $("#form-status");
+
+    function refreshMinDate() { if (date) date.min = todayISO(); }
+    refreshMinDate();
+
+    Object.keys(jobRules).forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el || id === "f-files") return;
+      // Show an error once the person leaves a field; then update it live as they fix it
+      el.addEventListener("blur", function () {
+        if (el.value !== "" || el.type === "checkbox") { touched[id] = true; validateField(id); }
+      });
+      el.addEventListener(el.tagName === "SELECT" || el.type === "checkbox" || el.type === "date" ? "change" : "input", function () {
+        if (el.tagName === "SELECT" || el.type === "checkbox" || el.type === "date") touched[id] = true;
+        if (touched[id]) validateField(id);
+      });
+    });
+
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      refreshMinDate();
+      var r = validateJobForm();
+      if (!r.ok) {
+        showStatus(status, "error", t("form.errSummary", { count: r.count }));
+        var target = r.firstBad && r.firstBad.id === "f-files" ? $(".file-drop") : r.firstBad;
+        if (r.firstBad) {
+          if (target && target.scrollIntoView) target.scrollIntoView({ block: "center" });
+          r.firstBad.focus({ preventScroll: true });
+        }
+        return;
+      }
+      var data = getJobData();
+      // Phase 3 listens for this event and sends the job to Apps Script
+      var ev = new CustomEvent("jobsubmit", { detail: data, cancelable: true });
+      var handled = !document.dispatchEvent(ev);
+      if (!handled) showStatus(status, "", t("form.notReady"));
+    });
+
+    // Re-translate visible messages when the language changes
+    document.addEventListener("langchange", function () {
+      Object.keys(touched).forEach(function (id) { if (touched[id] && jobRules[id]) validateField(id); });
+      renderFileList();
+      if (status && !status.hidden && !status.classList.contains("success")) {
+        var bad = $all('#job-form [aria-invalid="true"]').length;
+        if (bad) showStatus(status, "error", t("form.errSummary", { count: bad }));
+        else showStatus(status, "", t("form.notReady"));
+      }
+    });
+  }
+
+  function getJobData() {
+    var cert = $('#job-form input[name="certified"]:checked');
+    function val(id) { var el = document.getElementById(id); return el ? el.value.trim() : ""; }
+    return {
+      name: val("f-name"),
+      email: val("f-email"),
+      line: val("f-line"),
+      phone: val("f-phone"),
+      langPair: val("f-langPair"),
+      category: val("f-category"),
+      pages: parsePages(val("f-pages")),
+      neededBy: val("f-neededBy"),
+      certified: cert ? cert.value === "yes" : false,
+      nameSpelling: val("f-nameSpelling"),
+      notes: val("f-notes"),
+      consent: $("#f-consent").checked,
+      lang: state.lang,
+      files: selectedFiles.slice()
+    };
+  }
+
+  /* ---------- Phase 2: track form (lookup itself: Phase 4) ---------- */
+  function initTrackForm() {
+    var form = $("#track-form");
+    if (!form) return;
+    var jobNo = $("#t-jobNo"), email = $("#t-email"), out = $("#track-result");
+    var rules = {
+      "t-jobNo": function () {
+        var v = jobNo.value.trim().toUpperCase();
+        if (!v) return [t("err.required")];
+        return JOBNO_RE.test(v) ? [] : [t("err.jobNo")];
+      },
+      "t-email": function () {
+        var v = email.value.trim();
+        if (!v) return [t("err.required")];
+        return EMAIL_RE.test(v) ? [] : [t("err.email")];
+      }
+    };
+    var checked = false;
+    function run() {
+      var first = null;
+      [jobNo, email].forEach(function (el) {
+        var errs = rules[el.id]();
+        setFieldError(el, errs);
+        if (errs.length && !first) first = el;
+      });
+      return first;
+    }
+    [jobNo, email].forEach(function (el) {
+      el.addEventListener("input", function () { if (checked) run(); });
+    });
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      checked = true;
+      jobNo.value = jobNo.value.trim().toUpperCase();
+      var first = run();
+      if (first) { showStatus(out, "", ""); first.focus(); return; }
+      var ev = new CustomEvent("tracksubmit", { detail: { jobNo: jobNo.value, email: email.value.trim() }, cancelable: true });
+      if (document.dispatchEvent(ev)) showStatus(out, "", t("track.notReady"));
+    });
+    document.addEventListener("langchange", function () {
+      if (checked) run();
+      if (out && !out.hidden && !out.classList.contains("success")) showStatus(out, "", t("track.notReady"));
+    });
   }
 
   // Forms must never reload the page inside the Google Sites iframe.
@@ -282,7 +671,10 @@
     applyLanguage(saved === "en" ? "en" : "th");
     initLanguageToggle();
     initTabs();
-    initFileList();
+    initCalculator();
+    initFiles();
+    initJobForm();
+    initTrackForm();
     guardForms();
   }
 
@@ -292,7 +684,12 @@
     config: CFG,
     getLang: function () { return state.lang; },
     showTab: showTab,
-    formatNumber: formatNumber
+    formatNumber: formatNumber,
+    // Phase 2 → used by Phase 3/4
+    getJobData: getJobData,
+    validateJobForm: validateJobForm,
+    showStatus: showStatus,
+    todayISO: todayISO
   };
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

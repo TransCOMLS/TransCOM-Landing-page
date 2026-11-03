@@ -123,7 +123,8 @@
         </div>
         <div class="field">
           <label for="c-pages" data-i18n="calc.pages"></label>
-          <input id="c-pages" name="pages" type="number" inputmode="numeric" min="1" max="999" step="1" value="1">
+          <input id="c-pages" name="pages" type="number" inputmode="numeric" min="1" max="999" step="1" value="1" aria-describedby="c-pages-err">
+          <p class="field-error" id="c-pages-err" hidden></p>
         </div>
         <fieldset class="field">
           <legend data-i18n="calc.urgency"></legend>
@@ -138,10 +139,12 @@
         <div class="estimate" aria-live="polite">
           <p class="estimate-label" data-i18n="calc.resultLabel"></p>
           <p class="estimate-value" id="calc-result">—</p>
+          <p class="estimate-breakdown" id="calc-breakdown"></p>
+          <p class="estimate-breakdown" id="calc-turnaround"></p>
           <p class="estimate-note" data-i18n="calc.disclaimer"></p>
         </div>
         <div class="actions">
-          <button type="button" class="btn btn-primary" data-goto="submit" data-i18n="calc.cta"></button>
+          <button type="button" class="btn btn-primary" id="calc-to-submit" data-goto="submit" data-i18n="calc.cta"></button>
         </div>
       </form>
     </section>
@@ -151,6 +154,7 @@
       <h1 data-i18n="form.title"></h1>
       <p class="lead" data-i18n="form.lead"></p>
       <p class="note"><span aria-hidden="true">* </span><span data-i18n="form.requiredNote"></span></p>
+      <p class="notice" id="form-prefilled" data-i18n="form.prefilled" hidden></p>
       <form id="job-form" class="form" novalidate>
 
         <fieldset class="group">
@@ -234,6 +238,7 @@
                    accept=".pdf,.jpg,.jpeg,.png,.docx,application/pdf,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                    aria-labelledby="f-files-label" aria-describedby="f-files-hint f-files-err">
             <ul class="file-list" id="file-list"><li class="muted" data-i18n="form.filesNone"></li></ul>
+            <p class="hint" id="file-total" aria-live="polite" hidden></p>
             <p class="field-error" id="f-files-err" hidden></p>
           </div>
         </fieldset>
