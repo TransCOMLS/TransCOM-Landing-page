@@ -149,13 +149,25 @@
     if (!box || !all) return;
     var d = all[state.lang] || all.th;
     box.textContent = "";
+    var toc = $("#terms-toc-list");
+    if (toc) toc.textContent = "";
     function para(text) { box.appendChild(richText(document.createElement("p"), text)); }
     (d.intro || []).forEach(para);
-    (d.sections || []).forEach(function (sec) {
+    (d.sections || []).forEach(function (sec, i) {
       var h = document.createElement("h2");
       h.className = "h3";
+      h.id = "terms-s" + (i + 1);
       h.textContent = sec.title;
       box.appendChild(h);
+      if (toc) {
+        var li = document.createElement("li");
+        var b = document.createElement("button");
+        b.type = "button";
+        b.setAttribute("data-terms-target", h.id);
+        b.textContent = sec.title;
+        li.appendChild(b);
+        toc.appendChild(li);
+      }
       (sec.blocks || []).forEach(function (block) {
         if (typeof block === "string") { para(block); return; }
         var ul = document.createElement("ul");
@@ -171,6 +183,53 @@
       c.className = "terms-closing";
       box.appendChild(c);
     }
+  }
+
+  // Contents list beside the terms: open on PC, folded on phone/tablet; jumps within the page
+  function initTermsToc() {
+    var details = $("#terms-toc");
+    if (!details) return;
+    var wide = window.matchMedia ? window.matchMedia("(min-width: 1024px)") : null;
+    function sync() { details.open = !!(wide && wide.matches); }
+    sync();
+    if (wide) {
+      if (wide.addEventListener) wide.addEventListener("change", sync);
+      else if (wide.addListener) wide.addListener(sync);
+    }
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    details.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-terms-target]");
+      if (!b) return;
+      var h = document.getElementById(b.getAttribute("data-terms-target"));
+      if (!h) return;
+      // Fold the list first (phone/tablet), so the measured position does not shift afterwards
+      if (!(wide && wide.matches)) details.open = false;
+      var header = $(".site-header");
+      var top = h.getBoundingClientRect().top + window.scrollY - (header ? header.offsetHeight : 0) - 16;
+      // scrollTo, not scrollIntoView: inside Google Sites the latter can scroll the outer page too
+      window.scrollTo({ top: Math.max(0, top), behavior: reduce ? "auto" : "smooth" });
+      h.tabIndex = -1;
+      h.focus({ preventScroll: true });
+    });
+    // Highlight the clause being read
+    var ticking = false;
+    function spy() {
+      ticking = false;
+      if (state.tab !== "terms") return;
+      var header = $(".site-header");
+      var line = (header ? header.offsetHeight : 0) + 40;
+      var current = null;
+      $all("#terms-body h2").forEach(function (h) { if (h.getBoundingClientRect().top <= line) current = h.id; });
+      $all("[data-terms-target]", details).forEach(function (b) {
+        if (b.getAttribute("data-terms-target") === current) b.setAttribute("aria-current", "true");
+        else b.removeAttribute("aria-current");
+      });
+    }
+    window.addEventListener("scroll", function () {
+      if (!ticking) { ticking = true; window.requestAnimationFrame(spy); }
+    }, { passive: true });
+    document.addEventListener("langchange", spy);
+    document.addEventListener("tabchange", spy);
   }
 
   function renderCivilDocs() {
@@ -398,7 +457,8 @@
       if (node.tagName === "H1") { if (title) title.textContent = node.textContent; }
       else body.appendChild(node.cloneNode(true));
     });
-    // Copied ids would clash with the page (e.g. #terms-body)
+    // The contents list is only for the full page; copied ids would clash with the page
+    $all(".terms-toc", body).forEach(function (el) { el.parentNode.removeChild(el); });
     $all("[id]", body).forEach(function (el) { el.removeAttribute("id"); });
     lastOpener = opener || null;
     lastPage = page;
@@ -906,6 +966,7 @@
     initLanguageToggle();
     initTabs();
     initPolicyDialog();
+    initTermsToc();
     initCalculator();
     initFiles();
     initJobForm();

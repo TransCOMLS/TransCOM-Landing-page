@@ -40,7 +40,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
   later phases to hook into. Menu is a disclosure pattern (`aria-expanded`, current page
   `aria-current="page"`); Escape and outside clicks close it. After load it scrolls back
   to the top, since the browser jumps to the `#hash` section.
-  Renders `#terms-body` from `window.TERMS` on every language change.
+  Renders `#terms-body` and its contents list (`#terms-toc`, clauses 1–9) from `window.TERMS`
+  on every language change. PC: contents sticky in the left column, text at reading width
+  (74ch), current clause highlighted while scrolling; phone/tablet: contents folded at the top.
   Policy pop-up (`<dialog id="policy-dialog">`, content copied from `#privacy` or `#terms`,
   page `<h1>` becomes the title): opened by `[data-modal="privacy"|"terms"]` (the two links in
   the job-form consent) and by any `data-goto="privacy"|"terms"` while on the submit page, so

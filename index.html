@@ -562,7 +562,14 @@
     <section id="terms" class="panel prose terms" hidden>
       <h1 data-i18n="terms.title"></h1>
       <p class="note" data-i18n="terms.note"></p>
-      <div id="terms-body"></div>
+      <div class="terms-layout">
+        <!-- Contents: sticky sidebar on PC, folded list on phone/tablet -->
+        <details class="terms-toc" id="terms-toc">
+          <summary data-i18n="terms.toc"></summary>
+          <ol id="terms-toc-list"></ol>
+        </details>
+        <div id="terms-body" class="terms-body"></div>
+      </div>
     </section>
   </main>
 

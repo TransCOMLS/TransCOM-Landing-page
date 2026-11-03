@@ -215,6 +215,7 @@ window.I18N = {
     "privacy.h6": "ติดต่อเรื่องข้อมูลส่วนบุคคล",
     "terms.title": "ข้อกำหนดและเงื่อนไขการรับบริการ",
     "terms.note": "โปรดอ่านข้อกำหนดนี้ก่อนส่งงาน การส่งงานหรือชำระค่าบริการถือว่าท่านยอมรับข้อกำหนดทุกข้อ",
+    "terms.toc": "สารบัญ",
 
     "nav.account": "บัญชีของฉัน",
     "acct.signIn": "เข้าสู่ระบบ",
@@ -496,6 +497,7 @@ window.I18N = {
     "privacy.h6": "Contact about personal data",
     "terms.title": "Terms and Conditions of Service",
     "terms.note": "Please read these Terms before submitting a job. Submitting a job or paying the fee means you accept all of them. If the Thai and English versions differ, the Thai version prevails.",
+    "terms.toc": "Contents",
 
     "nav.account": "My account",
     "acct.signIn": "Sign in",

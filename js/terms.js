@@ -166,7 +166,7 @@ window.TERMS = {
         ]
       }
     ],
-    closing: "ข้อกำหนดนี้มีผลใช้บังคับตั้งแต่วันที่ [วันที่เผยแพร่] เป็นต้นไป"
+    closing: "ข้อกำหนดนี้มีผลใช้บังคับตั้งแต่วันที่ 1 พฤศจิกายน 2569 เป็นต้นไป"
   },
 
   en: {
@@ -328,6 +328,6 @@ window.TERMS = {
         ]
       }
     ],
-    closing: "These Terms take effect from [effective date]."
+    closing: "These Terms take effect from 1 November 2026."
   }
 };
