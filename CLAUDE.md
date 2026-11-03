@@ -12,11 +12,14 @@ provider manages all jobs from one Google Sheet, with no paid server.
   font — with a sans-serif fallback stack. Do not switch to other display fonts.
 
 ## Files
-- `index.html` — single page; 10 tab panels: home, services, pricing, calculator,
-  submit, track, how, faq, contact, privacy. Tab ids double as `#hash` routes.
-- `css/style.css` — mobile-first. Breakpoints: phone (<640px, sticky scrolling tab
-  strip), tablet (≥640px, wrapped tab rows), calculator 2-column (≥900px),
-  PC (≥1024px, left sidebar menu, `.layout` grid).
+- `index.html` — single page; 10 `.panel` sections in `<main>`: home, services, pricing,
+  calculator, submit, track, how, faq, contact, privacy. Ids double as `#hash` routes.
+  Menu (`.main-nav` in the header): Home · Services & pricing ▾ (services, pricing,
+  calculator) · Orders ▾ (how, submit, track) · Help ▾ (faq, privacy) · Contact.
+  Items carry `data-tab`; other in-page links use `data-goto`.
+- `css/style.css` — mobile-first. Breakpoints: phone/tablet (<1024px, menu button opens
+  a panel under the header with the groups expanded), header submit button (≥640px),
+  calculator 2-column (≥900px), PC (≥1024px, menu in the header bar with dropdowns).
 - `js/config.js` — `window.APP_CONFIG`: service name, Apps Script URL, contact,
   language pairs, categories + per-page prices, turnaround, certification fee
   (per job), revision/retention days, upload limits. All editable values live here.
@@ -24,7 +27,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
   `{tokens}` are filled from config (`{serviceName}`, `{retentionDays}`, …).
 - `js/app.js` — IIFE; exposes `window.App` (`t`, `config`, `getLang`, `showTab`,
   `formatNumber`) and fires `langchange` / `tabchange` events on `document` for
-  later phases to hook into.
+  later phases to hook into. Menu is a disclosure pattern (`aria-expanded`, current page
+  `aria-current="page"`); Escape and outside clicks close it. After load it scrolls back
+  to the top, since the browser jumps to the `#hash` section.
 - `img/logo.svg` (header, on white) and `img/logo-white.svg` (footer, on `--footer-bg`):
   the owner's logo, cropped to its content. Colours `#01417b` / `#006192` set `--accent`
   and `--accent-bright`.

@@ -11,6 +11,7 @@ window.I18N = {
     "a11y.skip": "ข้ามไปยังเนื้อหา",
     "a11y.lang": "เลือกภาษา",
     "a11y.nav": "เมนูหลัก",
+    "a11y.menu": "เมนู",
     "a11y.required": "(จำเป็น)",
     "a11y.newTab": "(เปิดในแท็บใหม่)",
 
@@ -24,6 +25,9 @@ window.I18N = {
     "nav.faq": "คำถามที่พบบ่อย",
     "nav.contact": "ติดต่อ",
     "nav.privacy": "ความเป็นส่วนตัว",
+    "nav.g.services": "บริการและราคา",
+    "nav.g.order": "สั่งงาน",
+    "nav.g.help": "ช่วยเหลือ",
 
     "cat.official": "เอกสารราชการ",
     "cat.academic": "เอกสารการศึกษา",
@@ -201,6 +205,7 @@ window.I18N = {
     "a11y.skip": "Skip to content",
     "a11y.lang": "Choose language",
     "a11y.nav": "Main menu",
+    "a11y.menu": "Menu",
     "a11y.required": "(required)",
     "a11y.newTab": "(opens in a new tab)",
 
@@ -214,6 +219,9 @@ window.I18N = {
     "nav.faq": "FAQ",
     "nav.contact": "Contact",
     "nav.privacy": "Privacy",
+    "nav.g.services": "Services & pricing",
+    "nav.g.order": "Orders",
+    "nav.g.help": "Help",
 
     "cat.official": "Official documents",
     "cat.academic": "Academic documents",

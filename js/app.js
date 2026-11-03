@@ -1,5 +1,5 @@
 /*
- * app.js — Phase 1: tabs, language toggle, content from config.js
+ * app.js — Phase 1: pages + menu, language toggle, content from config.js
  *          Phase 2: price calculator, client-side validation (job + track forms)
  * Phase 3 hooks "jobsubmit", Phase 4 hooks "tracksubmit" (call preventDefault to take over).
  */
@@ -154,21 +154,24 @@
     });
   }
 
-  /* ---------- tabs (in-page navigation, no page loads) ---------- */
+  /* ---------- pages (in-page navigation, no page loads) ---------- */
   function showTab(id, opts) {
     opts = opts || {};
     if (TAB_IDS.indexOf(id) === -1) id = "home";
     state.tab = id;
 
-    $all('[role="tab"]').forEach(function (tab) {
-      var on = tab.getAttribute("data-tab") === id;
-      tab.setAttribute("aria-selected", String(on));
-      tab.tabIndex = on ? 0 : -1;
-      if (on) keepTabVisible(tab);
+    // Highlight the current page in the menu, and the dropdown that holds it
+    $all(".main-nav [data-tab]").forEach(function (btn) {
+      if (btn.getAttribute("data-tab") === id) btn.setAttribute("aria-current", "page");
+      else btn.removeAttribute("aria-current");
     });
-    $all('[role="tabpanel"]').forEach(function (panel) {
+    $all(".nav-group").forEach(function (g) {
+      g.classList.toggle("is-current", !!$('[data-tab="' + id + '"]', g));
+    });
+    $all("main > .panel").forEach(function (panel) {
       panel.hidden = panel.id !== id;
     });
+    closeMenus();
 
     try { history.replaceState(null, "", "#" + id); } catch (e) { /* sandboxed — ignore */ }
 
@@ -182,32 +185,84 @@
     document.dispatchEvent(new CustomEvent("tabchange", { detail: { tab: id } }));
   }
 
-  // Scroll only the tab strip (scrollIntoView could also scroll the Google Sites page)
-  function keepTabVisible(tab) {
-    var strip = tab.parentElement;
-    if (!strip || strip.scrollWidth <= strip.clientWidth) return;
-    var left = tab.offsetLeft - strip.offsetLeft;
-    var right = left + tab.offsetWidth;
-    if (left < strip.scrollLeft + 16) strip.scrollLeft = Math.max(0, left - 16);
-    else if (right > strip.scrollLeft + strip.clientWidth - 48) strip.scrollLeft = right - strip.clientWidth + 48;
+  /* ---------- menu: dropdowns (PC) and the menu-button panel (phone/tablet) ---------- */
+  var wideMQ = window.matchMedia ? window.matchMedia("(min-width: 1024px)") : null;
+  function isWide() { return !!(wideMQ && wideMQ.matches); }
+
+  function setGroup(toggle, open) { toggle.setAttribute("aria-expanded", String(open)); }
+
+  function setMobileMenu(open) {
+    var header = $(".site-header");
+    var btn = $(".menu-btn");
+    if (!header || !btn) return;
+    header.classList.toggle("menu-open", open);
+    btn.setAttribute("aria-expanded", String(open));
+    // In the panel every group starts open, so all pages are one tap away
+    if (open) $all(".nav-toggle").forEach(function (t) { setGroup(t, true); });
+  }
+
+  function closeMenus() {
+    $all(".nav-toggle").forEach(function (t) { setGroup(t, false); });
+    setMobileMenu(false);
   }
 
   function initTabs() {
-    var tabs = $all('[role="tab"]');
-    tabs.forEach(function (tab, i) {
-      tab.addEventListener("click", function () { showTab(tab.getAttribute("data-tab")); });
-      tab.addEventListener("keydown", function (e) {
-        var next = null;
-        // Left/Right on phone & tablet, Up/Down when the menu is a sidebar (PC)
-        if (e.key === "ArrowRight" || e.key === "ArrowDown") next = tabs[(i + 1) % tabs.length];
-        else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = tabs[(i - 1 + tabs.length) % tabs.length];
-        else if (e.key === "Home") next = tabs[0];
-        else if (e.key === "End") next = tabs[tabs.length - 1];
-        if (next) {
-          e.preventDefault();
-          next.focus();
-          showTab(next.getAttribute("data-tab"));
-        }
+    $all(".main-nav [data-tab]").forEach(function (btn) {
+      btn.addEventListener("click", function () { showTab(btn.getAttribute("data-tab"), { focusHeading: true }); });
+    });
+
+    $all(".nav-toggle").forEach(function (toggle) {
+      toggle.addEventListener("click", function () {
+        var open = toggle.getAttribute("aria-expanded") !== "true";
+        if (isWide()) $all(".nav-toggle").forEach(function (t) { if (t !== toggle) setGroup(t, false); });
+        setGroup(toggle, open);
+      });
+      // PC: Down arrow opens the dropdown and moves into it
+      toggle.addEventListener("keydown", function (e) {
+        if (e.key !== "ArrowDown" || !isWide()) return;
+        e.preventDefault();
+        setGroup(toggle, true);
+        var first = $(".nav-sublink", toggle.parentElement);
+        if (first) first.focus();
+      });
+    });
+
+    // Up/Down move between items inside an open dropdown
+    $all(".nav-sub").forEach(function (sub) {
+      sub.addEventListener("keydown", function (e) {
+        if (!isWide() || (e.key !== "ArrowDown" && e.key !== "ArrowUp")) return;
+        var items = $all(".nav-sublink", sub);
+        var i = items.indexOf(document.activeElement);
+        if (i === -1) return;
+        e.preventDefault();
+        items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length].focus();
+      });
+    });
+
+    var menuBtn = $(".menu-btn");
+    if (menuBtn) menuBtn.addEventListener("click", function () {
+      setMobileMenu(menuBtn.getAttribute("aria-expanded") !== "true");
+    });
+
+    // Escape closes whatever is open and puts focus back on its button
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape") return;
+      var openToggle = $('.nav-toggle[aria-expanded="true"]');
+      var panelOpen = menuBtn && menuBtn.getAttribute("aria-expanded") === "true";
+      if (!openToggle && !panelOpen) return;
+      var back = panelOpen ? menuBtn : openToggle;
+      closeMenus();
+      back.focus();
+    });
+
+    // Click or tap outside the header closes menus
+    document.addEventListener("click", function (e) {
+      if (!e.target.closest(".site-header")) closeMenus();
+    });
+    // PC: a dropdown closes when focus leaves it
+    $all(".nav-group").forEach(function (g) {
+      g.addEventListener("focusout", function (e) {
+        if (isWide() && !g.contains(e.relatedTarget)) setGroup($(".nav-toggle", g), false);
       });
     });
 
@@ -223,16 +278,10 @@
       if (id && id !== state.tab && TAB_IDS.indexOf(id) !== -1) showTab(id);
     });
 
-    // Sidebar on PC is a vertical tab list
-    var list = $('[role="tablist"]');
-    var wide = window.matchMedia ? window.matchMedia("(min-width: 1024px)") : null;
-    function setOrientation() {
-      if (list) list.setAttribute("aria-orientation", wide && wide.matches ? "vertical" : "horizontal");
-    }
-    setOrientation();
-    if (wide) {
-      if (wide.addEventListener) wide.addEventListener("change", setOrientation);
-      else if (wide.addListener) wide.addListener(setOrientation);
+    // Switching between phone and PC layout resets the menu
+    if (wideMQ) {
+      if (wideMQ.addEventListener) wideMQ.addEventListener("change", closeMenus);
+      else if (wideMQ.addListener) wideMQ.addListener(closeMenus);
     }
 
     showTab(location.hash.replace("#", "") || "home", { initial: true });

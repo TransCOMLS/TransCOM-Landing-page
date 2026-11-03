@@ -14,44 +14,60 @@
 <body>
   <a class="skip-link" href="#main" data-i18n="a11y.skip"></a>
 
-  <!-- ===== Header: brand + language toggle ===== -->
+  <!-- ===== Header: brand, menu, language toggle ===== -->
   <header class="site-header">
     <div class="header-bar">
       <button type="button" class="brand" data-goto="home">
         <img class="brand-logo" src="img/logo.svg" width="1309" height="473" alt="">
         <span class="sr-only" data-service-name></span>
       </button>
+      <!-- Menu: top bar with dropdowns (PC), panel behind the menu button (phone/tablet) -->
+      <nav class="main-nav" id="main-nav" data-i18n-aria="a11y.nav">
+        <ul class="nav-list">
+        <li><button type="button" class="nav-link" data-tab="home" data-i18n="nav.home"></button></li>
+        <li class="nav-group">
+          <button type="button" class="nav-link nav-toggle" aria-expanded="false" aria-controls="menu-services"><span data-i18n="nav.g.services"></span><svg class="chev" viewBox="0 0 12 8" aria-hidden="true"><path d="M1 1.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <ul class="nav-sub" id="menu-services">
+            <li><button type="button" class="nav-sublink" data-tab="services" data-i18n="nav.services"></button></li>
+            <li><button type="button" class="nav-sublink" data-tab="pricing" data-i18n="nav.pricing"></button></li>
+            <li><button type="button" class="nav-sublink" data-tab="calculator" data-i18n="nav.calculator"></button></li>
+          </ul>
+        </li>
+        <li class="nav-group">
+          <button type="button" class="nav-link nav-toggle" aria-expanded="false" aria-controls="menu-order"><span data-i18n="nav.g.order"></span><svg class="chev" viewBox="0 0 12 8" aria-hidden="true"><path d="M1 1.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <ul class="nav-sub" id="menu-order">
+            <li><button type="button" class="nav-sublink" data-tab="how" data-i18n="nav.how"></button></li>
+            <li><button type="button" class="nav-sublink" data-tab="submit" data-i18n="nav.submit"></button></li>
+            <li><button type="button" class="nav-sublink" data-tab="track" data-i18n="nav.track"></button></li>
+          </ul>
+        </li>
+        <li class="nav-group">
+          <button type="button" class="nav-link nav-toggle" aria-expanded="false" aria-controls="menu-help"><span data-i18n="nav.g.help"></span><svg class="chev" viewBox="0 0 12 8" aria-hidden="true"><path d="M1 1.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <ul class="nav-sub" id="menu-help">
+            <li><button type="button" class="nav-sublink" data-tab="faq" data-i18n="nav.faq"></button></li>
+            <li><button type="button" class="nav-sublink" data-tab="privacy" data-i18n="nav.privacy"></button></li>
+          </ul>
+        </li>
+        <li><button type="button" class="nav-link" data-tab="contact" data-i18n="nav.contact"></button></li>
+        </ul>
+      </nav>
       <div class="header-actions">
       <button type="button" class="btn btn-primary btn-sm header-cta" data-goto="submit" data-i18n="nav.submit"></button>
       <div class="lang-toggle" role="group" data-i18n-aria="a11y.lang">
         <button type="button" data-lang="th" aria-pressed="true" lang="th">TH</button>
         <button type="button" data-lang="en" aria-pressed="false" lang="en">EN</button>
       </div>
+      <button type="button" class="menu-btn" aria-expanded="false" aria-controls="main-nav" data-i18n-aria="a11y.menu">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path class="i-open" d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path class="i-close" d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
       </div>
     </div>
   </header>
 
-  <div class="layout">
-  <!-- Menu: scrolling strip (phone), wrapped rows (tablet), sidebar (PC) -->
-  <nav class="tabs-wrap" data-i18n-aria="a11y.nav">
-    <div class="tabs" role="tablist" aria-orientation="horizontal">
-      <button type="button" role="tab" id="tab-home" aria-controls="home" data-tab="home" data-i18n="nav.home"></button>
-      <button type="button" role="tab" id="tab-services" aria-controls="services" data-tab="services" data-i18n="nav.services"></button>
-      <button type="button" role="tab" id="tab-pricing" aria-controls="pricing" data-tab="pricing" data-i18n="nav.pricing"></button>
-      <button type="button" role="tab" id="tab-calculator" aria-controls="calculator" data-tab="calculator" data-i18n="nav.calculator"></button>
-      <button type="button" role="tab" id="tab-submit" aria-controls="submit" data-tab="submit" data-i18n="nav.submit"></button>
-      <button type="button" role="tab" id="tab-track" aria-controls="track" data-tab="track" data-i18n="nav.track"></button>
-      <button type="button" role="tab" id="tab-how" aria-controls="how" data-tab="how" data-i18n="nav.how"></button>
-      <button type="button" role="tab" id="tab-faq" aria-controls="faq" data-tab="faq" data-i18n="nav.faq"></button>
-      <button type="button" role="tab" id="tab-contact" aria-controls="contact" data-tab="contact" data-i18n="nav.contact"></button>
-      <button type="button" role="tab" id="tab-privacy" aria-controls="privacy" data-tab="privacy" data-i18n="nav.privacy"></button>
-    </div>
-  </nav>
-
   <main id="main" tabindex="-1">
 
     <!-- ===== 1. Home ===== -->
-    <section id="home" class="panel" role="tabpanel" aria-labelledby="tab-home">
+    <section id="home" class="panel">
       <div class="hero">
         <p class="eyebrow" data-i18n="home.eyebrow"></p>
         <h1 data-i18n="home.title"></h1>
@@ -78,7 +94,7 @@
     </section>
 
     <!-- ===== 2. Services ===== -->
-    <section id="services" class="panel" role="tabpanel" aria-labelledby="tab-services" hidden>
+    <section id="services" class="panel" hidden>
       <h1 data-i18n="services.title"></h1>
       <p class="lead" data-i18n="services.lead"></p>
       <ul class="cards">
@@ -93,7 +109,7 @@
     </section>
 
     <!-- ===== 3. Pricing (rows built from config.js) ===== -->
-    <section id="pricing" class="panel" role="tabpanel" aria-labelledby="tab-pricing" hidden>
+    <section id="pricing" class="panel" hidden>
       <h1 data-i18n="pricing.title"></h1>
       <p class="lead" data-i18n="pricing.lead"></p>
       <div class="table-wrap">
@@ -116,7 +132,7 @@
     </section>
 
     <!-- ===== 4. Price calculator (logic: Phase 2) ===== -->
-    <section id="calculator" class="panel" role="tabpanel" aria-labelledby="tab-calculator" hidden>
+    <section id="calculator" class="panel" hidden>
       <h1 data-i18n="calc.title"></h1>
       <p class="lead" data-i18n="calc.lead"></p>
       <form id="calc-form" class="form" novalidate>
@@ -153,7 +169,7 @@
     </section>
 
     <!-- ===== 5. Submit job (validation: Phase 2, sending: Phase 3) ===== -->
-    <section id="submit" class="panel" role="tabpanel" aria-labelledby="tab-submit" hidden>
+    <section id="submit" class="panel" hidden>
       <h1 data-i18n="form.title"></h1>
       <p class="lead" data-i18n="form.lead"></p>
       <p class="note"><span aria-hidden="true">* </span><span data-i18n="form.requiredNote"></span></p>
@@ -262,7 +278,7 @@
     </section>
 
     <!-- ===== 6. Track job (lookup: Phase 4) ===== -->
-    <section id="track" class="panel" role="tabpanel" aria-labelledby="tab-track" hidden>
+    <section id="track" class="panel" hidden>
       <h1 data-i18n="track.title"></h1>
       <p class="lead" data-i18n="track.lead"></p>
       <form id="track-form" class="form" novalidate>
@@ -284,7 +300,7 @@
     </section>
 
     <!-- ===== 7. How it works ===== -->
-    <section id="how" class="panel" role="tabpanel" aria-labelledby="tab-how" hidden>
+    <section id="how" class="panel" hidden>
       <h1 data-i18n="how.title"></h1>
       <ol class="steps">
         <li><h2 class="h4" data-i18n="how.s1.title"></h2><p data-i18n="how.s1.text"></p></li>
@@ -299,7 +315,7 @@
     </section>
 
     <!-- ===== 8. FAQ ===== -->
-    <section id="faq" class="panel" role="tabpanel" aria-labelledby="tab-faq" hidden>
+    <section id="faq" class="panel" hidden>
       <h1 data-i18n="faq.title"></h1>
       <div class="accordion">
         <details><summary data-i18n="faq.q1"></summary><p data-i18n="faq.a1"></p></details>
@@ -312,7 +328,7 @@
     </section>
 
     <!-- ===== 9. Contact ===== -->
-    <section id="contact" class="panel" role="tabpanel" aria-labelledby="tab-contact" hidden>
+    <section id="contact" class="panel" hidden>
       <h1 data-i18n="contact.title"></h1>
       <p class="lead" data-i18n="contact.lead"></p>
       <div class="actions">
@@ -345,7 +361,7 @@
     </section>
 
     <!-- ===== 10. Privacy policy (PDPA) ===== -->
-    <section id="privacy" class="panel prose" role="tabpanel" aria-labelledby="tab-privacy" hidden>
+    <section id="privacy" class="panel prose" hidden>
       <h1 data-i18n="privacy.title"></h1>
       <p class="note"><span data-i18n="privacy.updated"></span>: <span data-privacy-updated></span></p>
       <p data-i18n="privacy.intro"></p>
@@ -358,7 +374,6 @@
       <p><a data-contact="email" target="_blank" rel="noopener"><span data-contact-text="email"></span></a></p>
     </section>
   </main>
-  </div>
 
   <footer class="site-footer">
     <div class="footer-inner">
