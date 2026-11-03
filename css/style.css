@@ -91,6 +91,22 @@ a { color: var(--accent); text-underline-offset: 2px; }
 .header-actions { display: flex; align-items: center; gap: 12px; flex: none; }
 .header-actions .header-cta { display: none; }
 @media (min-width: 640px) { .header-actions .header-cta { display: inline-flex; } }
+/* PC 1024–1279: the menu needs the room; "Submit a job" is in the Orders menu */
+@media (min-width: 1024px) and (max-width: 1279px) { .header-actions .header-cta { display: none; } }
+
+/* Account button: tablet/PC (phone uses the menu item) */
+.account-btn {
+  display: none; align-items: center; gap: 8px; flex: none;
+  min-width: var(--tap); min-height: var(--tap); padding: 0 10px;
+  border: 1px solid var(--border); border-radius: 999px; background: #fff; cursor: pointer;
+  font: inherit; font-size: 0.9375rem; font-weight: 600; color: var(--accent);
+}
+.account-btn svg { width: 22px; height: 22px; flex: none; }
+.account-btn:hover { border-color: var(--accent); }
+.account-btn.is-signed-in { background: var(--accent-soft); border-color: #c9d6ec; }
+.account-label { display: none; max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (min-width: 640px) { .account-btn { display: inline-flex; } }
+@media (min-width: 1280px) { .account-btn { padding: 0 14px 0 10px; } .account-label { display: inline; } }
 
 .header-bar {
   max-width: var(--maxw); margin: 0 auto;
@@ -182,6 +198,7 @@ a { color: var(--accent); text-underline-offset: 2px; }
     content: ""; position: absolute; left: 0; right: 0; top: -12px; height: 12px;
   }
   .nav-sublink { white-space: nowrap; }
+  .nav-account { display: none; }
 }
 
 /* ---------- Layout ---------- */
@@ -583,3 +600,56 @@ a.contact-item:hover { border-color: var(--accent); }
 .field.has-error .file-drop { border-color: var(--error); background: var(--error-soft); }
 .field-error .err-line { display: block; }
 .consent.has-error .choice { border-color: var(--error); background: var(--error-soft); }
+
+/* ---------- My account ---------- */
+.notice-soft { background: var(--bg-soft); border-color: var(--border); color: var(--text); }
+.btn-danger { background: var(--error); color: #fff; }
+.btn-danger:hover { background: #8f1c13; }
+.btn-link.danger { color: var(--error); }
+.btn[disabled] { opacity: .65; cursor: progress; }
+.btn-link[disabled] { color: var(--muted); text-decoration: none; cursor: default; }
+
+.acct-signin { display: grid; gap: 8px 48px; }
+.benefits { list-style: none; margin: 0 0 12px; padding: 0; }
+.benefits li { position: relative; padding: 6px 0 6px 32px; }
+.benefits li::before {
+  content: "✓"; position: absolute; left: 0; top: 7px;
+  width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent-bright); font-size: 0.8125rem; font-weight: 700;
+}
+.acct-box { padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-soft); }
+.acct-box .form { margin-top: 0; }
+.acct-box .notice { margin-top: 0; }
+.code-input { font-size: 1.5rem !important; letter-spacing: 0.4em; text-align: center; font-variant-numeric: tabular-nums; }
+.acct-links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; margin-top: 12px; }
+
+.acct-grid { display: grid; gap: 16px; margin-top: 16px; }
+.acct-card { padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: #fff; min-width: 0; }
+.acct-card .form { margin-top: 8px; }
+.acct-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.acct-card-head h2 { margin: 0; }
+.confirm-box { margin-top: 12px; padding: 14px 16px; border: 1px solid #fecdca; border-radius: var(--radius); background: var(--error-soft); }
+.confirm-box p { margin: 0; }
+
+.job-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
+.job-empty { padding: 16px; border: 1px dashed var(--border); border-radius: var(--radius); color: var(--muted); }
+.job-item { padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); }
+.job-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
+.job-no { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); }
+.job-meta, .job-dates { margin: 4px 0 0; font-size: 0.9375rem; color: var(--muted); }
+.status-chip {
+  display: inline-block; padding: 2px 10px; border-radius: 999px;
+  font-size: 0.875rem; font-weight: 600; background: var(--bg-soft); color: var(--text);
+}
+.status-received   { background: #e8f0fe; color: #1a4fa0; }
+.status-quoted     { background: #fef7e0; color: #8a5a00; }
+.status-paid       { background: #e6f4ea; color: #137333; }
+.status-inProgress { background: #e3f2fd; color: #01417b; }
+.status-delivered  { background: #d2f0dc; color: #0b6b2d; }
+.status-cancelled  { background: #f1f3f4; color: #566072; }
+
+@media (min-width: 1024px) {
+  .acct-signin { grid-template-columns: minmax(0, 1fr) 420px; align-items: start; }
+  .acct-grid { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: start; }
+  .acct-grid .acct-jobs { grid-row: span 2; }
+}

@@ -49,10 +49,15 @@
           </ul>
         </li>
         <li><button type="button" class="nav-link" data-tab="contact" data-i18n="nav.contact"></button></li>
+        <li class="nav-account"><button type="button" class="nav-link" data-tab="account"><span data-i18n="nav.account"></span></button></li>
         </ul>
       </nav>
       <div class="header-actions">
       <button type="button" class="btn btn-primary btn-sm header-cta" data-goto="submit" data-i18n="nav.submit"></button>
+      <button type="button" class="account-btn" data-goto="account">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M4.5 20c1.2-3.6 4-5.5 7.5-5.5s6.3 1.9 7.5 5.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+        <span class="account-label" data-account-label data-i18n="acct.signIn"></span>
+      </button>
       <div class="lang-toggle" role="group" data-i18n-aria="a11y.lang">
         <button type="button" data-lang="th" aria-pressed="true" lang="th">TH</button>
         <button type="button" data-lang="en" aria-pressed="false" lang="en">EN</button>
@@ -174,6 +179,10 @@
       <p class="lead" data-i18n="form.lead"></p>
       <p class="note"><span aria-hidden="true">* </span><span data-i18n="form.requiredNote"></span></p>
       <p class="notice" id="form-prefilled" data-i18n="form.prefilled" hidden></p>
+      <p class="notice notice-soft" id="acct-prefill" hidden>
+        <span id="acct-prefill-ask"><span data-i18n="acct.prefillAsk"></span> <button type="button" class="btn-link inline" data-goto="account" data-i18n="acct.prefillLink"></button></span>
+        <span id="acct-prefill-done" data-i18n="acct.prefilled" hidden></span>
+      </p>
       <!-- PC only: what happens next + help (hidden on phone/tablet to keep the form short) -->
       <aside class="side-card" aria-labelledby="side-next">
         <h2 class="h4" id="side-next" data-i18n="form.aside.title"></h2>
@@ -313,6 +322,120 @@
       </form>
     </section>
 
+    <!-- ===== 11. My account (sign in with an emailed code; backend: apps-script/Code.gs) ===== -->
+    <section id="account" class="panel" hidden>
+      <h1 data-i18n="acct.title"></h1>
+      <p class="notice" id="acct-offline" data-i18n="acct.offline" hidden></p>
+      <p class="muted" id="acct-loading" role="status" data-i18n="acct.loading" hidden></p>
+
+      <!-- Signed out -->
+      <div id="acct-signin" class="acct-signin" hidden>
+        <div class="acct-intro">
+          <p class="lead" data-i18n="acct.lead"></p>
+          <ul class="benefits">
+            <li data-i18n="acct.b1"></li>
+            <li data-i18n="acct.b2"></li>
+            <li data-i18n="acct.b3"></li>
+          </ul>
+          <p class="note" data-i18n="acct.optional"></p>
+        </div>
+        <div class="acct-box">
+          <form id="acct-email-form" class="form" novalidate>
+            <div class="field">
+              <label for="a-email" data-i18n="acct.email"></label>
+              <input id="a-email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="160" aria-describedby="a-email-err">
+              <p class="field-error" id="a-email-err" hidden></p>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block" data-i18n="acct.sendCode"></button>
+          </form>
+          <form id="acct-code-form" class="form" novalidate hidden>
+            <p class="notice" id="acct-code-sent"></p>
+            <div class="field">
+              <label for="a-code" data-i18n="acct.code"></label>
+              <input id="a-code" class="code-input" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" aria-describedby="a-code-err">
+              <p class="field-error" id="a-code-err" hidden></p>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block" data-i18n="acct.verify"></button>
+            <div class="acct-links">
+              <button type="button" class="btn-link" id="a-resend"></button>
+              <button type="button" class="btn-link" id="a-change" data-i18n="acct.changeEmail"></button>
+            </div>
+          </form>
+          <div id="acct-signin-status" class="form-status" role="status" aria-live="polite" hidden></div>
+        </div>
+      </div>
+
+      <!-- Signed in -->
+      <div id="acct-home" hidden>
+        <p class="lead" id="acct-hello"></p>
+        <p class="notice" id="acct-welcome" data-i18n="acct.welcomeNew" hidden></p>
+        <div class="acct-grid">
+          <section class="acct-card acct-jobs" aria-labelledby="acct-jobs-h">
+            <div class="acct-card-head">
+              <h2 class="h3" id="acct-jobs-h" data-i18n="acct.jobs"></h2>
+              <button type="button" class="btn-link" id="a-refresh" data-i18n="acct.refresh"></button>
+            </div>
+            <ul class="job-list" id="acct-jobs" aria-live="polite"></ul>
+            <div class="actions">
+              <button type="button" class="btn btn-primary" data-goto="submit" data-i18n="acct.newJob"></button>
+            </div>
+          </section>
+
+          <section class="acct-card" aria-labelledby="acct-profile-h">
+            <h2 class="h3" id="acct-profile-h" data-i18n="acct.profile"></h2>
+            <p class="note" data-i18n="acct.profileHint"></p>
+            <form id="acct-profile" class="form" novalidate>
+              <div class="field">
+                <label for="p-email" data-i18n="acct.email"></label>
+                <input id="p-email" type="email" readonly>
+              </div>
+              <div class="field">
+                <label for="p-name" data-i18n="form.name"></label>
+                <input id="p-name" name="name" type="text" autocomplete="name" maxlength="120">
+              </div>
+              <div class="grid-2">
+                <div class="field">
+                  <label for="p-line" data-i18n="form.line"></label>
+                  <input id="p-line" name="line" type="text" autocomplete="off" maxlength="60" aria-describedby="p-line-err">
+                  <p class="field-error" id="p-line-err" hidden></p>
+                </div>
+                <div class="field">
+                  <label for="p-phone" data-i18n="form.phone"></label>
+                  <input id="p-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" aria-describedby="p-phone-err">
+                  <p class="field-error" id="p-phone-err" hidden></p>
+                </div>
+              </div>
+              <div class="field">
+                <label for="p-nameSpelling" data-i18n="form.nameSpelling"></label>
+                <input id="p-nameSpelling" name="nameSpelling" type="text" autocomplete="off" autocapitalize="characters" maxlength="200">
+              </div>
+              <div class="field">
+                <label for="p-langPair" data-i18n="acct.langPair"></label>
+                <select id="p-langPair" name="langPair" data-options="languagePairs"></select>
+              </div>
+              <button type="submit" class="btn btn-outline" data-i18n="acct.save"></button>
+              <div id="acct-profile-status" class="form-status" role="status" aria-live="polite" hidden></div>
+            </form>
+          </section>
+
+          <section class="acct-card" aria-labelledby="acct-manage-h">
+            <h2 class="h3" id="acct-manage-h" data-i18n="acct.manage"></h2>
+            <div class="acct-links">
+              <button type="button" class="btn btn-outline" id="a-logout" data-i18n="acct.logout"></button>
+              <button type="button" class="btn-link danger" id="a-delete" data-i18n="acct.delete"></button>
+            </div>
+            <div class="confirm-box" id="acct-delete-confirm" hidden>
+              <p data-i18n="acct.deleteConfirm"></p>
+              <div class="acct-links">
+                <button type="button" class="btn btn-danger" id="a-delete-yes" data-i18n="acct.deleteYes"></button>
+                <button type="button" class="btn-link" id="a-delete-no" data-i18n="acct.cancel"></button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== 7. How it works ===== -->
     <section id="how" class="panel" hidden>
       <h1 data-i18n="how.title"></h1>
@@ -428,5 +551,6 @@
   <script src="js/config.js"></script>
   <script src="js/i18n.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/account.js"></script>
 </body>
 </html>

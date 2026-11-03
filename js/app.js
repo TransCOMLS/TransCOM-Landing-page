@@ -9,7 +9,7 @@
   var CFG = window.APP_CONFIG;
   var I18N = window.I18N;
   var LANG_KEY = "tr_lang";
-  var TAB_IDS = ["home", "services", "pricing", "calculator", "submit", "track", "how", "faq", "contact", "privacy"];
+  var TAB_IDS = ["home", "services", "pricing", "calculator", "submit", "track", "how", "faq", "contact", "privacy", "account"];
 
   var state = { lang: "th", tab: "home" };
 
@@ -19,6 +19,9 @@
 
   function storageGet(key) {
     try { return window.localStorage.getItem(key); } catch (e) { return null; }
+  }
+  function storageRemove(key) {
+    try { window.localStorage.removeItem(key); } catch (e) { /* storage blocked — ignore */ }
   }
   function storageSet(key, value) {
     try { window.localStorage.setItem(key, value); } catch (e) { /* storage blocked — ignore */ }
@@ -753,6 +756,9 @@
     getJobData: getJobData,
     validateJobForm: validateJobForm,
     showStatus: showStatus,
+    setFieldError: setFieldError,
+    storage: { get: storageGet, set: storageSet, remove: storageRemove },
+    rules: { email: EMAIL_RE, line: LINE_RE },
     todayISO: todayISO
   };
 
