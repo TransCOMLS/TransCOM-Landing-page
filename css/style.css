@@ -446,3 +446,31 @@ a.contact-item:hover { border-color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* ---------- Phase 2: calculator details, file list, notices ---------- */
+.estimate .estimate-breakdown { margin-top: 4px; font-size: 0.9375rem; color: var(--text); font-variant-numeric: tabular-nums; }
+.estimate .estimate-breakdown:empty { display: none; }
+.estimate .estimate-note { margin-top: 8px; }
+.estimate-value.is-empty { font-size: 1.0625rem; font-weight: 600; color: var(--muted); }
+
+.notice {
+  margin: 12px 0 0; padding: 12px 14px; border-radius: var(--radius-sm);
+  background: var(--accent-soft); border: 1px solid #d3dcea; color: var(--accent); font-size: 0.9375rem;
+}
+
+.file-list li.file-item {
+  display: flex; align-items: center; gap: 10px; padding: 4px 0;
+}
+.file-item .file-name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.file-item .file-size { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
+.file-item.is-bad .file-name { color: var(--error); font-weight: 600; }
+.file-remove {
+  flex: none; min-width: var(--tap); min-height: var(--tap); padding: 0 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff;
+  color: var(--muted); font: inherit; font-size: 0.9375rem; cursor: pointer;
+}
+.file-remove:hover { border-color: var(--error); color: var(--error); }
+.file-remove:focus-visible { outline: 3px solid var(--accent-ring); outline-offset: 2px; }
+.field.has-error .file-drop { border-color: var(--error); background: var(--error-soft); }
+.field-error .err-line { display: block; }
+.consent.has-error .choice { border-color: var(--error); background: var(--error-soft); }

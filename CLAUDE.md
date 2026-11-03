@@ -41,9 +41,12 @@ provider manages all jobs from one Google Sheet, with no paid server.
 ## Status / phases
 - [x] Phase 1 — static content, tabs, TH/EN toggle, pricing from config (merged, PR #1)
 - [x] Responsive tablet + PC layout
-- [ ] Phase 2 — price calculator logic + client-side form validation (TH/EN errors;
+- [x] Phase 2 — price calculator logic + client-side form validation (TH/EN errors;
       file types PDF/JPG/PNG/DOCX, ≤10 MB each, multiple; PDPA consent required;
       needed-by date not in the past). Field ids: `f-*` with `f-*-err` error slots.
+      Submit fires a cancelable `jobsubmit` event (detail = `App.getJobData()`, incl.
+      `files` as File objects); track form fires `tracksubmit`. Phase 3/4 hook these and
+      call `preventDefault()`; otherwise a "not open yet" notice is shown.
 - [ ] Phase 3 — `apps-script/Code.gs`: doPost (base64 files → Drive folder per job,
       row in "Jobs" sheet, running job no. `TR-<พ.ศ.>-0001`), setup(), status dropdown
       with colours, emails via MailApp (provider, customer receipt, status change via
