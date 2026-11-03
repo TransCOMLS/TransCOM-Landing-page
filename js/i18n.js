@@ -14,6 +14,7 @@ window.I18N = {
     "a11y.menu": "เมนู",
     "a11y.required": "(จำเป็น)",
     "a11y.newTab": "(เปิดในแท็บใหม่)",
+    "a11y.close": "ปิด",
 
     "nav.home": "หน้าแรก",
     "nav.services": "บริการ",
@@ -193,6 +194,7 @@ window.I18N = {
     "contact.hours": "เวลาทำการ",
 
     "privacy.title": "นโยบายความเป็นส่วนตัว",
+    "privacy.dialogDone": "ปิดและกลับไปกรอกแบบฟอร์ม",
     "privacy.updated": "ปรับปรุงล่าสุด",
     "privacy.intro": "{serviceName} ให้ความสำคัญกับการคุ้มครองข้อมูลส่วนบุคคลตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 (PDPA) นโยบายนี้อธิบายการเก็บรวบรวม ใช้ และเปิดเผยข้อมูลของท่าน",
     "privacy.h1": "ข้อมูลที่เก็บรวบรวม",
@@ -285,6 +287,7 @@ window.I18N = {
     "a11y.menu": "Menu",
     "a11y.required": "(required)",
     "a11y.newTab": "(opens in a new tab)",
+    "a11y.close": "Close",
 
     "nav.home": "Home",
     "nav.services": "Services",
@@ -464,6 +467,7 @@ window.I18N = {
     "contact.hours": "Office hours",
 
     "privacy.title": "Privacy Policy",
+    "privacy.dialogDone": "Close and return to the form",
     "privacy.updated": "Last updated",
     "privacy.intro": "{serviceName} protects your personal data in accordance with Thailand's Personal Data Protection Act B.E. 2562 (2019) (PDPA). This policy explains how we collect, use and disclose your data.",
     "privacy.h1": "Data we collect",

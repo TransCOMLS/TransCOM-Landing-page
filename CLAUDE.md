@@ -33,6 +33,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
   later phases to hook into. Menu is a disclosure pattern (`aria-expanded`, current page
   `aria-current="page"`); Escape and outside clicks close it. After load it scrolls back
   to the top, since the browser jumps to the `#hash` section.
+  Privacy policy pop-up (`<dialog id="privacy-dialog">`, content copied from `#privacy`):
+  opened by `[data-modal="privacy"]` (consent link in the job form) and by any
+  `data-goto="privacy"` while on the submit page, so customers never leave the form.
 - `js/account.js` — customer accounts (optional; guests can still submit): sign in with a
   6-digit code emailed by Apps Script (no passwords), job history, profile that fills in
   the job form, sign out, delete account (PDPA). Exposes `App.api(action, payload)` and

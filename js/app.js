@@ -293,9 +293,13 @@
     });
 
     document.addEventListener("click", function (e) {
+      var opener = e.target.closest("[data-modal]");
+      if (opener) { e.preventDefault(); openPrivacy(opener); return; }
       var btn = e.target.closest("[data-goto]");
       if (!btn) return;
       e.preventDefault();
+      // While filling in the job form, show the policy as a pop-up instead of leaving the form
+      if (btn.getAttribute("data-goto") === "privacy" && state.tab === "submit") { openPrivacy(btn); return; }
       showTab(btn.getAttribute("data-goto"), { focusHeading: true });
     });
 
@@ -326,6 +330,44 @@
     function reset() { if (!touched && window.scrollY) window.scrollTo(0, 0); }
     if (document.readyState === "complete") setTimeout(reset, 0);
     else window.addEventListener("load", function () { setTimeout(reset, 0); });
+  }
+
+  /* ---------- privacy policy pop-up ---------- */
+  var lastOpener = null;
+
+  function openPrivacy(opener) {
+    var dlg = $("#privacy-dialog");
+    var body = $("#privacy-dialog-body");
+    // No <dialog> support (very old browsers): fall back to the page
+    if (!dlg || !body || typeof dlg.showModal !== "function") { showTab("privacy", { focusHeading: true }); return; }
+    // Copy the policy from its page, in the current language (title is in the pop-up header)
+    body.textContent = "";
+    Array.prototype.forEach.call($("#privacy").children, function (node) {
+      if (node.tagName !== "H1") body.appendChild(node.cloneNode(true));
+    });
+    lastOpener = opener || null;
+    document.documentElement.classList.add("modal-open");
+    dlg.showModal();
+    body.scrollTop = 0;
+    var close = $(".modal-close", dlg);
+    if (close) close.focus();
+  }
+
+  function initPrivacyDialog() {
+    var dlg = $("#privacy-dialog");
+    if (!dlg) return;
+    $all("[data-close-modal]", dlg).forEach(function (b) {
+      b.addEventListener("click", function () { dlg.close(); });
+    });
+    // Click on the dimmed background closes it
+    dlg.addEventListener("click", function (e) { if (e.target === dlg) dlg.close(); });
+    dlg.addEventListener("close", function () {
+      document.documentElement.classList.remove("modal-open");
+      if (lastOpener && document.contains(lastOpener)) lastOpener.focus({ preventScroll: true });
+      lastOpener = null;
+    });
+    // Re-copy in the new language if the language changes while it is open
+    document.addEventListener("langchange", function () { if (dlg.open) openPrivacy(lastOpener); });
   }
 
   /* ---------- small UI bits ---------- */
@@ -806,6 +848,7 @@
     applyLanguage(saved === "en" ? "en" : "th");
     initLanguageToggle();
     initTabs();
+    initPrivacyDialog();
     initCalculator();
     initFiles();
     initJobForm();

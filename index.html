@@ -333,7 +333,7 @@
         <div class="field consent">
           <label class="choice choice-top">
             <input type="checkbox" id="f-consent" name="consent" required aria-describedby="f-consent-err">
-            <span><span data-i18n="form.consent"></span> <button type="button" class="btn-link inline" data-goto="privacy" data-i18n="form.consentLink"></button> <span class="req" aria-hidden="true">*</span><span class="sr-only" data-i18n="a11y.required"></span></span>
+            <span><span data-i18n="form.consent"></span> <button type="button" class="btn-link inline" data-modal="privacy" aria-haspopup="dialog" data-i18n="form.consentLink"></button> <span class="req" aria-hidden="true">*</span><span class="sr-only" data-i18n="a11y.required"></span></span>
           </label>
           <p class="field-error" id="f-consent-err" hidden></p>
         </div>
@@ -556,6 +556,20 @@
       <p><a data-contact="email" target="_blank" rel="noopener"><span data-contact-text="email"></span></a></p>
     </section>
   </main>
+
+  <!-- Privacy policy as a pop-up, so people filling in the job form never leave it -->
+  <dialog class="modal" id="privacy-dialog" aria-labelledby="privacy-dialog-title">
+    <div class="modal-head">
+      <h2 class="h3" id="privacy-dialog-title" data-i18n="privacy.title"></h2>
+      <button type="button" class="modal-close" data-close-modal data-i18n-aria="a11y.close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="modal-body prose" id="privacy-dialog-body"></div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-primary btn-block" data-close-modal data-i18n="privacy.dialogDone"></button>
+    </div>
+  </dialog>
 
   <footer class="site-footer">
     <div class="footer-inner">
