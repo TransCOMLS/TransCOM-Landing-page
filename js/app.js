@@ -9,7 +9,7 @@
   var CFG = window.APP_CONFIG;
   var I18N = window.I18N;
   var LANG_KEY = "tr_lang";
-  var TAB_IDS = ["home", "services", "pricing", "calculator", "submit", "track", "how", "faq", "contact", "privacy", "account"];
+  var TAB_IDS = ["home", "services", "pricing", "calculator", "submit", "track", "how", "faq", "contact", "privacy", "terms", "account"];
 
   var state = { lang: "th", tab: "home" };
 
@@ -87,6 +87,7 @@
     renderPriceRows();
     renderSelectOptions();
     renderCivilDocs();
+    renderTerms();
 
     $all(".lang-toggle [data-lang]").forEach(function (btn) {
       btn.setAttribute("aria-pressed", String(btn.getAttribute("data-lang") === state.lang));
@@ -124,6 +125,52 @@
       });
       tbody.appendChild(tr);
     });
+  }
+
+  /* Terms and conditions: legal text lives in js/terms.js (window.TERMS) */
+  function richText(el, str) {
+    // "**bold**" → <strong>; everything else stays plain text
+    String(str).split("**").forEach(function (part, i) {
+      if (!part) return;
+      if (i % 2) {
+        var b = document.createElement("strong");
+        b.textContent = part;
+        el.appendChild(b);
+      } else {
+        el.appendChild(document.createTextNode(part));
+      }
+    });
+    return el;
+  }
+
+  function renderTerms() {
+    var box = $("#terms-body");
+    var all = window.TERMS;
+    if (!box || !all) return;
+    var d = all[state.lang] || all.th;
+    box.textContent = "";
+    function para(text) { box.appendChild(richText(document.createElement("p"), text)); }
+    (d.intro || []).forEach(para);
+    (d.sections || []).forEach(function (sec) {
+      var h = document.createElement("h2");
+      h.className = "h3";
+      h.textContent = sec.title;
+      box.appendChild(h);
+      (sec.blocks || []).forEach(function (block) {
+        if (typeof block === "string") { para(block); return; }
+        var ul = document.createElement("ul");
+        ul.className = "terms-list";
+        (block.list || []).forEach(function (item) {
+          ul.appendChild(richText(document.createElement("li"), item));
+        });
+        box.appendChild(ul);
+      });
+    });
+    if (d.closing) {
+      var c = richText(document.createElement("p"), d.closing);
+      c.className = "terms-closing";
+      box.appendChild(c);
+    }
   }
 
   function renderCivilDocs() {
@@ -294,12 +341,13 @@
 
     document.addEventListener("click", function (e) {
       var opener = e.target.closest("[data-modal]");
-      if (opener) { e.preventDefault(); openPrivacy(opener); return; }
+      if (opener) { e.preventDefault(); openPolicy(opener.getAttribute("data-modal"), opener); return; }
       var btn = e.target.closest("[data-goto]");
       if (!btn) return;
       e.preventDefault();
-      // While filling in the job form, show the policy as a pop-up instead of leaving the form
-      if (btn.getAttribute("data-goto") === "privacy" && state.tab === "submit") { openPrivacy(btn); return; }
+      // While filling in the job form, show the policy or terms as a pop-up instead of leaving the form
+      var dest = btn.getAttribute("data-goto");
+      if ((dest === "privacy" || dest === "terms") && state.tab === "submit") { openPolicy(dest, btn); return; }
       showTab(btn.getAttribute("data-goto"), { focusHeading: true });
     });
 
@@ -332,29 +380,37 @@
     else window.addEventListener("load", function () { setTimeout(reset, 0); });
   }
 
-  /* ---------- privacy policy pop-up ---------- */
+  /* ---------- privacy policy / terms pop-up ---------- */
   var lastOpener = null;
+  var lastPage = null;
 
-  function openPrivacy(opener) {
-    var dlg = $("#privacy-dialog");
-    var body = $("#privacy-dialog-body");
+  // page = "privacy" or "terms": the pop-up shows a copy of that page
+  function openPolicy(page, opener) {
+    var dlg = $("#policy-dialog");
+    var body = $("#policy-dialog-body");
+    var title = $("#policy-dialog-title");
+    var src = $("#" + page);
     // No <dialog> support (very old browsers): fall back to the page
-    if (!dlg || !body || typeof dlg.showModal !== "function") { showTab("privacy", { focusHeading: true }); return; }
-    // Copy the policy from its page, in the current language (title is in the pop-up header)
+    if (!dlg || !body || !src || typeof dlg.showModal !== "function") { showTab(page, { focusHeading: true }); return; }
+    // Copy the page in the current language; its <h1> becomes the pop-up title
     body.textContent = "";
-    Array.prototype.forEach.call($("#privacy").children, function (node) {
-      if (node.tagName !== "H1") body.appendChild(node.cloneNode(true));
+    Array.prototype.forEach.call(src.querySelectorAll(":scope > *"), function (node) {
+      if (node.tagName === "H1") { if (title) title.textContent = node.textContent; }
+      else body.appendChild(node.cloneNode(true));
     });
+    // Copied ids would clash with the page (e.g. #terms-body)
+    $all("[id]", body).forEach(function (el) { el.removeAttribute("id"); });
     lastOpener = opener || null;
+    lastPage = page;
     document.documentElement.classList.add("modal-open");
-    dlg.showModal();
+    if (!dlg.open) dlg.showModal();
     body.scrollTop = 0;
     var close = $(".modal-close", dlg);
     if (close) close.focus();
   }
 
-  function initPrivacyDialog() {
-    var dlg = $("#privacy-dialog");
+  function initPolicyDialog() {
+    var dlg = $("#policy-dialog");
     if (!dlg) return;
     $all("[data-close-modal]", dlg).forEach(function (b) {
       b.addEventListener("click", function () { dlg.close(); });
@@ -365,9 +421,10 @@
       document.documentElement.classList.remove("modal-open");
       if (lastOpener && document.contains(lastOpener)) lastOpener.focus({ preventScroll: true });
       lastOpener = null;
+      lastPage = null;
     });
     // Re-copy in the new language if the language changes while it is open
-    document.addEventListener("langchange", function () { if (dlg.open) openPrivacy(lastOpener); });
+    document.addEventListener("langchange", function () { if (dlg.open && lastPage) openPolicy(lastPage, lastOpener); });
   }
 
   /* ---------- small UI bits ---------- */
@@ -848,7 +905,7 @@
     applyLanguage(saved === "en" ? "en" : "th");
     initLanguageToggle();
     initTabs();
-    initPrivacyDialog();
+    initPolicyDialog();
     initCalculator();
     initFiles();
     initJobForm();

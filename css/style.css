@@ -472,6 +472,10 @@ a.contact-item:hover { border-color: var(--accent); }
 .prose h2 { margin-top: 1.4em; }
 .prose p { color: #343c4c; }
 .prose a { display: inline-flex; align-items: center; min-height: var(--tap); font-weight: 600; }
+.terms-body h2, .terms h2 { margin-top: 1.6em; }
+.prose ul.terms-list { margin: 0 0 1em; padding-left: 1.4em; }
+.prose ul.terms-list li { margin: 0 0 0.4em; color: #343c4c; }
+.terms-closing { font-weight: 600; }
 
 /* ---------- Footer ---------- */
 .site-footer {
@@ -499,6 +503,7 @@ a.contact-item:hover { border-color: var(--accent); }
   font-size: 0.875rem; color: #8f9bb0;
 }
 .footer-bottom .footer-link { font-size: 0.875rem; }
+.footer-legal { display: flex; flex-wrap: wrap; gap: 0 20px; }
 .site-footer :focus-visible { outline-color: rgba(255, 255, 255, 0.7); }
 @media (min-width: 640px) {
   .footer-inner { grid-template-columns: 1.4fr 1fr 1fr; gap: 32px; }
