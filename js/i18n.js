@@ -188,6 +188,9 @@ window.I18N = {
     "privacy.p5": "ท่านมีสิทธิขอเข้าถึง แก้ไข หรือขอลบข้อมูล และถอนความยินยอมได้ตลอดเวลา โดยแจ้งพร้อมเลขที่งานทางอีเมล ผู้ให้บริการจะดำเนินการภายใน 30 วัน",
     "privacy.h6": "ติดต่อเรื่องข้อมูลส่วนบุคคล",
 
+    "footer.tagline": "บริการแปลเอกสาร ไทย ⇄ อังกฤษ ตรวจทานทุกฉบับ พร้อมรับรองคำแปล",
+    "footer.menu": "เมนู",
+    "footer.contactTitle": "ติดต่อเรา",
     "footer.rights": "© {year} {serviceName} สงวนลิขสิทธิ์",
     "footer.privacy": "นโยบายความเป็นส่วนตัว"
   },
@@ -375,6 +378,9 @@ window.I18N = {
     "privacy.p5": "You may ask to access, correct or delete your data, or withdraw your consent, at any time. Email us with your job number and we will act within 30 days.",
     "privacy.h6": "Contact about personal data",
 
+    "footer.tagline": "Thai ⇄ English document translation, reviewed and certified.",
+    "footer.menu": "Menu",
+    "footer.contactTitle": "Contact us",
     "footer.rights": "© {year} {serviceName}. All rights reserved.",
     "footer.privacy": "Privacy Policy"
   }

@@ -144,7 +144,7 @@
       email: "mailto:" + c.email,
       line: c.lineUrl
     };
-    var texts = { phone: c.phoneDisplay, email: c.email };
+    var texts = { phone: c.phoneDisplay, email: c.email, line: c.lineId };
     $all("[data-contact]").forEach(function (a) {
       a.setAttribute("href", hrefs[a.getAttribute("data-contact")]);
     });

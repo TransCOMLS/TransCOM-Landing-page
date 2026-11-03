@@ -21,9 +21,12 @@
         <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h9M8.5 5v2c0 4-2 7-4.5 8.5M6 10c1.5 2.5 3.5 4 6 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M13 20l4-9 4 9M14.5 17h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span class="brand-name" data-service-name></span>
       </button>
+      <div class="header-actions">
+      <button type="button" class="btn btn-primary btn-sm header-cta" data-goto="submit" data-i18n="nav.submit"></button>
       <div class="lang-toggle" role="group" data-i18n-aria="a11y.lang">
         <button type="button" data-lang="th" aria-pressed="true" lang="th">TH</button>
         <button type="button" data-lang="en" aria-pressed="false" lang="en">EN</button>
+      </div>
       </div>
     </div>
   </header>
@@ -55,7 +58,7 @@
         <p class="lead" data-i18n="home.lead"></p>
         <div class="actions">
           <button type="button" class="btn btn-primary btn-lg" data-goto="submit" data-i18n="home.cta"></button>
-          <button type="button" class="btn-link" data-goto="calculator" data-i18n="home.secondary"></button>
+          <button type="button" class="btn btn-outline-light btn-lg" data-goto="calculator" data-i18n="home.secondary"></button>
         </div>
       </div>
       <ul class="features">
@@ -79,10 +82,10 @@
       <h1 data-i18n="services.title"></h1>
       <p class="lead" data-i18n="services.lead"></p>
       <ul class="cards">
-        <li class="card"><h2 class="h3" data-i18n="cat.official"></h2><p data-i18n="services.official"></p></li>
-        <li class="card"><h2 class="h3" data-i18n="cat.academic"></h2><p data-i18n="services.academic"></p></li>
-        <li class="card"><h2 class="h3" data-i18n="cat.business"></h2><p data-i18n="services.business"></p></li>
-        <li class="card"><h2 class="h3" data-i18n="cat.sports"></h2><p data-i18n="services.sports"></p></li>
+        <li class="card"><span class="icon-circle" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3.5h7l4 4V20.5H7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3.5v4h4M10 12h5M10 15.5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><h2 class="h3" data-i18n="cat.official"></h2><p data-i18n="services.official"></p></li>
+        <li class="card"><span class="icon-circle" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.5 9.5L12 5l9.5 4.5L12 14z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M6.5 11.5v4.5c1.5 1.5 3.5 2.2 5.5 2.2s4-.7 5.5-2.2v-4.5M21.5 9.5v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><h2 class="h3" data-i18n="cat.academic"></h2><p data-i18n="services.academic"></p></li>
+        <li class="card"><span class="icon-circle" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.5" y="7.5" width="17" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 7.5V5.5h6v2M3.5 12.5h17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span><h2 class="h3" data-i18n="cat.business"></h2><p data-i18n="services.business"></p></li>
+        <li class="card"><span class="icon-circle" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="14.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 10L6 3.5h4l2 4.5 2-4.5h4L15.5 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 12.5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><h2 class="h3" data-i18n="cat.sports"></h2><p data-i18n="services.sports"></p></li>
       </ul>
       <div class="actions">
         <button type="button" class="btn btn-primary" data-goto="pricing" data-i18n="services.cta"></button>
@@ -358,8 +361,37 @@
   </div>
 
   <footer class="site-footer">
-    <p data-i18n="footer.rights"></p>
-    <button type="button" class="btn-link" data-goto="privacy" data-i18n="footer.privacy"></button>
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <p class="footer-name">
+          <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h9M8.5 5v2c0 4-2 7-4.5 8.5M6 10c1.5 2.5 3.5 4 6 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M13 20l4-9 4 9M14.5 17h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span data-service-name></span>
+        </p>
+        <p data-i18n="footer.tagline"></p>
+      </div>
+      <nav class="footer-col" data-i18n-aria="footer.menu">
+        <h2 class="footer-title" data-i18n="footer.menu"></h2>
+        <ul>
+          <li><button type="button" class="footer-link" data-goto="services" data-i18n="nav.services"></button></li>
+          <li><button type="button" class="footer-link" data-goto="pricing" data-i18n="nav.pricing"></button></li>
+          <li><button type="button" class="footer-link" data-goto="submit" data-i18n="nav.submit"></button></li>
+          <li><button type="button" class="footer-link" data-goto="track" data-i18n="nav.track"></button></li>
+        </ul>
+      </nav>
+      <div class="footer-col">
+        <h2 class="footer-title" data-i18n="footer.contactTitle"></h2>
+        <ul>
+          <li><a class="footer-link" data-contact="line" target="_blank" rel="noopener noreferrer">LINE <span data-contact-text="line"></span><span class="sr-only" data-i18n="a11y.newTab"></span></a></li>
+          <li><a class="footer-link" data-contact="phone" target="_blank" rel="noopener"><span data-contact-text="phone"></span></a></li>
+          <li><a class="footer-link" data-contact="email" target="_blank" rel="noopener"><span data-contact-text="email"></span></a></li>
+          <li class="footer-hours" data-contact-text="hours"></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p data-i18n="footer.rights"></p>
+      <button type="button" class="footer-link" data-goto="privacy" data-i18n="footer.privacy"></button>
+    </div>
   </footer>
 
   <noscript><p class="noscript">Please enable JavaScript. / กรุณาเปิดใช้งาน JavaScript</p></noscript>
