@@ -44,13 +44,26 @@
       normalDays: CFG.turnaround.normal,
       expressDays: CFG.turnaround.express,
       certFee: formatNumber(CFG.certificationFee),
+      shipFee: formatNumber(CFG.shippingFee || 0),
       year: state.lang === "th" ? year + 543 : year   // พ.ศ. for Thai
     };
   }
 
+  // Per-page price of a category as { min, max } — config holds [min, max] or one number
+  function priceRange(cat, urgency) {
+    var v = cat ? cat[urgency || "normal"] : 0;
+    if (Array.isArray(v)) return { min: +v[0], max: +(v.length > 1 ? v[1] : v[0]) };
+    return { min: +v || 0, max: +v || 0 };
+  }
+
+  // "150–250" or "300" when both ends are the same
+  function formatRange(min, max) {
+    return min === max ? formatNumber(min) : t("calc.range", { min: formatNumber(min), max: formatNumber(max) });
+  }
+
   // Lowest normal per-page price, optionally among categories matching a test
   function minPrice(test) {
-    var prices = CFG.categories.filter(function (c) { return !test || test(c); }).map(function (c) { return c.normal; });
+    var prices = CFG.categories.filter(function (c) { return !test || test(c); }).map(function (c) { return priceRange(c, "normal").min; });
     return prices.length ? Math.min.apply(null, prices) : 0;
   }
 
@@ -124,10 +137,11 @@
         th.appendChild(badge);
       }
       tr.appendChild(th);
-      [cat.normal, cat.express].forEach(function (price) {
+      ["normal", "express"].forEach(function (urgency) {
+        var r = priceRange(cat, urgency);
         var td = document.createElement("td");
         td.className = "num";
-        td.textContent = formatNumber(price);
+        td.textContent = formatRange(r.min, r.max);
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
@@ -182,6 +196,18 @@
     $all("[data-contact]").forEach(function (a) {
       a.setAttribute("href", hrefs[a.getAttribute("data-contact")]);
     });
+    // LINE can be switched off in config.js (contact.showLine)
+    if (c.showLine === false) {
+      $all('[data-contact="line"]').forEach(function (a) {
+        var li = a.parentElement && a.parentElement.tagName === "LI" ? a.parentElement : null;
+        (li || a).hidden = true;
+      });
+      // Drop a button row left empty (e.g. the Contact page)
+      $all(".actions").forEach(function (row) {
+        var visible = Array.prototype.some.call(row.children, function (ch) { return !ch.hidden; });
+        if (!visible) row.hidden = true;
+      });
+    }
     $all("[data-contact-text]").forEach(function (el) {
       var key = el.getAttribute("data-contact-text");
       if (texts[key] !== undefined) el.textContent = texts[key];
@@ -406,7 +432,8 @@
       pagesRaw: $("#c-pages").value,
       pages: parsePages($("#c-pages").value),
       urgency: urgencyEl ? urgencyEl.value : "normal",
-      certified: $("#c-cert").checked
+      certified: $("#c-cert").checked,
+      shipping: !!($("#c-ship") && $("#c-ship").checked)
     };
   }
 
@@ -431,15 +458,17 @@
       turnaround.textContent = "";
       return null;
     }
-    var perPage = cat[v.urgency];
-    var total = perPage * v.pages + (v.certified ? CFG.certificationFee : 0);
+    var per = priceRange(cat, v.urgency);
+    var extra = (v.certified ? CFG.certificationFee : 0) + (v.shipping ? (CFG.shippingFee || 0) : 0);
+    var min = per.min * v.pages + extra, max = per.max * v.pages + extra;
     result.classList.remove("is-empty");
-    result.textContent = formatNumber(total) + " " + t("common.baht");
-    breakdown.textContent = t(v.certified ? "calc.breakdownCert" : "calc.breakdown", {
-      perPage: formatNumber(perPage), pages: v.pages
-    });
+    result.textContent = formatRange(min, max) + " " + t("common.baht");
+    var parts = [t("calc.breakdown", { perPage: formatRange(per.min, per.max), pages: v.pages })];
+    if (v.certified) parts.push(t("calc.plusCert"));
+    if (v.shipping) parts.push(t("calc.plusShip"));
+    breakdown.textContent = parts.join(" ");
     turnaround.textContent = t("calc.turnaround", { days: CFG.turnaround[v.urgency] });
-    return total;
+    return { min: min, max: max };
   }
 
   function initCalculator() {
@@ -458,6 +487,8 @@
       if (v.pages !== null) { $("#f-pages").value = v.pages; clearFieldError($("#f-pages")); used = true; }
       var cert = $('#job-form input[name="certified"][value="' + (v.certified ? "yes" : "no") + '"]');
       if (cert && used) cert.checked = true;
+      var ship = $('#job-form input[name="shipping"][value="' + (v.shipping ? "yes" : "no") + '"]');
+      if (ship && used) { ship.checked = true; updateAddressField(); }
       var note = $("#form-prefilled");
       if (note) note.hidden = !used;
     });
@@ -575,6 +606,10 @@
     },
     "f-files": filesRule("f-files"),
     "f-idFiles": filesRule("f-idFiles"),
+    "f-address": function (el) {
+      if (!wantsShipping()) return [];
+      return el.value.trim().length >= 15 ? [] : [t("err.address")];
+    },
     "f-idConsent": function (el) { return !needsId() || el.checked ? [] : [t("err.idConsent")]; },
     "f-consent": function (el) { return el.checked ? [] : [t("err.consent")]; }
   };
@@ -704,6 +739,23 @@
     renderFileList();
   }
 
+  function wantsShipping() {
+    var r = $('#job-form input[name="shipping"]:checked');
+    return !!(r && r.value === "yes");
+  }
+
+  // Delivery address only when the paper copy is posted
+  function updateAddressField() {
+    var box = $("#address-field");
+    if (!box) return;
+    var on = wantsShipping();
+    box.hidden = !on;
+    var el = $("#f-address");
+    if (el) el.required = on;
+    if (!on) { setFieldError(el, null); refreshErrorSummary(); }
+    else if (touched["f-address"]) validateField("f-address");
+  }
+
   // Show the ID section only for civil registration documents
   function updateIdSection() {
     var section = $("#id-section");
@@ -724,6 +776,8 @@
     var category = $("#f-category");
     if (category) category.addEventListener("change", updateIdSection);
     updateIdSection();
+    $all('#job-form input[name="shipping"]').forEach(function (r) { r.addEventListener("change", updateAddressField); });
+    updateAddressField();
 
     function refreshMinDate() { if (date) date.min = todayISO(); }
     refreshMinDate();
@@ -788,6 +842,8 @@
       certified: cert ? cert.value === "yes" : false,
       nameSpelling: val("f-nameSpelling"),
       notes: val("f-notes"),
+      shipping: wantsShipping(),
+      address: wantsShipping() ? val("f-address") : "",
       consent: $("#f-consent").checked,
       lang: state.lang,
       files: selectedFiles.slice(),
@@ -873,6 +929,8 @@
     formatNumber: formatNumber,
     fill: function (str, extra) { var v = tokens(); if (extra) for (var k in extra) v[k] = extra[k]; return fill(str, v); },
     findCategory: findCategory,
+    priceRange: priceRange,
+    formatRange: formatRange,
     // Phase 2 → used by Phase 3/4
     getJobData: getJobData,
     validateJobForm: validateJobForm,

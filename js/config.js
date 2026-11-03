@@ -13,11 +13,12 @@ window.APP_CONFIG = {
   // ช่องทางติดต่อ / Contact
   contact: {
     email: "contact@prathaitranslation.com",
-    phoneDisplay: "[xxx-xxx-xxxx]",
-    phoneTel: "+66000000000",          // ใช้สำหรับปุ่มโทร (รูปแบบสากล ไม่มีขีด)
+    phoneDisplay: "080-629-7450",
+    phoneTel: "+66806297450",          // ใช้สำหรับปุ่มโทร (รูปแบบสากล ไม่มีขีด)
+    showLine: false,                   // ซ่อนช่องทาง LINE ไว้ก่อน — เปลี่ยนเป็น true เมื่อพร้อมใช้งาน
     lineId: "@xxxx",
     lineUrl: "https://line.me/R/ti/p/@xxxx",
-    hours: { th: "จันทร์–ศุกร์ 09:00–17:00 น.", en: "Mon–Fri, 9:00–17:00 (GMT+7)" }
+    hours: { th: "ทุกวัน 09:00–17:00 น.", en: "Daily, 9:00–17:00 (GMT+7)" }
   },
 
   // คู่ภาษา / Language pairs (เพิ่มรายการได้)
@@ -27,12 +28,13 @@ window.APP_CONFIG = {
   ],
 
   // ประเภทเอกสารและราคาต่อหน้า / Categories and price per page (THB)
+  // ราคาเป็นช่วง [ต่ำสุด, สูงสุด] ต่อหน้า (หรือใส่ตัวเลขเดียวถ้าราคาคงที่)
   // requiresId: ต้องแนบบัตรประชาชน/เอกสารที่ราชการออกให้ (ราคาพิเศษ — แสดงป้าย "ราคาพิเศษ")
   categories: [
-    { id: "civil",    normal: 300, express: 450, requiresId: true },
-    { id: "official", normal: 400, express: 600 },
-    { id: "academic", normal: 450, express: 650 },
-    { id: "business", normal: 550, express: 800 },
+    { id: "civil",    normal: [150, 250], express: [300, 450], requiresId: true },
+    { id: "official", normal: [250, 350], express: [450, 550] },
+    { id: "academic", normal: [250, 350], express: [450, 550] },
+    { id: "business", normal: [350, 550], express: [650, 850] },
     { id: "sports",   normal: 500, express: 700 }
   ],
 
@@ -129,6 +131,9 @@ window.APP_CONFIG = {
 
   // ค่ารับรองคำแปล (ต่องาน) / Certified translation fee (per job)
   certificationFee: 300,
+
+  // ค่าจัดส่งเอกสารฉบับจริงทางไปรษณีย์ (ต่องาน) / Posting the paper copy (per job)
+  shippingFee: 50,
 
   // นโยบาย / Policy values
   revisionDays: 7,        // แก้ไขคำแปลได้ภายในกี่วันหลังส่งงาน

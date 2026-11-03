@@ -26,6 +26,11 @@ provider manages all jobs from one Google Sheet, with no paid server.
   (per job), revision/retention days, upload limits. All editable values live here.
   Category `civil` (civil registration documents, `requiresId: true`) has a lower
   "special rate"; `civilDocuments` lists the 18 documents (TH/EN); `idRetentionDays: 15`.
+  Prices are per-page ranges `[min, max]` (a single number also works); use
+  `App.priceRange(cat, urgency)` / `App.formatRange(min, max)`, never `cat.normal` directly.
+  `shippingFee` (paper copy by post, per job) adds a calculator option and, in the job form,
+  a shipping choice with a required delivery address (`f-address`). `contact.showLine:
+  false` hides every LINE link (`[data-contact="line"]`) until the owner switches it on.
 - `js/i18n.js` — `window.I18N.th` / `.en`, flat keys. Every key must exist in both.
   `{tokens}` are filled from config (`{serviceName}`, `{retentionDays}`, …).
 - `js/app.js` — IIFE; exposes `window.App` (`t`, `config`, `getLang`, `showTab`,

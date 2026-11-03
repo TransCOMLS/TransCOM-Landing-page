@@ -530,7 +530,7 @@ a.contact-item:hover { border-color: var(--accent); }
   }
   #calc-form > * { grid-column: 1; }
   #calc-form > .estimate {
-    grid-column: 2; grid-row: 1 / span 4;
+    grid-column: 2; grid-row: 1 / span 6;
     position: sticky; top: calc(var(--header-h) + 24px); margin: 0;
   }
 }

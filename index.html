@@ -181,6 +181,7 @@
         </div>
         <div class="actions">
           <button type="button" class="btn btn-primary btn-lg" data-goto="submit" data-i18n="nav.submit"></button>
+          <a class="btn btn-outline-light btn-lg" data-contact="phone" target="_blank" rel="noopener"><span data-i18n="home.cta.call"></span>&nbsp;<span data-contact-text="phone"></span></a>
           <a class="btn btn-outline-light btn-lg" data-contact="line" target="_blank" rel="noopener noreferrer"><span data-i18n="contact.line"></span><span class="sr-only" data-i18n="a11y.newTab"></span></a>
         </div>
       </section>
@@ -231,6 +232,7 @@
         </table>
       </div>
       <p class="price-extra"><span data-i18n="pricing.cert"></span> <strong data-i18n="pricing.certValue"></strong></p>
+      <p class="price-extra"><span data-i18n="pricing.ship"></span> <strong data-i18n="pricing.shipValue"></strong></p>
       <p class="note" data-i18n="pricing.note"></p>
       <p class="note" data-i18n="pricing.civilNote"></p>
       <div class="actions">
@@ -262,6 +264,9 @@
         </fieldset>
         <div class="field">
           <label class="choice"><input type="checkbox" id="c-cert" name="certified"><span data-i18n="calc.cert"></span></label>
+        </div>
+        <div class="field">
+          <label class="choice"><input type="checkbox" id="c-ship" name="shipping"><span data-i18n="calc.ship"></span></label>
         </div>
         <div class="estimate" aria-live="polite">
           <p class="estimate-label" data-i18n="calc.resultLabel"></p>
@@ -296,6 +301,7 @@
           <li data-i18n="how.s5.title"></li>
         </ol>
         <p class="note" data-i18n="form.aside.help"></p>
+        <a class="btn btn-outline btn-block" data-contact="email" target="_blank" rel="noopener"><span data-i18n="form.aside.email"></span></a>
         <a class="btn btn-outline btn-block" data-contact="line" target="_blank" rel="noopener noreferrer">
           <span data-i18n="contact.line"></span><span class="sr-only" data-i18n="a11y.newTab"></span>
         </a>
@@ -359,6 +365,19 @@
               <label class="choice"><input type="radio" name="certified" value="no" checked><span data-i18n="form.no"></span></label>
             </div>
           </fieldset>
+          <fieldset class="field">
+            <legend data-i18n="form.shipping"></legend>
+            <div class="choice-row">
+              <label class="choice"><input type="radio" name="shipping" value="yes"><span data-i18n="form.yes"></span></label>
+              <label class="choice"><input type="radio" name="shipping" value="no" checked><span data-i18n="form.no"></span></label>
+            </div>
+          </fieldset>
+          <div class="field" id="address-field" hidden>
+            <label for="f-address"><span data-i18n="form.address"></span> <span class="req" aria-hidden="true">*</span><span class="sr-only" data-i18n="a11y.required"></span></label>
+            <textarea id="f-address" name="address" rows="3" maxlength="400" autocomplete="street-address" aria-describedby="f-address-hint f-address-err"></textarea>
+            <p class="hint" id="f-address-hint" data-i18n="form.addressHint"></p>
+            <p class="field-error" id="f-address-err" hidden></p>
+          </div>
           <div class="field">
             <label for="f-nameSpelling" data-i18n="form.nameSpelling"></label>
             <input id="f-nameSpelling" name="nameSpelling" type="text" autocomplete="off" autocapitalize="characters" maxlength="200" aria-describedby="f-nameSpelling-hint">

@@ -61,8 +61,10 @@
     if (!ready) return;
     $("#qq-normal-label").textContent = t("home.quick.normal", { days: CFG.turnaround.normal });
     $("#qq-express-label").textContent = t("home.quick.express", { days: CFG.turnaround.express });
-    $("#qq-normal").textContent = t("home.quick.price", { price: App.formatNumber(v.cat.normal * v.pages) });
-    $("#qq-express").textContent = t("home.quick.price", { price: App.formatNumber(v.cat.express * v.pages) });
+    ["normal", "express"].forEach(function (u) {
+      var r = App.priceRange(v.cat, u);
+      $("#qq-" + u).textContent = App.formatRange(r.min * v.pages, r.max * v.pages) + " " + t("common.baht");
+    });
   }
 
   // Put a choice into the calculator and open it
@@ -164,7 +166,7 @@
       name.textContent = d[lang()] || d.th;
       var price = document.createElement("span");
       price.className = "doc-chip-price";
-      price.textContent = t("home.popular.from", { price: App.formatNumber(cat.normal) });
+      price.textContent = t("home.popular.from", { price: App.formatNumber(App.priceRange(cat, "normal").min) });
       btn.appendChild(name);
       btn.appendChild(price);
       btn.addEventListener("click", function () { openCalculator(cat.id, 1); });
