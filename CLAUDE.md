@@ -48,7 +48,7 @@ provider manages all jobs from one Google Sheet, with no paid server.
   offers & highlights (`config.promotions`), popular documents (`config.popularDocs`,
   open the calculator), compact steps, FAQ teaser, closing CTA. Also the News page
   (`config.news`): square posts (owner's https image, or a generated navy cover with the
-  title) that open `#post-dialog`; a real picture sits beside the text on ≥768px.
+  title) that open `#post-dialog`, which always shows the post picture (beside the text on ≥768px).
   Each post has `active` (true = shown, false = draft); the owner picks what goes live.
   With no active posts the News menu item is hidden.
   When Apps Script is connected, offers/news come from the "Promotions" / "News" sheets

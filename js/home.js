@@ -275,13 +275,12 @@
     openIndex = i;
     $("#post-dialog-date").textContent = n.date ? fmtDate(n.date) : "";
     $("#post-dialog-title").textContent = text(n.title);
-    // Real pictures only — a generated cover would just repeat the title
+    // Always show the post's picture (the owner's image, or the generated cover)
     var media = $("#post-dialog-media");
     media.textContent = "";
-    var hasImage = !!safeImage(n.image);
-    media.hidden = !hasImage;
-    dlg.classList.toggle("has-media", hasImage);
-    if (hasImage) media.appendChild(postMedia(n, i));
+    media.hidden = false;
+    dlg.classList.add("has-media");
+    media.appendChild(postMedia(n, i));
     var body = $("#post-dialog-text");
     body.textContent = "";
     text(n.text).split(/\n+/).forEach(function (para) {
