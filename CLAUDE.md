@@ -12,10 +12,10 @@ provider manages all jobs from one Google Sheet, with no paid server.
   font — with a sans-serif fallback stack. Do not switch to other display fonts.
 
 ## Files
-- `index.html` — single page; 11 `.panel` sections in `<main>`: home, services, pricing,
-  calculator, submit, track, account, how, faq, contact, privacy. Ids double as `#hash` routes.
+- `index.html` — single page; 12 `.panel` sections in `<main>`: home, services, pricing,
+  calculator, submit, track, account, how, faq, contact, privacy, terms. Ids double as `#hash` routes.
   Menu (`.main-nav` in the header): Home · Services & pricing ▾ (services, pricing,
-  calculator) · Orders ▾ (how, submit, track) · Help ▾ (faq, privacy) · Contact.
+  calculator) · Orders ▾ (how, submit, track) · Help ▾ (faq, privacy, terms) · Contact.
   Items carry `data-tab`; other in-page links use `data-goto`. "My account" is the
   `.account-btn` in the header (≥640px) and a menu item below 1024px.
 - `css/style.css` — mobile-first. Breakpoints: phone/tablet (<1024px, menu button opens
@@ -38,9 +38,12 @@ provider manages all jobs from one Google Sheet, with no paid server.
   later phases to hook into. Menu is a disclosure pattern (`aria-expanded`, current page
   `aria-current="page"`); Escape and outside clicks close it. After load it scrolls back
   to the top, since the browser jumps to the `#hash` section.
-  Privacy policy pop-up (`<dialog id="privacy-dialog">`, content copied from `#privacy`):
-  opened by `[data-modal="privacy"]` (consent link in the job form) and by any
-  `data-goto="privacy"` while on the submit page, so customers never leave the form.
+  Policy pop-up (`<dialog id="policy-dialog">`, content copied from `#privacy` or `#terms`):
+  opened by `[data-modal="privacy"|"terms"]` (consent links in the job form) and by
+  `data-goto` to those pages while on the submit page, so customers never leave the form.
+  Privacy and terms pages have a contents list (`.doc-toc`, built by `buildTocs()`).
+- `js/terms.js` — `window.TERMS.th` / `.en`: terms and conditions text (legal; edited by
+  the owner — do not reword without being asked). `**bold**` is rendered as <strong>.
 - `js/home.js` — home page: instant estimate in the hero (carries into the calculator),
   offers & highlights (`config.promotions`), popular documents (`config.popularDocs`,
   open the calculator), compact steps, news (`config.news`), FAQ teaser, closing CTA.
@@ -116,6 +119,6 @@ console errors, `node --check js/*.js` passes, and i18n keys match between th/en
 The owner keeps a matching preview copy on claude.ai: https://claude.ai/artifact/WrtJLSJG77T717XyWkqMrF
 After each phase, republish it with the Artifact tool, passing that URL as `url` (read it first).
 Publish `index.html` with its `<!DOCTYPE>`, `<html>`, `<head>`/`<body>` tags and the charset/viewport
-metas removed (title, font links and the stylesheet link stay), plus `css/style.css`, the five
-`js/*.js` files (config, i18n, app, account, home) and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
+metas removed (title, font links and the stylesheet link stay), plus `css/style.css`, the six
+`js/*.js` files (config, i18n, terms, app, account, home) and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
 inline for that copy only.

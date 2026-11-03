@@ -9,7 +9,7 @@
   var CFG = window.APP_CONFIG;
   var I18N = window.I18N;
   var LANG_KEY = "tr_lang";
-  var TAB_IDS = ["home", "services", "pricing", "calculator", "submit", "track", "how", "faq", "contact", "privacy", "account"];
+  var TAB_IDS = ["home", "services", "pricing", "calculator", "submit", "track", "how", "faq", "contact", "privacy", "terms", "account"];
 
   var state = { lang: "th", tab: "home" };
 
@@ -108,6 +108,8 @@
     renderPriceRows();
     renderSelectOptions();
     renderCivilDocs();
+    renderTerms();
+    buildTocs();
 
     $all(".lang-toggle [data-lang]").forEach(function (btn) {
       btn.setAttribute("aria-pressed", String(btn.getAttribute("data-lang") === state.lang));
@@ -146,6 +148,125 @@
       });
       tbody.appendChild(tr);
     });
+  }
+
+  /* Terms and conditions: legal text lives in js/terms.js (window.TERMS) */
+  function richText(el, str) {
+    // "**bold**" → <strong>; everything else stays plain text
+    String(str).split("**").forEach(function (part, i) {
+      if (!part) return;
+      if (i % 2) {
+        var b = document.createElement("strong");
+        b.textContent = part;
+        el.appendChild(b);
+      } else {
+        el.appendChild(document.createTextNode(part));
+      }
+    });
+    return el;
+  }
+
+  function renderTerms() {
+    var box = $("#terms-body");
+    var all = window.TERMS;
+    if (!box || !all) return;
+    var d = all[state.lang] || all.th;
+    box.textContent = "";
+    function para(text) { box.appendChild(richText(document.createElement("p"), text)); }
+    (d.intro || []).forEach(para);
+    (d.sections || []).forEach(function (sec, i) {
+      var h = document.createElement("h2");
+      h.className = "h3";
+      h.textContent = sec.title;
+      box.appendChild(h);
+      (sec.blocks || []).forEach(function (block) {
+        if (typeof block === "string") { para(block); return; }
+        var ul = document.createElement("ul");
+        ul.className = "terms-list";
+        (block.list || []).forEach(function (item) {
+          ul.appendChild(richText(document.createElement("li"), item));
+        });
+        box.appendChild(ul);
+      });
+    });
+    if (d.closing) {
+      var c = richText(document.createElement("p"), d.closing);
+      c.className = "terms-closing";
+      box.appendChild(c);
+    }
+  }
+
+  /* Contents list beside long pages (terms, privacy): <details class="doc-toc" data-toc-for="<body id>">.
+     Open in the left column on PC, folded at the top on phone/tablet; jumps within the page. */
+  function buildTocs() {
+    $all(".doc-toc").forEach(function (details) {
+      var bodyId = details.getAttribute("data-toc-for");
+      var body = document.getElementById(bodyId);
+      var list = $("ol", details);
+      if (!body || !list) return;
+      list.textContent = "";
+      $all("h2", body).forEach(function (h, i) {
+        h.id = bodyId + "-s" + (i + 1);
+        var li = document.createElement("li");
+        var b = document.createElement("button");
+        b.type = "button";
+        b.setAttribute("data-toc-target", h.id);
+        b.textContent = h.textContent;
+        li.appendChild(b);
+        list.appendChild(li);
+      });
+    });
+  }
+
+  function initTocs() {
+    var tocs = $all(".doc-toc");
+    if (!tocs.length) return;
+    var wide = window.matchMedia ? window.matchMedia("(min-width: 1024px)") : null;
+    function isWide() { return !!(wide && wide.matches); }
+    function sync() { tocs.forEach(function (d) { d.open = isWide(); }); }
+    sync();
+    if (wide) {
+      if (wide.addEventListener) wide.addEventListener("change", sync);
+      else if (wide.addListener) wide.addListener(sync);
+    }
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    function headerH() { var hd = $(".site-header"); return hd ? hd.offsetHeight : 0; }
+    tocs.forEach(function (details) {
+      details.addEventListener("click", function (e) {
+        var b = e.target.closest("[data-toc-target]");
+        if (!b) return;
+        var h = document.getElementById(b.getAttribute("data-toc-target"));
+        if (!h) return;
+        // Fold the list first (phone/tablet), so the measured position does not shift afterwards
+        if (!isWide()) details.open = false;
+        var top = h.getBoundingClientRect().top + window.scrollY - headerH() - 16;
+        // scrollTo, not scrollIntoView: inside Google Sites the latter can scroll the outer page too
+        window.scrollTo({ top: Math.max(0, top), behavior: reduce ? "auto" : "smooth" });
+        h.tabIndex = -1;
+        h.focus({ preventScroll: true });
+      });
+    });
+    // Highlight the section being read on the page that is showing
+    var ticking = false;
+    function spy() {
+      ticking = false;
+      var details = $("#" + state.tab + " .doc-toc");
+      if (!details) return;
+      var body = document.getElementById(details.getAttribute("data-toc-for"));
+      if (!body) return;
+      var line = headerH() + 40;
+      var current = null;
+      $all("h2", body).forEach(function (h) { if (h.getBoundingClientRect().top <= line) current = h.id; });
+      $all("[data-toc-target]", details).forEach(function (b) {
+        if (b.getAttribute("data-toc-target") === current) b.setAttribute("aria-current", "true");
+        else b.removeAttribute("aria-current");
+      });
+    }
+    window.addEventListener("scroll", function () {
+      if (!ticking) { ticking = true; window.requestAnimationFrame(spy); }
+    }, { passive: true });
+    document.addEventListener("langchange", spy);
+    document.addEventListener("tabchange", spy);
   }
 
   function renderCivilDocs() {
@@ -328,12 +449,13 @@
 
     document.addEventListener("click", function (e) {
       var opener = e.target.closest("[data-modal]");
-      if (opener) { e.preventDefault(); openPrivacy(opener); return; }
+      if (opener) { e.preventDefault(); openPolicy(opener.getAttribute("data-modal"), opener); return; }
       var btn = e.target.closest("[data-goto]");
       if (!btn) return;
       e.preventDefault();
-      // While filling in the job form, show the policy as a pop-up instead of leaving the form
-      if (btn.getAttribute("data-goto") === "privacy" && state.tab === "submit") { openPrivacy(btn); return; }
+      // While filling in the job form, show the policy or terms as a pop-up instead of leaving the form
+      var dest = btn.getAttribute("data-goto");
+      if ((dest === "privacy" || dest === "terms") && state.tab === "submit") { openPolicy(dest, btn); return; }
       showTab(btn.getAttribute("data-goto"), { focusHeading: true });
     });
 
@@ -366,29 +488,38 @@
     else window.addEventListener("load", function () { setTimeout(reset, 0); });
   }
 
-  /* ---------- privacy policy pop-up ---------- */
+  /* ---------- privacy policy / terms pop-up ---------- */
   var lastOpener = null;
+  var lastPage = null;
 
-  function openPrivacy(opener) {
-    var dlg = $("#privacy-dialog");
-    var body = $("#privacy-dialog-body");
+  // page = "privacy" or "terms": the pop-up shows a copy of that page
+  function openPolicy(page, opener) {
+    var dlg = $("#policy-dialog");
+    var body = $("#policy-dialog-body");
+    var title = $("#policy-dialog-title");
+    var src = $("#" + page);
     // No <dialog> support (very old browsers): fall back to the page
-    if (!dlg || !body || typeof dlg.showModal !== "function") { showTab("privacy", { focusHeading: true }); return; }
-    // Copy the policy from its page, in the current language (title is in the pop-up header)
+    if (!dlg || !body || !src || typeof dlg.showModal !== "function") { showTab(page, { focusHeading: true }); return; }
+    // Copy the page in the current language; its <h1> becomes the pop-up title
     body.textContent = "";
-    Array.prototype.forEach.call($("#privacy").children, function (node) {
-      if (node.tagName !== "H1") body.appendChild(node.cloneNode(true));
+    Array.prototype.forEach.call(src.querySelectorAll(":scope > *"), function (node) {
+      if (node.tagName === "H1") { if (title) title.textContent = node.textContent; }
+      else body.appendChild(node.cloneNode(true));
     });
+    // The contents list is only for the full page; copied ids would clash with the page
+    $all(".doc-toc", body).forEach(function (el) { el.parentNode.removeChild(el); });
+    $all("[id]", body).forEach(function (el) { el.removeAttribute("id"); });
     lastOpener = opener || null;
+    lastPage = page;
     document.documentElement.classList.add("modal-open");
-    dlg.showModal();
+    if (!dlg.open) dlg.showModal();
     body.scrollTop = 0;
     var close = $(".modal-close", dlg);
     if (close) close.focus();
   }
 
-  function initPrivacyDialog() {
-    var dlg = $("#privacy-dialog");
+  function initPolicyDialog() {
+    var dlg = $("#policy-dialog");
     if (!dlg) return;
     $all("[data-close-modal]", dlg).forEach(function (b) {
       b.addEventListener("click", function () { dlg.close(); });
@@ -399,9 +530,10 @@
       document.documentElement.classList.remove("modal-open");
       if (lastOpener && document.contains(lastOpener)) lastOpener.focus({ preventScroll: true });
       lastOpener = null;
+      lastPage = null;
     });
     // Re-copy in the new language if the language changes while it is open
-    document.addEventListener("langchange", function () { if (dlg.open) openPrivacy(lastOpener); });
+    document.addEventListener("langchange", function () { if (dlg.open && lastPage) openPolicy(lastPage, lastOpener); });
   }
 
   /* ---------- small UI bits ---------- */
@@ -912,7 +1044,8 @@
     applyLanguage(saved === "en" ? "en" : "th");
     initLanguageToggle();
     initTabs();
-    initPrivacyDialog();
+    initPolicyDialog();
+    initTocs();
     initCalculator();
     initFiles();
     initJobForm();

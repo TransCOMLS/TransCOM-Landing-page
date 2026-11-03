@@ -138,7 +138,7 @@ window.APP_CONFIG = {
   // นโยบาย / Policy values
   revisionDays: 7,        // แก้ไขคำแปลได้ภายในกี่วันหลังส่งงาน
   retentionDays: 90,      // เก็บไฟล์และข้อมูลกี่วันหลังส่งมอบงาน
-  privacyUpdated: { th: "3 พฤศจิกายน 2569", en: "3 November 2026" },
+  privacyUpdated: { th: "4 พฤศจิกายน 2569", en: "4 November 2026" },
 
   // ไฟล์แนบ / File upload limits
   maxFileMB: 10,
