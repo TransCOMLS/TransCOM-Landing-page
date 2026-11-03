@@ -197,8 +197,9 @@
       tab.addEventListener("click", function () { showTab(tab.getAttribute("data-tab")); });
       tab.addEventListener("keydown", function (e) {
         var next = null;
-        if (e.key === "ArrowRight") next = tabs[(i + 1) % tabs.length];
-        else if (e.key === "ArrowLeft") next = tabs[(i - 1 + tabs.length) % tabs.length];
+        // Left/Right on phone & tablet, Up/Down when the menu is a sidebar (PC)
+        if (e.key === "ArrowRight" || e.key === "ArrowDown") next = tabs[(i + 1) % tabs.length];
+        else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = tabs[(i - 1 + tabs.length) % tabs.length];
         else if (e.key === "Home") next = tabs[0];
         else if (e.key === "End") next = tabs[tabs.length - 1];
         if (next) {
@@ -220,6 +221,18 @@
       var id = location.hash.replace("#", "");
       if (id && id !== state.tab && TAB_IDS.indexOf(id) !== -1) showTab(id);
     });
+
+    // Sidebar on PC is a vertical tab list
+    var list = $('[role="tablist"]');
+    var wide = window.matchMedia ? window.matchMedia("(min-width: 1024px)") : null;
+    function setOrientation() {
+      if (list) list.setAttribute("aria-orientation", wide && wide.matches ? "vertical" : "horizontal");
+    }
+    setOrientation();
+    if (wide) {
+      if (wide.addEventListener) wide.addEventListener("change", setOrientation);
+      else if (wide.addListener) wide.addListener(setOrientation);
+    }
 
     showTab(location.hash.replace("#", "") || "home", { initial: true });
   }
