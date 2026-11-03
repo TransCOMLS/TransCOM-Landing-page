@@ -13,8 +13,8 @@ window.APP_CONFIG = {
   // ช่องทางติดต่อ / Contact
   contact: {
     email: "contact@prathaitranslation.com",
-    phoneDisplay: "[xxx-xxx-xxxx]",
-    phoneTel: "+66000000000",          // ใช้สำหรับปุ่มโทร (รูปแบบสากล ไม่มีขีด)
+    phoneDisplay: "080-629-7450",
+    phoneTel: "+66806297450",          // ใช้สำหรับปุ่มโทร (รูปแบบสากล ไม่มีขีด)
     lineId: "@xxxx",
     lineUrl: "https://line.me/R/ti/p/@xxxx",
     hours: { th: "จันทร์–ศุกร์ 09:00–17:00 น.", en: "Mon–Fri, 9:00–17:00 (GMT+7)" }
@@ -73,7 +73,7 @@ window.APP_CONFIG = {
   // นโยบาย / Policy values
   revisionDays: 7,        // แก้ไขคำแปลได้ภายในกี่วันหลังส่งงาน
   retentionDays: 90,      // เก็บไฟล์และข้อมูลกี่วันหลังส่งมอบงาน
-  privacyUpdated: { th: "3 พฤศจิกายน 2569", en: "3 November 2026" },
+  privacyUpdated: { th: "4 พฤศจิกายน 2569", en: "4 November 2026" },
 
   // ไฟล์แนบ / File upload limits
   maxFileMB: 10,

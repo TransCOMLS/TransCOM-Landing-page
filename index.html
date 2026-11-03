@@ -46,6 +46,7 @@
           <ul class="nav-sub" id="menu-help">
             <li><button type="button" class="nav-sublink" data-tab="faq" data-i18n="nav.faq"></button></li>
             <li><button type="button" class="nav-sublink" data-tab="privacy" data-i18n="nav.privacy"></button></li>
+            <li><button type="button" class="nav-sublink" data-tab="terms" data-i18n="nav.terms"></button></li>
           </ul>
         </li>
         <li><button type="button" class="nav-link" data-tab="contact" data-i18n="nav.contact"></button></li>
@@ -333,7 +334,7 @@
         <div class="field consent">
           <label class="choice choice-top">
             <input type="checkbox" id="f-consent" name="consent" required aria-describedby="f-consent-err">
-            <span><span data-i18n="form.consent"></span> <button type="button" class="btn-link inline" data-modal="privacy" aria-haspopup="dialog" data-i18n="form.consentLink"></button> <span class="req" aria-hidden="true">*</span><span class="sr-only" data-i18n="a11y.required"></span></span>
+            <span><span data-i18n="form.consentA"></span> <button type="button" class="btn-link inline" data-modal="terms" aria-haspopup="dialog" data-i18n="form.termsLink"></button> <span data-i18n="form.consentB"></span> <button type="button" class="btn-link inline" data-modal="privacy" aria-haspopup="dialog" data-i18n="form.consentLink"></button> <span class="req" aria-hidden="true">*</span><span class="sr-only" data-i18n="a11y.required"></span></span>
           </label>
           <p class="field-error" id="f-consent-err" hidden></p>
         </div>
@@ -499,13 +500,46 @@
     <!-- ===== 8. FAQ ===== -->
     <section id="faq" class="panel" hidden>
       <h1 data-i18n="faq.title"></h1>
+      <!-- PC only: help beside the questions -->
+      <aside class="side-card" aria-labelledby="faq-side">
+        <h2 class="h4" id="faq-side" data-i18n="faq.aside.title"></h2>
+        <p class="note" data-i18n="faq.aside.text"></p>
+        <a class="btn btn-outline btn-block" data-contact="line" target="_blank" rel="noopener noreferrer">
+          <span data-i18n="contact.line"></span><span class="sr-only" data-i18n="a11y.newTab"></span>
+        </a>
+        <ul class="side-links">
+          <li><button type="button" class="btn-link" data-goto="contact" data-i18n="faq.aside.contact"></button></li>
+          <li><button type="button" class="btn-link" data-goto="terms" data-i18n="faq.more"></button></li>
+          <li><button type="button" class="btn-link" data-goto="privacy" data-i18n="footer.privacy"></button></li>
+        </ul>
+      </aside>
+      <h2 class="h3 faq-group" data-i18n="faq.g1"></h2>
       <div class="accordion">
         <details><summary data-i18n="faq.q1"></summary><p data-i18n="faq.a1"></p></details>
         <details><summary data-i18n="faq.q2"></summary><p data-i18n="faq.a2"></p></details>
         <details><summary data-i18n="faq.q3"></summary><p data-i18n="faq.a3"></p></details>
         <details><summary data-i18n="faq.q4"></summary><p data-i18n="faq.a4"></p></details>
+      </div>
+      <h2 class="h3 faq-group" data-i18n="faq.g2"></h2>
+      <div class="accordion">
         <details><summary data-i18n="faq.q5"></summary><p data-i18n="faq.a5"></p></details>
         <details><summary data-i18n="faq.q6"></summary><p data-i18n="faq.a6"></p></details>
+        <details><summary data-i18n="faq.q7"></summary><p data-i18n="faq.a7"></p></details>
+        <details><summary data-i18n="faq.q8"></summary><p data-i18n="faq.a8"></p></details>
+      </div>
+      <h2 class="h3 faq-group" data-i18n="faq.g3"></h2>
+      <div class="accordion">
+        <details><summary data-i18n="faq.q9"></summary><p data-i18n="faq.a9"></p></details>
+        <details><summary data-i18n="faq.q10"></summary><p data-i18n="faq.a10"></p></details>
+        <details><summary data-i18n="faq.q11"></summary><p data-i18n="faq.a11"></p></details>
+        <details><summary data-i18n="faq.q12"></summary><p data-i18n="faq.a12"></p></details>
+      </div>
+      <h2 class="h3 faq-group" data-i18n="faq.g4"></h2>
+      <div class="accordion">
+        <details><summary data-i18n="faq.q13"></summary><p data-i18n="faq.a13"></p></details>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn-link" data-goto="terms" data-i18n="faq.more"></button>
       </div>
     </section>
 
@@ -543,29 +577,52 @@
     </section>
 
     <!-- ===== 10. Privacy policy (PDPA) ===== -->
-    <section id="privacy" class="panel prose" hidden>
+    <section id="privacy" class="panel prose has-toc" hidden>
       <h1 data-i18n="privacy.title"></h1>
       <p class="note"><span data-i18n="privacy.updated"></span>: <span data-privacy-updated></span></p>
-      <p data-i18n="privacy.intro"></p>
-      <h2 class="h3" data-i18n="privacy.h1"></h2><p data-i18n="privacy.p1"></p>
-      <h2 class="h3" data-i18n="privacy.h2"></h2><p data-i18n="privacy.p2"></p>
-      <h2 class="h3" data-i18n="privacy.h3"></h2><p data-i18n="privacy.p3"></p>
-      <h2 class="h3" data-i18n="privacy.h4"></h2><p data-i18n="privacy.p4"></p>
-      <h2 class="h3" data-i18n="privacy.h5"></h2><p data-i18n="privacy.p5"></p>
-      <h2 class="h3" data-i18n="privacy.h6"></h2>
-      <p><a data-contact="email" target="_blank" rel="noopener"><span data-contact-text="email"></span></a></p>
+      <div class="doc-layout">
+        <details class="doc-toc" data-toc-for="privacy-body">
+          <summary data-i18n="common.toc"></summary>
+          <ol></ol>
+        </details>
+        <div class="doc-body" id="privacy-body">
+          <p data-i18n="privacy.intro"></p>
+          <h2 class="h3" data-i18n="privacy.h1"></h2><p data-i18n="privacy.p1"></p>
+          <h2 class="h3" data-i18n="privacy.h2"></h2><p data-i18n="privacy.p2"></p>
+          <h2 class="h3" data-i18n="privacy.h3"></h2><p data-i18n="privacy.p3"></p>
+          <h2 class="h3" data-i18n="privacy.h4"></h2><p data-i18n="privacy.p4"></p>
+          <h2 class="h3" data-i18n="privacy.h5"></h2><p data-i18n="privacy.p5"></p>
+          <h2 class="h3" data-i18n="privacy.hSec"></h2><p data-i18n="privacy.pSec"></p>
+          <h2 class="h3" data-i18n="privacy.h6"></h2>
+          <p><a data-contact="email" target="_blank" rel="noopener"><span data-contact-text="email"></span></a></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 11. Terms and conditions (text in js/terms.js) ===== -->
+    <section id="terms" class="panel prose has-toc" hidden>
+      <h1 data-i18n="terms.title"></h1>
+      <p class="note" data-i18n="terms.note"></p>
+      <div class="doc-layout">
+        <!-- Contents: sticky sidebar on PC, folded list on phone/tablet -->
+        <details class="doc-toc" data-toc-for="terms-body">
+          <summary data-i18n="common.toc"></summary>
+          <ol></ol>
+        </details>
+        <div id="terms-body" class="doc-body"></div>
+      </div>
     </section>
   </main>
 
-  <!-- Privacy policy as a pop-up, so people filling in the job form never leave it -->
-  <dialog class="modal" id="privacy-dialog" aria-labelledby="privacy-dialog-title">
+  <!-- Privacy policy / terms as a pop-up, so people filling in the job form never leave it -->
+  <dialog class="modal" id="policy-dialog" aria-labelledby="policy-dialog-title">
     <div class="modal-head">
-      <h2 class="h3" id="privacy-dialog-title" data-i18n="privacy.title"></h2>
+      <h2 class="h3" id="policy-dialog-title"></h2>
       <button type="button" class="modal-close" data-close-modal data-i18n-aria="a11y.close">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </button>
     </div>
-    <div class="modal-body prose" id="privacy-dialog-body"></div>
+    <div class="modal-body prose" id="policy-dialog-body"></div>
     <div class="modal-foot">
       <button type="button" class="btn btn-primary btn-block" data-close-modal data-i18n="privacy.dialogDone"></button>
     </div>
@@ -601,7 +658,10 @@
     </div>
     <div class="footer-bottom">
       <p data-i18n="footer.rights"></p>
-      <button type="button" class="footer-link" data-goto="privacy" data-i18n="footer.privacy"></button>
+      <div class="footer-legal">
+        <button type="button" class="footer-link" data-goto="terms" data-i18n="footer.terms"></button>
+        <button type="button" class="footer-link" data-goto="privacy" data-i18n="footer.privacy"></button>
+      </div>
     </div>
   </footer>
 
@@ -609,6 +669,7 @@
 
   <script src="js/config.js"></script>
   <script src="js/i18n.js"></script>
+  <script src="js/terms.js"></script>
   <script src="js/app.js"></script>
   <script src="js/account.js"></script>
 </body>
