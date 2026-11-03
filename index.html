@@ -14,7 +14,7 @@
 <body>
   <a class="skip-link" href="#main" data-i18n="a11y.skip"></a>
 
-  <!-- ===== Header: brand, language toggle, tabs ===== -->
+  <!-- ===== Header: brand + language toggle ===== -->
   <header class="site-header">
     <div class="header-bar">
       <button type="button" class="brand" data-goto="home">
@@ -26,21 +26,24 @@
         <button type="button" data-lang="en" aria-pressed="false" lang="en">EN</button>
       </div>
     </div>
-    <nav class="tabs-wrap" data-i18n-aria="a11y.nav">
-      <div class="tabs" role="tablist">
-        <button type="button" role="tab" id="tab-home" aria-controls="home" data-tab="home" data-i18n="nav.home"></button>
-        <button type="button" role="tab" id="tab-services" aria-controls="services" data-tab="services" data-i18n="nav.services"></button>
-        <button type="button" role="tab" id="tab-pricing" aria-controls="pricing" data-tab="pricing" data-i18n="nav.pricing"></button>
-        <button type="button" role="tab" id="tab-calculator" aria-controls="calculator" data-tab="calculator" data-i18n="nav.calculator"></button>
-        <button type="button" role="tab" id="tab-submit" aria-controls="submit" data-tab="submit" data-i18n="nav.submit"></button>
-        <button type="button" role="tab" id="tab-track" aria-controls="track" data-tab="track" data-i18n="nav.track"></button>
-        <button type="button" role="tab" id="tab-how" aria-controls="how" data-tab="how" data-i18n="nav.how"></button>
-        <button type="button" role="tab" id="tab-faq" aria-controls="faq" data-tab="faq" data-i18n="nav.faq"></button>
-        <button type="button" role="tab" id="tab-contact" aria-controls="contact" data-tab="contact" data-i18n="nav.contact"></button>
-        <button type="button" role="tab" id="tab-privacy" aria-controls="privacy" data-tab="privacy" data-i18n="nav.privacy"></button>
-      </div>
-    </nav>
   </header>
+
+  <div class="layout">
+  <!-- Menu: scrolling strip (phone), wrapped rows (tablet), sidebar (PC) -->
+  <nav class="tabs-wrap" data-i18n-aria="a11y.nav">
+    <div class="tabs" role="tablist" aria-orientation="horizontal">
+      <button type="button" role="tab" id="tab-home" aria-controls="home" data-tab="home" data-i18n="nav.home"></button>
+      <button type="button" role="tab" id="tab-services" aria-controls="services" data-tab="services" data-i18n="nav.services"></button>
+      <button type="button" role="tab" id="tab-pricing" aria-controls="pricing" data-tab="pricing" data-i18n="nav.pricing"></button>
+      <button type="button" role="tab" id="tab-calculator" aria-controls="calculator" data-tab="calculator" data-i18n="nav.calculator"></button>
+      <button type="button" role="tab" id="tab-submit" aria-controls="submit" data-tab="submit" data-i18n="nav.submit"></button>
+      <button type="button" role="tab" id="tab-track" aria-controls="track" data-tab="track" data-i18n="nav.track"></button>
+      <button type="button" role="tab" id="tab-how" aria-controls="how" data-tab="how" data-i18n="nav.how"></button>
+      <button type="button" role="tab" id="tab-faq" aria-controls="faq" data-tab="faq" data-i18n="nav.faq"></button>
+      <button type="button" role="tab" id="tab-contact" aria-controls="contact" data-tab="contact" data-i18n="nav.contact"></button>
+      <button type="button" role="tab" id="tab-privacy" aria-controls="privacy" data-tab="privacy" data-i18n="nav.privacy"></button>
+    </div>
+  </nav>
 
   <main id="main" tabindex="-1">
 
@@ -347,6 +350,7 @@
       <p><a data-contact="email" target="_blank" rel="noopener"><span data-contact-text="email"></span></a></p>
     </section>
   </main>
+  </div>
 
   <footer class="site-footer">
     <p data-i18n="footer.rights"></p>
