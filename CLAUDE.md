@@ -68,7 +68,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
 - `img/logo.svg` (header, on white) and `img/logo-white.svg` (footer, on `--footer-bg`):
   the owner's logo, cropped to its content. Colours `#01417b` / `#006192` set `--accent`
   and `--accent-bright`.
-- `README.md` in Thai (Phase 4).
+- `README.md` — Thai setup guide for the owner: Drive folders, Sheet + Apps Script setup, Web App
+  deployment, daily use of the News/Promotions sheets, updating, GitHub Pages, Google Sites. Keep
+  it in step when sheets, columns or config keys change (Phase 4 adds the status-lookup parts).
 
 ## Conventions
 - Text goes in `i18n.js` and is bound with `data-i18n`, `data-i18n-placeholder`,
