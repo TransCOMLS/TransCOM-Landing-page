@@ -35,7 +35,7 @@ window.APP_CONFIG = {
     { id: "official", normal: [250, 350], express: [450, 550] },
     { id: "academic", normal: [250, 350], express: [450, 550] },
     { id: "business", normal: [350, 550], express: [650, 850] },
-    { id: "sports",   normal: 500, express: 700 }
+    { id: "other",    normal: [250, 450], express: [450, 650] }   // เอกสารอื่น ๆ
   ],
 
   // เอกสารทะเบียนราษฎร (ประเภท "civil") — แสดงในหน้าบริการ / Civil registration documents

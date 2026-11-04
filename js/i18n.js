@@ -7,7 +7,7 @@
 window.I18N = {
   th: {
     "meta.title": "{serviceName} — บริการแปลเอกสาร ไทย ⇄ อังกฤษ",
-    "meta.description": "บริการแปลเอกสารราชการ การศึกษา ธุรกิจ และเอกสารสมาคมกีฬา ไทย ⇄ อังกฤษ พร้อมรับรองคำแปล ส่งงานและติดตามสถานะได้ทางออนไลน์",
+    "meta.description": "บริการแปลเอกสารทะเบียนราษฎร เอกสารราชการ การศึกษา ธุรกิจ และเอกสารอื่น ๆ ไทย ⇄ อังกฤษ พร้อมรับรองคำแปล ส่งงานและติดตามสถานะได้ทางออนไลน์",
     "a11y.skip": "ข้ามไปยังเนื้อหา",
     "a11y.lang": "เลือกภาษา",
     "a11y.nav": "เมนูหลัก",
@@ -54,7 +54,7 @@ window.I18N = {
     "cat.official": "เอกสารราชการ",
     "cat.academic": "เอกสารการศึกษา",
     "cat.business": "เอกสารธุรกิจและสัญญา",
-    "cat.sports": "เอกสารสมาคมกีฬา",
+    "cat.other": "เอกสารอื่น ๆ",
 
     "common.baht": "บาท",
     "common.perPage": "ต่อหน้า",
@@ -105,7 +105,7 @@ window.I18N = {
     "services.official": "ใบขับขี่ หนังสือเดินทาง หนังสือรับรองความประพฤติ ใบอนุญาต และหนังสือรับรองต่าง ๆ ที่ไม่ใช่เอกสารทะเบียนราษฎร สำหรับยื่นสถานทูต ขอวีซ่า และติดต่อหน่วยงานราชการ",
     "services.academic": "ใบแสดงผลการเรียน (Transcript) ปริญญาบัตร หนังสือรับรองการศึกษา บทคัดย่อ และเอกสารประกอบการสมัครศึกษาต่อ",
     "services.business": "สัญญา หนังสือรับรองบริษัท งบการเงิน ข้อกำหนดและเงื่อนไข และหนังสือติดต่อทางธุรกิจ",
-    "services.sports": "ข้อบังคับและระเบียบการแข่งขัน หนังสือติดต่อสหพันธ์กีฬานานาชาติ และเอกสารลงทะเบียนนักกีฬาและเจ้าหน้าที่",
+    "services.other": "เอกสารที่ไม่อยู่ในหมวดข้างต้น เช่น จดหมาย ใบรับรองต่าง ๆ คู่มือ และเอกสารส่วนบุคคลอื่น ๆ แนบไฟล์เพื่อรับใบเสนอราคา",
     "services.cta": "ดูอัตราค่าบริการ",
 
     "pricing.title": "อัตราค่าบริการ",
@@ -373,7 +373,7 @@ window.I18N = {
 
   en: {
     "meta.title": "{serviceName} — Thai ⇄ English Document Translation",
-    "meta.description": "Thai ⇄ English translation of official, academic, business and sports association documents, with certified translation. Submit and track your job online.",
+    "meta.description": "Thai ⇄ English translation of civil registration, official, academic, business and other documents, with certified translation. Submit and track your job online.",
     "a11y.skip": "Skip to content",
     "a11y.lang": "Choose language",
     "a11y.nav": "Main menu",
@@ -420,7 +420,7 @@ window.I18N = {
     "cat.official": "Official documents",
     "cat.academic": "Academic documents",
     "cat.business": "Business & contracts",
-    "cat.sports": "Sports association documents",
+    "cat.other": "Other documents",
 
     "common.baht": "THB",
     "common.perPage": "per page",
@@ -471,7 +471,7 @@ window.I18N = {
     "services.official": "Driving licences, passports, police clearance certificates, permits and other official certificates that are not civil registration documents — for embassies, visas and government offices.",
     "services.academic": "Transcripts, degree certificates, enrolment letters, abstracts and university application documents.",
     "services.business": "Contracts, company affidavits, financial statements, terms and conditions, and business correspondence.",
-    "services.sports": "Constitutions, competition regulations, correspondence with international federations, and athlete and official registration documents.",
+    "services.other": "Documents that do not fit the categories above, such as letters, certificates, manuals and other personal documents. Attach your file for a quote.",
     "services.cta": "See pricing",
 
     "pricing.title": "Pricing",
