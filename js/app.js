@@ -347,6 +347,7 @@
   function showTab(id, opts) {
     opts = opts || {};
     if (TAB_IDS.indexOf(id) === -1) id = "home";
+    var changed = state.tab !== id;
     state.tab = id;
 
     // Highlight the current page in the menu, and the dropdown that holds it
@@ -358,7 +359,14 @@
       g.classList.toggle("is-current", !!$('[data-tab="' + id + '"]', g));
     });
     $all("main > .panel").forEach(function (panel) {
-      panel.hidden = panel.id !== id;
+      var show = panel.id === id;
+      panel.hidden = !show;
+      // Gentle fade-in for the page that appears (not on first load)
+      if (show && changed && !opts.initial) {
+        panel.classList.remove("panel-enter");
+        void panel.offsetWidth;            // restart the animation
+        panel.classList.add("panel-enter");
+      }
     });
     closeMenus();
 

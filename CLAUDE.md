@@ -39,6 +39,8 @@ provider manages all jobs from one Google Sheet, with no paid server.
   later phases to hook into. Menu is a disclosure pattern (`aria-expanded`, current page
   `aria-current="page"`); Escape and outside clicks close it. After load it scrolls back
   to the top, since the browser jumps to the `#hash` section.
+  Page switches play a short fade-and-rise (`.panel-enter`, 0.28s; not on first load,
+  off under prefers-reduced-motion; fill-mode `backwards` so no transform is left behind).
   Policy pop-up (`<dialog id="policy-dialog">`, content copied from `#privacy` or `#terms`):
   opened by `[data-modal="privacy"|"terms"]` (consent links in the job form) and by
   `data-goto` to those pages while on the submit page, so customers never leave the form.
