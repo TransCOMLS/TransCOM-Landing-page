@@ -1136,3 +1136,57 @@ html.modal-open, html.modal-open body { overflow: hidden; }
 .submit-done-text { margin: 12px auto 0; max-width: 46ch; color: var(--text-soft); }
 .submit-done .actions { justify-content: center; }
 #job-form.is-sending { opacity: .6; pointer-events: none; }
+
+/* ---------- Track a job (Phase 4, js/track.js) ---------- */
+.track-card {
+  margin-top: 20px; padding: 20px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
+}
+.track-card:focus { outline: none; }
+.track-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 16px; }
+.track-label { margin: 0; font-size: 0.875rem; color: var(--muted); }
+.track-no { margin: 0; font-size: 1.5rem; font-weight: 700; line-height: 1.3; letter-spacing: 0.02em; color: var(--accent); font-variant-numeric: tabular-nums; }
+.track-card .job-meta { margin-top: 2px; }
+
+/* Steps: a vertical list on phone, a row on tablet/PC */
+.track-steps { list-style: none; margin: 20px 0 0; padding: 0; display: grid; }
+.track-steps li { position: relative; display: flex; gap: 12px; padding-bottom: 18px; }
+.track-steps li:last-child { padding-bottom: 0; }
+.track-steps li::before {            /* line to the next step */
+  content: ""; position: absolute; left: 11px; top: 26px; bottom: 2px; width: 2px;
+  border-radius: 2px; background: var(--border);
+}
+.track-steps li:last-child::before { display: none; }
+.track-steps li.done::before { background: var(--success); }
+.track-dot {
+  flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+  border: 2px solid var(--border-strong); background: var(--surface);
+}
+.done .track-dot { background: var(--success); border-color: var(--success); }
+.done .track-dot::after {
+  content: ""; width: 5px; height: 10px; margin-top: -2px;
+  border: solid var(--surface); border-width: 0 2.5px 2.5px 0; transform: rotate(45deg);
+}
+.current:not(.done) .track-dot { background: var(--accent-bright); border-color: var(--accent-bright); box-shadow: 0 0 0 4px var(--accent-ring); }
+.current:not(.done) .track-dot::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--surface); }
+.track-step { display: flex; flex-direction: column; padding-top: 1px; min-width: 0; }
+.track-step-name { overflow-wrap: anywhere; }
+.current .track-step-name { font-weight: 700; }
+.todo .track-step-name { color: var(--muted); }
+.track-step-date { font-size: 0.875rem; color: var(--muted); }
+
+.track-next { margin: 18px 0 0; padding: 12px 14px; border-radius: var(--radius); background: var(--accent-soft); color: var(--text); }
+.track-next.is-cancelled { background: var(--bg-soft); color: var(--muted); }
+.track-confirmed { margin: 8px 0 0; color: var(--success); font-weight: 600; }
+.track-dates { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 16px 0 0; }
+.track-dates dt { font-size: 0.875rem; color: var(--muted); }
+.track-dates dd { margin: 0; font-weight: 600; }
+.track-help { margin: 16px 0 0; padding-top: 12px; border-top: 1px solid var(--border); font-size: 0.9375rem; color: var(--muted); }
+
+@media (min-width: 640px) {
+  .track-card { max-width: 560px; padding: 24px; }
+  .track-steps { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .track-steps li { flex-direction: column; align-items: center; gap: 8px; padding: 0 2px; text-align: center; }
+  .track-steps li::before { left: calc(50% + 16px); right: calc(-50% + 16px); top: 11px; bottom: auto; width: auto; height: 2px; }
+  .track-step { align-items: center; padding-top: 0; font-size: 0.9375rem; }
+}

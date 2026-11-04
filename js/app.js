@@ -1119,7 +1119,7 @@
     };
   }
 
-  /* ---------- Phase 2: track form (lookup itself: Phase 4) ---------- */
+  /* ---------- Track form: checks the fields; js/track.js does the lookup (Phase 4) ---------- */
   function initTrackForm() {
     var form = $("#track-form");
     if (!form) return;
@@ -1136,7 +1136,7 @@
         return EMAIL_RE.test(v) ? [] : [t("err.email")];
       }
     };
-    var checked = false;
+    var checked = false, notReady = false;
     function run() {
       var first = null;
       [jobNo, email].forEach(function (el) {
@@ -1156,11 +1156,12 @@
       var first = run();
       if (first) { showStatus(out, "", ""); first.focus(); return; }
       var ev = new CustomEvent("tracksubmit", { detail: { jobNo: jobNo.value, email: email.value.trim() }, cancelable: true });
-      if (document.dispatchEvent(ev)) showStatus(out, "", t("track.notReady"));
+      notReady = document.dispatchEvent(ev);   // nobody looked it up (Apps Script not connected yet)
+      if (notReady) showStatus(out, "", t("track.notReady"));
     });
     document.addEventListener("langchange", function () {
       if (checked) run();
-      if (out && !out.hidden && !out.classList.contains("success")) showStatus(out, "", t("track.notReady"));
+      if (notReady && out && !out.hidden) showStatus(out, "", t("track.notReady"));
     });
   }
 

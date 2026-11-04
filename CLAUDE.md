@@ -75,6 +75,11 @@ provider manages all jobs from one Google Sheet, with no paid server.
   missing files. Duplicate file names get " (2)". Success panel shows the job number (copy
   button), fills the track form, fires `jobsubmitted` (account history reloads). Honeypot
   field `#f-website`. Inactive while `appsScriptUrl` is empty (app.js "not open yet" notice).
+- `js/track.js` — Phase 4: hooks `tracksubmit`, calls action `trackJob`, shows `#track-card`
+  (job no., status chip, 5-step timeline received → quoted → paid → inProgress → delivered —
+  vertical on phone, a row ≥640px; cancelled = note only; unknown status = `other`), next-step
+  note, dates, contact link. Redraws on `langchange`; editing an input hides the old card;
+  signed-in customers get their email filled in.
 - `js/account.js` — customer accounts (optional; guests can still submit): sign in with a
   6-digit code emailed by Apps Script (no passwords), job history, profile that fills in
   the job form, sign out, delete account (PDPA). Exposes `App.api(action, payload)` and
@@ -82,7 +87,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
   key `tr_session`; if storage is blocked (e.g. some iframes) the sign-in lasts until reload.
 - `apps-script/Code.gs` — Web App bound to the Sheet. `doPost` actions: requestCode,
   verifyCode, getAccount, updateProfile, logout, deleteAccount, getContent, createJob,
-  uploadFile, finishJob. `doGet?confirm=<jobNo>&t=<token>` = "translation is correct" page.
+  uploadFile, finishJob, trackJob (job no. + email → status and dates only; one generic
+  `not_found` for wrong pair / unfinished / purged; 30 lookups/email/hour + 300 failed/hour overall).
+  `CATEGORY_NAMES` maps category codes to TH/EN names (emails, Dashboard) — keep in step with config. `doGet?confirm=<jobNo>&t=<token>` = "translation is correct" page.
   Jobs: number `TR-<BE year>-0001` from Script Property `SEQ_<year>`; files in a Drive folder
   per job under `JOBS_FOLDER_ID` (ID files in a subfolder); server re-checks every field,
   file type/size, max 10 files, 5 jobs/email/hour; upload state in CacheService (6 h).
@@ -90,7 +97,8 @@ provider manages all jobs from one Google Sheet, with no paid server.
   installable `onJobEdit` emails the customer on each status change (delivered → sets
   deliveredAt, deleteBy +90 d, and adds the confirm link); confirming a civil job moves
   deleteBy to +15 d; daily `purgeDueJobs` trashes the folder and clears personal columns.
-  `setup()` creates sheets, the jobs folder and both triggers (idempotent). Sheets: "Users", "Jobs",
+  `setup()` creates sheets, the jobs folder and both triggers (idempotent), rebuilds the
+  formula-only "Dashboard" (columns found by header with MATCH) and seeds "Glossary" once. Sheets: "Users", "Jobs",
   "Promotions", "News" (incl. picture link — Drive share links are turned into image links)
   (columns defined in `JOB_COLS`, written by Phase 3), hidden "_sessions". Codes live in
   CacheService (10 min, 5 tries, 1/min, 5/hour); codes and tokens are stored only as
@@ -134,9 +142,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
       is deleted within 15 days of the customer confirming the translation is correct.
       `jobsubmit` detail has `requiresId`, `idFiles`, `idConsent`.
 - [x] Phase 3 — job submission end to end (see `js/submit.js` and `Code.gs` above).
-- [ ] Phase 4 — doGet status lookup (job no. + email, status only), "Dashboard" and
-      "Glossary" sheets, Thai README with deployment steps (GitHub Pages, Apps Script
-      Web App "Anyone", Google Sites embed).
+- [x] Phase 4 — status lookup (POST action `trackJob`, so the email stays out of URLs;
+      job no. + email, status only) with the `js/track.js` card, "Dashboard" and "Glossary"
+      sheets, README sections 5.1.1, 5.5, 5.6. Built before the owner deployed Phase 3.
 - [ ] Phase 5 — finance (owner's decisions, 2026-11-04). Build after Phase 3/4, all switchable
       in config and managed from the Sheet:
       - Not VAT-registered: issue **electronic receipts** (ใบเสร็จรับเงิน). Tax invoices
@@ -162,6 +170,6 @@ console errors, `node --check js/*.js` passes, and i18n keys match between th/en
 The owner keeps a matching preview copy on claude.ai: https://claude.ai/artifact/WrtJLSJG77T717XyWkqMrF
 After each phase, republish it with the Artifact tool, passing that URL as `url` (read it first).
 Publish `index.html` with its `<!DOCTYPE>`, `<html>`, `<head>`/`<body>` tags and the charset/viewport
-metas removed (title, font links, the stylesheet link and the theme script stay), plus `css/style.css`, the seven
-`js/*.js` files (config, i18n, terms, app, account, submit, home) and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
+metas removed (title, font links, the stylesheet link and the theme script stay), plus `css/style.css`, the eight
+`js/*.js` files (config, i18n, terms, app, account, submit, track, home) and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
 inline for that copy only.

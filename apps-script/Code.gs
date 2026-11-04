@@ -1,9 +1,9 @@
 /**
  * TransCOM — Google Apps Script backend (Web App, bound to the Google Sheet)
  *
- * This part: customer accounts — sign in with a one-time code sent by email
- * (no passwords), profile, job history. Phase 3 adds job submission (doPost
- * action "submitJob") and writes rows to the "Jobs" sheet defined here.
+ * Customer accounts (sign in with a one-time emailed code, no passwords), job
+ * submission (Phase 3: createJob → uploadFile → finishJob) and the public status
+ * lookup (Phase 4: trackJob). setup() also builds the "Dashboard" and "Glossary" sheets.
  *
  * Setup (once): open the Sheet → Extensions → Apps Script → paste this file →
  * run setup() → Deploy → New deployment → Web app, Execute as "Me",
@@ -33,10 +33,29 @@ var CONFIG = {
   allowedExt: ['pdf', 'jpg', 'jpeg', 'png', 'docx'],
   idCategories: ['civil'],   // categories that need an ID card attached
   jobsPerHour: 5,        // jobs per email per hour (stops floods)
-  uploadHours: 6         // how long an unfinished upload can be resumed
+  uploadHours: 6,        // how long an unfinished upload can be resumed
+
+  // Status lookup (Phase 4)
+  lookupsPerHour: 30,    // per email (stops someone trying job numbers one by one)
+  lookupFailsPerHour: 300  // wrong lookups from everyone together, then a pause
 };
 
-var SHEETS = { users: 'Users', jobs: 'Jobs', sessions: '_sessions', promotions: 'Promotions', news: 'News' };
+// Category codes sent by the website (js/config.js categories) → names for the Sheet,
+// emails and the Dashboard. Add a line here when a category is added to config.js.
+var CATEGORY_NAMES = {
+  civil:    ['เอกสารทะเบียนราษฎร', 'Civil registration documents'],
+  official: ['เอกสารราชการ', 'Official documents'],
+  academic: ['เอกสารการศึกษา', 'Academic documents'],
+  business: ['เอกสารธุรกิจและสัญญา', 'Business & contracts'],
+  other:    ['เอกสารอื่น ๆ', 'Other documents']
+};
+function categoryName_(code, th) {
+  var n = CATEGORY_NAMES[String(code || '')];
+  return n ? n[th ? 0 : 1] : String(code || '-');
+}
+
+var SHEETS = { users: 'Users', jobs: 'Jobs', sessions: '_sessions', promotions: 'Promotions', news: 'News',
+              dashboard: 'Dashboard', glossary: 'Glossary' };
 
 // Column headers (Thai, for the owner) and the keys the code uses.
 // Columns are found by header text, so the owner may reorder them.
@@ -159,7 +178,8 @@ var ACTIONS = {
   getContent: getContent_,
   createJob: createJob_,
   uploadFile: uploadFile_,
-  finishJob: finishJob_
+  finishJob: finishJob_,
+  trackJob: trackJob_
 };
 
 /* ======================================================================
@@ -323,6 +343,54 @@ function statusCode_(label) {
     if (STATUSES[i].th === v || STATUSES[i].code === v) return STATUSES[i].code;
   }
   return v ? 'other' : 'received';
+}
+
+/* ======================================================================
+   Status lookup (Phase 4, public): job number + the email the job was sent with.
+   A wrong number, a wrong email, an unfinished upload and a job whose data has been
+   deleted all get the same "not_found", so guessing teaches nothing. Only the status
+   and dates go back — never names, files or the address.
+   ====================================================================== */
+
+var JOBNO_RE = /^[A-Z]{1,5}-\d{4}-\d{4,}$/;
+
+function trackJob_(req) {
+  var email = email_(req.email);
+  var jobNo = String(req.jobNo || '').trim().toUpperCase();
+  if (!JOBNO_RE.test(jobNo)) fail_('invalid_jobNo');
+
+  var cache = CacheService.getScriptCache();
+  var mine = parseInt(cache.get('track:' + email) || '0', 10);
+  var fails = parseInt(cache.get('trackfail') || '0', 10);
+  if (mine >= CONFIG.lookupsPerHour || fails >= CONFIG.lookupFailsPerHour) fail_('rate_limited');
+  cache.put('track:' + email, String(mine + 1), 3600);
+
+  var r = null;
+  if (ss_().getSheetByName(SHEETS.jobs)) {
+    var t = table_(SHEETS.jobs, JOB_COLS);
+    for (var i = 0; i < t.rows.length; i++) {
+      if (String(t.rows[i].jobNo).trim().toUpperCase() === jobNo) { r = t.rows[i]; break; }
+    }
+  }
+  if (!r || !String(r.status || '').trim() || r.purgedAt || email_(r.email, true) !== email) {
+    cache.put('trackfail', String(fails + 1), 3600);
+    fail_('not_found');
+  }
+  var tz = ss_().getSpreadsheetTimeZone();
+  return {
+    ok: true,
+    job: {
+      jobNo: jobNo,
+      status: statusCode_(r.status),
+      category: String(r.category || ''),
+      langPair: String(r.langPair || ''),
+      pages: r.pages === '' || r.pages == null ? null : Number(r.pages),
+      submittedAt: day_(r.submittedAt, tz),
+      neededBy: day_(r.neededBy, tz),
+      deliveredAt: day_(r.deliveredAt, tz),
+      confirmedAt: day_(r.confirmedAt, tz)
+    }
+  };
 }
 
 /* ======================================================================
@@ -589,12 +657,12 @@ function mailHtml_(title, rows, paragraphs) {
 function sendNewJobMails_(r) {
   var th = r.lang !== 'en';
   var summaryTh = [
-    ['เลขที่งาน', r.jobNo], ['ประเภทเอกสาร', r.category], ['คู่ภาษา', r.langPair],
+    ['เลขที่งาน', r.jobNo], ['ประเภทเอกสาร', categoryName_(r.category, true)], ['คู่ภาษา', r.langPair],
     ['จำนวนหน้า (โดยประมาณ)', r.pages || '-'], ['วันที่ต้องการรับงาน', dateText_(r.neededBy, true)],
     ['รับรองคำแปล', yesNo_(r.certified, true)], ['รับฉบับจริงทางไปรษณีย์', yesNo_(r.shipping, true)]
   ];
   var summaryEn = [
-    ['Job number', r.jobNo], ['Document category', r.category], ['Language pair', r.langPair],
+    ['Job number', r.jobNo], ['Document category', categoryName_(r.category, false)], ['Language pair', r.langPair],
     ['Pages (approx.)', r.pages || '-'], ['Needed by', dateText_(r.neededBy, false)],
     ['Certified translation', yesNo_(r.certified, false)], ['Paper copy by post', yesNo_(r.shipping, false)]
   ];
@@ -859,7 +927,130 @@ function setup() {
       var col = colIndex_(sh, 'แสดง');
       if (col) sh.getRange(2, col, sh.getMaxRows() - 1, 1).insertCheckboxes();
     });
+  buildDashboard_();
+  buildGlossary_();
   pepper_();
+}
+
+/* ======================================================================
+   "Dashboard" sheet (Phase 4): formulas only, rebuilt by setup().
+   Columns of "Jobs" are found by their header (MATCH), so reordering them is fine.
+   ====================================================================== */
+
+function buildDashboard_() {
+  var ss = ss_();
+  var sh = ss.getSheetByName(SHEETS.dashboard) || ss.insertSheet(SHEETS.dashboard, 0);
+  sh.clear();
+  var J = "'" + SHEETS.jobs + "'!";
+  var col = function (key) {
+    var header = JOB_COLS.filter(function (c) { return c[0] === key; })[0][1];
+    return 'INDEX(' + J + '$A$2:$AZ, 0, MATCH("' + header + '", ' + J + '$A$1:$AZ$1, 0))';
+  };
+  var status = col('status'), need = col('neededBy'), sub = col('submittedAt');
+  var open = ', ' + status + ', "?*", ' + status + ', "<>' + statusLabel_('delivered') + '", ' +
+             status + ', "<>' + statusLabel_('cancelled') + '"';
+  var q = function (s) { return '"' + s + '"'; };
+
+  var rows = [
+    ['ภาพรวมงาน — ' + CONFIG.serviceName, '', '', '', ''],
+    ['คำนวณจากชีต Jobs อัตโนมัติ · ไม่ต้องพิมพ์ในชีตนี้ (สร้างใหม่ได้ด้วย setup)', '', '', '', ''],
+    ['', '', '', '', ''],
+    ['สถานะ', 'จำนวนงาน', '', 'ประเภทเอกสาร', 'จำนวนงาน']
+  ];
+  var cats = Object.keys(CATEGORY_NAMES);
+  var statusRows = STATUSES.map(function (s) {
+    return [s.th, '=COUNTIF(' + status + ', ' + q(s.th) + ')'];
+  });
+  statusRows.push(['รวมทั้งหมด', '=COUNTIF(' + status + ', "?*")']);
+  var n = Math.max(statusRows.length, cats.length + 1);
+  for (var i = 0; i < n; i++) {
+    var left = statusRows[i] || ['', ''];
+    var right = i < cats.length
+      ? [CATEGORY_NAMES[cats[i]][0], '=COUNTIFS(' + col('category') + ', ' + q(cats[i]) + ', ' + status + ', "?*")']
+      : (i === cats.length ? ['รหัสอื่น / ไม่ระบุ', '=COUNTIF(' + status + ', "?*")-SUM(E5:E' + (4 + cats.length) + ')'] : ['', '']);
+    rows.push([left[0], left[1], '', right[0], right[1]]);
+  }
+  var first = 5, statusEnd = first + STATUSES.length - 1;
+  rows.push(['', '', '', '', '']);
+  var followRow = rows.length + 1;
+  rows.push(['ต้องติดตาม', 'จำนวนงาน', '', '', '']);
+  rows.push(['งานที่ยังไม่เสร็จ', '=SUM(B' + first + ':B' + (first + 3) + ')', '', '', '']);
+  rows.push(['ครบกำหนดภายใน 3 วัน', '=COUNTIFS(' + need + ', ">="&TODAY(), ' + need + ', "<="&TODAY()+3' + open + ')', '', '', '']);
+  rows.push(['เลยวันที่ลูกค้าต้องการแล้ว', '=COUNTIFS(' + need + ', "<"&TODAY()' + open + ')', '', '', '']);
+  rows.push(['จะลบข้อมูลภายใน 7 วัน', '=COUNTIFS(' + col('deleteBy') + ', ">="&TODAY(), ' + col('deleteBy') + ', "<="&TODAY()+7, ' + col('purgedAt') + ', "")', '', '', '']);
+  rows.push(['', '', '', '', '']);
+  var monthRow = rows.length + 1;
+  rows.push(['งานรายเดือน (6 เดือนล่าสุด)', 'จำนวนงาน', '', '', '']);
+  for (var m = 0; m < 6; m++) {
+    var r = rows.length + 1;
+    rows.push(['=EOMONTH(TODAY(), ' + (-m - 1) + ')+1',
+      '=COUNTIFS(' + sub + ', ">="&A' + r + ', ' + sub + ', "<"&EDATE(A' + r + ', 1), ' + status + ', "?*")', '', '', '']);
+  }
+
+  sh.getRange(1, 1, rows.length, 5).setValues(rows);
+  sh.getRange(1, 1).setFontSize(16).setFontWeight('bold');
+  sh.getRange(2, 1).setFontColor('#5f6368');
+  [4, followRow, monthRow].forEach(function (r) {
+    sh.getRange(r, 1, 1, r === 4 ? 5 : 2).setFontWeight('bold').setBackground('#e8f0fe');
+  });
+  sh.getRange(4, 3).setBackground(null);
+  sh.getRange(first + STATUSES.length, 1, 1, 2).setFontWeight('bold');
+  sh.getRange(monthRow + 1, 1, 6, 1).setNumberFormat('mmmm yyyy').setHorizontalAlignment('left');
+  sh.setColumnWidth(1, 260); sh.setColumnWidth(2, 110); sh.setColumnWidth(3, 30);
+  sh.setColumnWidth(4, 220); sh.setColumnWidth(5, 110);
+  sh.setFrozenRows(0);
+  return sh;
+}
+
+/* ======================================================================
+   "Glossary" sheet (Phase 4): the provider's own word list so names of documents,
+   offices and places are translated the same way every time. Created once with
+   common civil-registration terms; the owner adds rows. The website does not read it.
+   ====================================================================== */
+
+var GLOSSARY_COLS = [
+  ['th', 'คำศัพท์ (ไทย)'],
+  ['en', 'English'],
+  ['group', 'หมวด'],
+  ['notes', 'หมายเหตุ / ที่มา']
+];
+
+var GLOSSARY_SEED = [
+  ['สูติบัตร', 'Birth Certificate', 'ทะเบียนราษฎร', ''],
+  ['มรณบัตร', 'Death Certificate', 'ทะเบียนราษฎร', ''],
+  ['ทะเบียนบ้าน', 'House Registration', 'ทะเบียนราษฎร', 'ท.ร.14'],
+  ['บัตรประจำตัวประชาชน', 'Thai National ID Card', 'ทะเบียนราษฎร', ''],
+  ['เลขประจำตัวประชาชน', 'Personal Identification Number', 'ทะเบียนราษฎร', '13 หลัก'],
+  ['ใบสำคัญการสมรส', 'Marriage Certificate', 'ทะเบียนราษฎร', 'คร.3'],
+  ['ทะเบียนสมรส', 'Marriage Registration', 'ทะเบียนราษฎร', 'คร.2'],
+  ['ใบสำคัญการหย่า', 'Divorce Certificate', 'ทะเบียนราษฎร', 'คร.7'],
+  ['ทะเบียนหย่า', 'Divorce Registration', 'ทะเบียนราษฎร', 'คร.6'],
+  ['หนังสือสำคัญการเปลี่ยนชื่อ', 'Certificate of Change of Name', 'ทะเบียนราษฎร', 'ช.3'],
+  ['หนังสือรับรองการใช้คำนำหน้านาม', 'Certificate of Use of Title', 'ทะเบียนราษฎร', ''],
+  ['นายทะเบียน', 'Registrar', 'หน่วยงาน', ''],
+  ['สำนักทะเบียนอำเภอ', 'District Registration Office', 'หน่วยงาน', ''],
+  ['สำนักทะเบียนท้องถิ่น', 'Local Registration Office', 'หน่วยงาน', ''],
+  ['กรมการปกครอง', 'Department of Provincial Administration', 'หน่วยงาน', ''],
+  ['จังหวัด', 'Province', 'ที่อยู่', ''],
+  ['อำเภอ / เขต', 'District', 'ที่อยู่', 'เขต = กรุงเทพฯ'],
+  ['ตำบล / แขวง', 'Sub-district', 'ที่อยู่', 'แขวง = กรุงเทพฯ'],
+  ['หมู่ที่', 'Village No. (Moo)', 'ที่อยู่', ''],
+  ['นาย', 'Mr.', 'คำนำหน้า', ''],
+  ['นาง', 'Mrs.', 'คำนำหน้า', ''],
+  ['นางสาว', 'Miss', 'คำนำหน้า', ''],
+  ['เด็กชาย', 'Master', 'คำนำหน้า', ''],
+  ['เด็กหญิง', 'Miss', 'คำนำหน้า', ''],
+  ['พ.ศ.', 'B.E. (Buddhist Era)', 'วันที่', 'ค.ศ. = พ.ศ. − 543']
+];
+
+function buildGlossary_() {
+  var isNew = !ss_().getSheetByName(SHEETS.glossary);
+  var sh = ensureSheet_(SHEETS.glossary, GLOSSARY_COLS);
+  if (isNew) {
+    sh.getRange(2, 1, GLOSSARY_SEED.length, GLOSSARY_COLS.length).setValues(GLOSSARY_SEED);
+    sh.setColumnWidth(1, 260); sh.setColumnWidth(2, 300); sh.setColumnWidth(3, 120); sh.setColumnWidth(4, 220);
+  }
+  return sh;
 }
 
 function ensureSheet_(name, cols) {
