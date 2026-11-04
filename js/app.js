@@ -556,6 +556,58 @@
   }
 
   /* ---------- small UI bits ---------- */
+  /* ---------- theme: Auto (follows the device) · Light · Dark ---------- */
+  var THEME_KEY = "tr_theme";
+  var darkMQ = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+
+  function themePref() {
+    var v = storageGet(THEME_KEY);
+    return v === "light" || v === "dark" ? v : "auto";
+  }
+
+  function applyTheme(pref) {
+    var root = document.documentElement;
+    var dark = pref === "dark" || (pref === "auto" && !!(darkMQ && darkMQ.matches));
+    root.setAttribute("data-theme", dark ? "dark" : "light");
+    root.setAttribute("data-theme-pref", pref);
+    var meta = $('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", dark ? "#0b1220" : "#01417b");
+    var mode = t(pref === "auto" ? "theme.autoNow" : "theme." + pref);
+    $all("[data-theme-cycle]").forEach(function (b) {
+      b.setAttribute("aria-label", t("theme.btn", { mode: mode }));
+      b.setAttribute("title", t("theme.btn", { mode: mode }));
+    });
+    $all("[data-theme-set]").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-theme-set") === pref));
+    });
+  }
+
+  function setThemePref(pref) {
+    if (pref === "auto") storageRemove(THEME_KEY);
+    else storageSet(THEME_KEY, pref);
+    applyTheme(pref);
+  }
+
+  function initTheme() {
+    var order = ["auto", "light", "dark"];
+    $all("[data-theme-cycle]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        setThemePref(order[(order.indexOf(themePref()) + 1) % order.length]);
+      });
+    });
+    $all("[data-theme-set]").forEach(function (b) {
+      b.addEventListener("click", function () { setThemePref(b.getAttribute("data-theme-set")); });
+    });
+    // Auto: follow the device when it switches between light and dark
+    if (darkMQ) {
+      var follow = function () { if (themePref() === "auto") applyTheme("auto"); };
+      if (darkMQ.addEventListener) darkMQ.addEventListener("change", follow);
+      else if (darkMQ.addListener) darkMQ.addListener(follow);
+    }
+    document.addEventListener("langchange", function () { applyTheme(themePref()); });
+    applyTheme(themePref());
+  }
+
   function initLanguageToggle() {
     $all(".lang-toggle [data-lang]").forEach(function (btn) {
       btn.addEventListener("click", function () { applyLanguage(btn.getAttribute("data-lang")); });
@@ -1062,6 +1114,7 @@
     renderContactLinks();
     applyLanguage(saved === "en" ? "en" : "th");
     initLanguageToggle();
+    initTheme();
     initTabs();
     initPolicyDialog();
     initTocs();

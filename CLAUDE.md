@@ -18,7 +18,11 @@ provider manages all jobs from one Google Sheet, with no paid server.
   calculator, news) · Orders ▾ (how, submit, track) · Help ▾ (faq, privacy, terms) · Contact.
   Items carry `data-tab`; other in-page links use `data-goto`. "My account" is the
   `.account-btn` in the header (≥640px) and a menu item below 1024px.
-- `css/style.css` — mobile-first. Breakpoints: phone/tablet (<1024px, menu button opens
+- `css/style.css` — mobile-first. All colours are tokens on `:root` (light) and
+  `:root[data-theme="dark"]` (+ a `prefers-color-scheme` fallback when JS is off); never
+  hard-code colours in components — only white text on the always-dark hero, footer, CTA
+  band and post covers. Page background = `--page-grad` (logo-blue washes) + `--waves`
+  (faint wave lines like the logo); cards/fields/menus use `--surface`. Breakpoints: phone/tablet (<1024px, menu button opens
   a panel under the header; groups are an accordion — one open at a time, starting with the
   current page's group), header submit button (≥640px),
   calculator 2-column (≥900px), PC (≥1024px, menu in the header bar with dropdowns).
@@ -39,6 +43,10 @@ provider manages all jobs from one Google Sheet, with no paid server.
   later phases to hook into. Menu is a disclosure pattern (`aria-expanded`, current page
   `aria-current="page"`); Escape and outside clicks close it. After load it scrolls back
   to the top, since the browser jumps to the `#hash` section.
+  Theme: Auto (follows the device, live) · Light · Dark. Header `.theme-btn` (≥640px) cycles
+  them; the phone/tablet menu has `.theme-seg`. Choice saved in `tr_theme` (removed for Auto).
+  A small inline script in `<head>` sets `data-theme` before first paint (no white flash).
+  Dark mode shows `img/logo-white.svg` in the header.
   Page switches play a short fade-and-rise (`.panel-enter`, 0.28s; not on first load,
   off under prefers-reduced-motion; fill-mode `backwards` so no transform is left behind).
   Policy pop-up (`<dialog id="policy-dialog">`, content copied from `#privacy` or `#terms`):
@@ -84,10 +92,10 @@ provider manages all jobs from one Google Sheet, with no paid server.
   first, then phone, then tablet. CSS stays mobile-first in code (base = phone, PC in
   `min-width` queries); that is a coding technique, not the design priority.
 - Must work from 320px wide with no horizontal scroll, on tablet and on PC.
-  Tap targets ≥44px. One primary button per section. White background, navy accent
-  (`--accent` in `style.css`).
+  Tap targets ≥44px. One primary button per section. Light page = soft logo-blue gradient
+  with white cards; navy accent (`--accent`). Check both themes when changing styles.
 - `localStorage` only via the try/catch helpers in `app.js` (`App.storage`; keys `tr_lang`,
-  `tr_session`).
+  `tr_session`, `tr_theme`) — plus the try/catch theme read in the `<head>` script.
 - Thai copy: formal but concise; years in Thai text use พ.ศ. (job no. `TR-2569-0001`).
 - Placeholders in `[brackets]` in config.js are filled in by the owner — keep them.
 

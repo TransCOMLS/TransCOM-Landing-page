@@ -10,6 +10,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap">
   <link rel="stylesheet" href="css/style.css">
+  <script>
+    /* Theme before first paint (no white flash in dark mode). Logic lives in js/app.js. */
+    (function () {
+      var pref = "auto";
+      try { pref = localStorage.getItem("tr_theme") || "auto"; } catch (e) { /* storage blocked */ }
+      var dark = pref === "dark" || (pref !== "light" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+    })();
+  </script>
 </head>
 <body>
   <a class="skip-link" href="#main" data-i18n="a11y.skip"></a>
@@ -18,7 +27,8 @@
   <header class="site-header">
     <div class="header-bar">
       <button type="button" class="brand" data-goto="home">
-        <img class="brand-logo" src="img/logo.svg" width="1309" height="473" alt="">
+        <img class="brand-logo logo-on-light" src="img/logo.svg" width="1309" height="473" alt="">
+        <img class="brand-logo logo-on-dark" src="img/logo-white.svg" width="1309" height="473" alt="">
         <span class="sr-only" data-service-name></span>
       </button>
       <!-- Menu: top bar with dropdowns (PC), panel behind the menu button (phone/tablet) -->
@@ -52,6 +62,14 @@
         </li>
         <li><button type="button" class="nav-link" data-tab="contact" data-i18n="nav.contact"></button></li>
         <li class="nav-account"><button type="button" class="nav-link" data-tab="account"><span data-i18n="nav.account"></span></button></li>
+        <li class="nav-theme">
+          <span class="nav-theme-label" id="nav-theme-label" data-i18n="theme.label"></span>
+          <div class="theme-seg" role="group" aria-labelledby="nav-theme-label">
+            <button type="button" data-theme-set="auto"><svg class="i-auto" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/></svg><span data-i18n="theme.auto"></span></button>
+            <button type="button" data-theme-set="light"><svg class="i-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg><span data-i18n="theme.light"></span></button>
+            <button type="button" data-theme-set="dark"><svg class="i-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg><span data-i18n="theme.dark"></span></button>
+          </div>
+        </li>
         </ul>
       </nav>
       <div class="header-actions">
@@ -59,6 +77,9 @@
       <button type="button" class="account-btn" data-goto="account">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M4.5 20c1.2-3.6 4-5.5 7.5-5.5s6.3 1.9 7.5 5.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
         <span class="account-label" data-account-label data-i18n="acct.signIn"></span>
+      </button>
+      <button type="button" class="theme-btn" data-theme-cycle>
+        <svg class="i-auto" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/></svg><svg class="i-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg><svg class="i-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>
       </button>
       <div class="lang-toggle" role="group" data-i18n-aria="a11y.lang">
         <button type="button" data-lang="th" aria-pressed="true" lang="th">TH</button>
