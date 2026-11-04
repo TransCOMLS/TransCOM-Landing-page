@@ -41,6 +41,7 @@
       minPrice: formatNumber(minPrice()),
       revisionDays: CFG.revisionDays,
       maxFileMB: CFG.maxFileMB,
+      maxFiles: CFG.maxFiles,
       normalDays: CFG.turnaround.normal,
       expressDays: CFG.turnaround.express,
       certFee: formatNumber(CFG.certificationFee),
@@ -816,6 +817,9 @@
       if (!pk.files.length) return [t(pk.required)];
       var out = [];
       pk.files.forEach(function (f) { out = out.concat(fileProblems(f)); });
+      // Total per job (documents + ID files), checked on the documents list
+      var total = pickers["f-files"].files.length + (needsId() ? pickers["f-idFiles"].files.length : 0);
+      if (id === "f-files" && CFG.maxFiles && total > CFG.maxFiles) out.push(t("err.tooManyFiles"));
       return out;
     };
   }
@@ -1072,10 +1076,27 @@
     });
   }
 
+  // After a job is sent: empty the form for the next one
+  function resetJobForm() {
+    var form = $("#job-form");
+    if (!form) return;
+    form.reset();
+    Object.keys(pickers).forEach(function (id) { pickers[id].files.length = 0; });
+    Object.keys(touched).forEach(function (id) { delete touched[id]; });
+    $all("#job-form [aria-invalid]").forEach(function (el) { setFieldError(el, null); });
+    renderFileList();
+    updateIdSection();
+    updateAddressField();
+    showStatus($("#form-status"), "", "");
+    var pre = $("#form-prefilled");
+    if (pre) pre.hidden = true;
+  }
+
   function getJobData() {
     var cert = $('#job-form input[name="certified"]:checked');
     function val(id) { var el = document.getElementById(id); return el ? el.value.trim() : ""; }
     return {
+      hp: val("f-website"),
       name: val("f-name"),
       email: val("f-email"),
       line: val("f-line"),
@@ -1180,6 +1201,7 @@
     formatRange: formatRange,
     // Phase 2 → used by Phase 3/4
     getJobData: getJobData,
+    resetJobForm: resetJobForm,
     validateJobForm: validateJobForm,
     showStatus: showStatus,
     setFieldError: setFieldError,

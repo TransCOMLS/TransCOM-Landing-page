@@ -146,5 +146,6 @@ window.APP_CONFIG = {
 
   // ไฟล์แนบ / File upload limits
   maxFileMB: 10,
+  maxFiles: 10,           // ต่องาน รวมไฟล์เอกสารและไฟล์บัตร (ตรงกับ CONFIG.maxFiles ใน Code.gs)
   allowedExtensions: ["pdf", "jpg", "jpeg", "png", "docx"]
 };

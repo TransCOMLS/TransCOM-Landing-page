@@ -69,13 +69,28 @@ provider manages all jobs from one Google Sheet, with no paid server.
   When Apps Script is connected, offers/news come from the "Promotions" / "News" sheets
   (action `getContent`, 5-min cache) if they have ticked rows. Only real offers — no
   invented reviews, statistics or discounts. Account offer shows only once connected.
+- `js/submit.js` — Phase 3: sends the job form (`jobsubmit`) to Apps Script as createJob →
+  uploadFile (one request per file, base64) → finishJob, with a progress bar. A dropped
+  connection keeps the form; pressing Submit again resumes the same job and only sends the
+  missing files. Duplicate file names get " (2)". Success panel shows the job number (copy
+  button), fills the track form, fires `jobsubmitted` (account history reloads). Honeypot
+  field `#f-website`. Inactive while `appsScriptUrl` is empty (app.js "not open yet" notice).
 - `js/account.js` — customer accounts (optional; guests can still submit): sign in with a
   6-digit code emailed by Apps Script (no passwords), job history, profile that fills in
   the job form, sign out, delete account (PDPA). Exposes `App.api(action, payload)` and
   `App.account` (`token()`, `profile()`, `isSignedIn()`). Session token in localStorage
   key `tr_session`; if storage is blocked (e.g. some iframes) the sign-in lasts until reload.
 - `apps-script/Code.gs` — Web App bound to the Sheet. `doPost` actions: requestCode,
-  verifyCode, getAccount, updateProfile, logout, deleteAccount, getContent. Sheets: "Users", "Jobs",
+  verifyCode, getAccount, updateProfile, logout, deleteAccount, getContent, createJob,
+  uploadFile, finishJob. `doGet?confirm=<jobNo>&t=<token>` = "translation is correct" page.
+  Jobs: number `TR-<BE year>-0001` from Script Property `SEQ_<year>`; files in a Drive folder
+  per job under `JOBS_FOLDER_ID` (ID files in a subfolder); server re-checks every field,
+  file type/size, max 10 files, 5 jobs/email/hour; upload state in CacheService (6 h).
+  Emails: customer receipt + provider notice (`PROVIDER_EMAIL` or the script owner);
+  installable `onJobEdit` emails the customer on each status change (delivered → sets
+  deliveredAt, deleteBy +90 d, and adds the confirm link); confirming a civil job moves
+  deleteBy to +15 d; daily `purgeDueJobs` trashes the folder and clears personal columns.
+  `setup()` creates sheets, the jobs folder and both triggers (idempotent). Sheets: "Users", "Jobs",
   "Promotions", "News" (incl. picture link — Drive share links are turned into image links)
   (columns defined in `JOB_COLS`, written by Phase 3), hidden "_sessions". Codes live in
   CacheService (10 min, 5 tries, 1/min, 5/hour); codes and tokens are stored only as
@@ -118,16 +133,23 @@ provider manages all jobs from one Google Sheet, with no paid server.
       acknowledgement (`f-idConsent`); notice that all data for the job, incl. the ID copy,
       is deleted within 15 days of the customer confirming the translation is correct.
       `jobsubmit` detail has `requiresId`, `idFiles`, `idConsent`.
-- [ ] Phase 3 — `apps-script/Code.gs`: doPost action "submitJob" (base64 files → Drive folder per job,
-      row in "Jobs" sheet, running job no. `TR-<พ.ศ.>-0001`), setup(), status dropdown
-      with colours, emails via MailApp (provider, customer receipt, status change via
-      installable onEdit trigger); connect the form. Civil jobs: store ID files in the job
-      folder, fill "แนบบัตร (ทะเบียนราษฎร)"; add a customer "translation is correct" step
-      that sets "ลูกค้ายืนยันความถูกต้องเมื่อ" + "กำหนดลบข้อมูล" (+15 days), and a daily
-      time-driven trigger that deletes the Drive folder and personal data when due.
+- [x] Phase 3 — job submission end to end (see `js/submit.js` and `Code.gs` above).
 - [ ] Phase 4 — doGet status lookup (job no. + email, status only), "Dashboard" and
       "Glossary" sheets, Thai README with deployment steps (GitHub Pages, Apps Script
       Web App "Anyone", Google Sites embed).
+- [ ] Phase 5 — finance (owner's decisions, 2026-11-04). Build after Phase 3/4, all switchable
+      in config and managed from the Sheet:
+      - Not VAT-registered: issue **electronic receipts** (ใบเสร็จรับเงิน). Tax invoices
+        (full + abbreviated) are built but **off** until VAT registration (illegal to issue
+        before; e-Tax Invoice by Email needs Revenue Department sign-up). Owner to confirm
+        details with their accountant.
+      - Payment: PromptPay QR (amount filled in) and bank transfer — domestic and
+        international (SWIFT details) — with the customer uploading the transfer slip;
+        provider confirms in the Sheet. No payment gateway for now.
+      - Quotes per job (Quotes sheet), payment records, receipts with running numbers.
+      - Members only: discount codes (Coupons sheet: code, % or THB, min spend, dates,
+        uses) and loyalty points by amount spent (e.g. 1 point per 100 THB, redeem as a
+        discount; rates in config). Guests can still get quotes, pay and get receipts.
 
 The owner asked to stop after each phase and show the result before continuing.
 
@@ -140,6 +162,6 @@ console errors, `node --check js/*.js` passes, and i18n keys match between th/en
 The owner keeps a matching preview copy on claude.ai: https://claude.ai/artifact/WrtJLSJG77T717XyWkqMrF
 After each phase, republish it with the Artifact tool, passing that URL as `url` (read it first).
 Publish `index.html` with its `<!DOCTYPE>`, `<html>`, `<head>`/`<body>` tags and the charset/viewport
-metas removed (title, font links and the stylesheet link stay), plus `css/style.css`, the six
-`js/*.js` files (config, i18n, terms, app, account, home) and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
+metas removed (title, font links, the stylesheet link and the theme script stay), plus `css/style.css`, the seven
+`js/*.js` files (config, i18n, terms, app, account, submit, home) and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
 inline for that copy only.

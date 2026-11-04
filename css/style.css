@@ -1119,3 +1119,20 @@ html.modal-open, html.modal-open body { overflow: hidden; }
   transition: background-color .45s ease, color .45s ease, border-color .45s ease,
               box-shadow .45s ease, fill .45s ease, stroke .45s ease !important;
 }
+
+/* ---------- Sending a job (js/submit.js) ---------- */
+.hp-field { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.submit-progress { display: block; width: 100%; height: 8px; margin-top: 10px; accent-color: var(--accent); }
+.submit-done {
+  max-width: 640px; margin: 24px 0 0; padding: 32px 24px; text-align: center;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-lg);
+}
+.submit-done:focus { outline: none; }
+.submit-done-icon { display: inline-block; width: 64px; height: 64px; color: var(--success); }
+.submit-done-icon svg { width: 100%; height: 100%; }
+.submit-done h2 { margin: 8px 0 4px; }
+.submit-done-label { margin: 12px 0 0; color: var(--muted); }
+.submit-done-no { margin: 0; font-size: 2rem; font-weight: 700; letter-spacing: 0.02em; color: var(--accent); font-variant-numeric: tabular-nums; }
+.submit-done-text { margin: 12px auto 0; max-width: 46ch; color: var(--text-soft); }
+.submit-done .actions { justify-content: center; }
+#job-form.is-sending { opacity: .6; pointer-events: none; }

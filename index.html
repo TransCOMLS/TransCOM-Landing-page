@@ -332,6 +332,11 @@
         </a>
       </aside>
       <form id="job-form" class="form" novalidate>
+        <!-- Honeypot: people never see or fill this; bots that do are turned away -->
+        <div class="hp-field" aria-hidden="true">
+          <label for="f-website" data-i18n="form.honeypot"></label>
+          <input id="f-website" name="website" type="text" tabindex="-1" autocomplete="off">
+        </div>
 
         <fieldset class="group">
           <legend class="group-title" data-i18n="form.sec.contact"></legend>
@@ -474,7 +479,22 @@
           <button type="submit" class="btn btn-primary btn-lg btn-block" data-i18n="form.submit"></button>
         </div>
         <div id="form-status" class="form-status" role="status" aria-live="polite" hidden></div>
+        <progress id="submit-progress" class="submit-progress" max="1" value="0" hidden></progress>
       </form>
+
+      <!-- After a successful send (js/submit.js) -->
+      <div class="submit-done" id="submit-done" tabindex="-1" hidden>
+        <span class="submit-done-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor" opacity=".14"/><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <h2 class="h3" data-i18n="submit.doneTitle"></h2>
+        <p class="submit-done-label" data-i18n="submit.doneJob"></p>
+        <p class="submit-done-no" id="submit-done-no"></p>
+        <button type="button" class="btn-link" id="submit-copy" data-i18n="submit.copy"></button>
+        <p class="submit-done-text" id="submit-done-text"></p>
+        <div class="actions">
+          <button type="button" class="btn btn-primary" data-goto="track" data-i18n="submit.track"></button>
+          <button type="button" class="btn btn-outline" id="submit-another" data-i18n="submit.another"></button>
+        </div>
+      </div>
     </section>
 
     <!-- ===== 6. Track job (lookup: Phase 4) ===== -->
@@ -823,6 +843,7 @@
   <script src="js/terms.js"></script>
   <script src="js/app.js"></script>
   <script src="js/account.js"></script>
+  <script src="js/submit.js"></script>
   <script src="js/home.js"></script>
 </body>
 </html>
