@@ -235,10 +235,6 @@
     var items = newsItems();
     grid.textContent = "";
     $("#post-empty").hidden = items.length > 0;
-    // No posts switched on: hide the menu item so nobody lands on an empty page
-    Array.prototype.forEach.call(document.querySelectorAll('.main-nav [data-tab="news"]'), function (b) {
-      b.parentElement.hidden = !items.length;
-    });
     items.forEach(function (n, i) {
       var li = document.createElement("li");
       var btn = document.createElement("button");
