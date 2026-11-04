@@ -19,7 +19,8 @@ provider manages all jobs from one Google Sheet, with no paid server.
   Items carry `data-tab`; other in-page links use `data-goto`. "My account" is the
   `.account-btn` in the header (≥640px) and a menu item below 1024px.
 - `css/style.css` — mobile-first. Breakpoints: phone/tablet (<1024px, menu button opens
-  a panel under the header with the groups expanded), header submit button (≥640px),
+  a panel under the header; groups are an accordion — one open at a time, starting with the
+  current page's group), header submit button (≥640px),
   calculator 2-column (≥900px), PC (≥1024px, menu in the header bar with dropdowns).
 - `js/config.js` — `window.APP_CONFIG`: service name, Apps Script URL, contact,
   language pairs, categories + per-page prices, turnaround, certification fee

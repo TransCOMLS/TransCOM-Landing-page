@@ -867,7 +867,7 @@ html.modal-open, html.modal-open body { overflow: hidden; }
 .side-links { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
 .side-links .btn-link { text-align: left; font-weight: 600; }
 .side-contact a[data-contact="email"] { font-size: 0.9375rem; overflow-wrap: normal; word-break: normal; }
-.side-contact a[data-contact="email"] span { min-width: 0; overflow-wrap: anywhere; }
+.side-contact a[data-contact="email"] span { min-width: 0; }
 
 /* ---------- News & announcements: square posts ---------- */
 .post-grid { list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -918,3 +918,6 @@ html.modal-open, html.modal-open body { overflow: hidden; }
   }
   .modal-post.has-media .post-dialog-media { margin: 0; position: sticky; top: 0; }
 }
+
+/* Email addresses: wrap only at the <wbr> after "@" */
+[data-contact-text="email"] { overflow-wrap: normal; word-break: normal; }

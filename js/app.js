@@ -331,7 +331,15 @@
     }
     $all("[data-contact-text]").forEach(function (el) {
       var key = el.getAttribute("data-contact-text");
-      if (texts[key] !== undefined) el.textContent = texts[key];
+      if (texts[key] === undefined) return;
+      el.textContent = texts[key];
+      // Long email addresses wrap after "@", not in the middle of a word
+      if (key === "email" && texts[key].indexOf("@") > 0) {
+        var at = texts[key].indexOf("@") + 1;
+        el.textContent = texts[key].slice(0, at);
+        el.appendChild(document.createElement("wbr"));
+        el.appendChild(document.createTextNode(texts[key].slice(at)));
+      }
     });
   }
 
@@ -378,8 +386,10 @@
     if (!header || !btn) return;
     header.classList.toggle("menu-open", open);
     btn.setAttribute("aria-expanded", String(open));
-    // In the panel every group starts open, so all pages are one tap away
-    if (open) $all(".nav-toggle").forEach(function (t) { setGroup(t, true); });
+    // In the panel only the group holding the current page starts open (one group at a time)
+    if (open) $all(".nav-group").forEach(function (g) {
+      setGroup($(".nav-toggle", g), g.classList.contains("is-current"));
+    });
   }
 
   function closeMenus() {
@@ -395,7 +405,8 @@
     $all(".nav-toggle").forEach(function (toggle) {
       toggle.addEventListener("click", function () {
         var open = toggle.getAttribute("aria-expanded") !== "true";
-        if (isWide()) $all(".nav-toggle").forEach(function (t) { if (t !== toggle) setGroup(t, false); });
+        // One group open at a time (dropdowns on PC, accordion in the phone/tablet panel)
+        $all(".nav-toggle").forEach(function (t) { if (t !== toggle) setGroup(t, false); });
         setGroup(toggle, open);
       });
       // PC: Down arrow opens the dropdown and moves into it
