@@ -582,25 +582,67 @@
     });
   }
 
-  function setThemePref(pref) {
+  function resolvedDark(pref) {
+    return pref === "dark" || (pref === "auto" && !!(darkMQ && darkMQ.matches));
+  }
+
+  function reducedMotion() {
+    return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }
+
+  // Soft colour fade (used when the device switches theme, or as the fallback)
+  function fadeTheme(change) {
+    var root = document.documentElement;
+    if (reducedMotion()) { change(); return; }
+    root.classList.add("theme-anim");
+    change();
+    clearTimeout(fadeTheme.timer);
+    fadeTheme.timer = setTimeout(function () { root.classList.remove("theme-anim"); }, 500);
+  }
+
+  // The new theme spreads out in a circle from the button that was pressed
+  function revealTheme(change, origin) {
+    var root = document.documentElement;
+    if (reducedMotion() || typeof document.startViewTransition !== "function" || !root.animate) {
+      fadeTheme(change);
+      return;
+    }
+    var box = origin && origin.getBoundingClientRect ? origin.getBoundingClientRect() : null;
+    var x = box ? box.left + box.width / 2 : window.innerWidth / 2;
+    var y = box ? box.top + box.height / 2 : 0;
+    var r = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
+    var vt;
+    try { vt = document.startViewTransition(change); } catch (e) { fadeTheme(change); return; }
+    vt.ready.then(function () {
+      root.animate(
+        { clipPath: ["circle(0px at " + x + "px " + y + "px)", "circle(" + r + "px at " + x + "px " + y + "px)"] },
+        { duration: 550, easing: "cubic-bezier(.4, 0, .2, 1)", pseudoElement: "::view-transition-new(root)" }
+      );
+    }, function () { /* transition skipped: the theme is already applied */ });
+  }
+
+  function setThemePref(pref, origin) {
+    var before = resolvedDark(themePref());
     if (pref === "auto") storageRemove(THEME_KEY);
     else storageSet(THEME_KEY, pref);
-    applyTheme(pref);
+    // Only animate when the colours actually change (e.g. not Auto -> Light on a light device)
+    if (before === resolvedDark(pref)) applyTheme(pref);
+    else revealTheme(function () { applyTheme(pref); }, origin);
   }
 
   function initTheme() {
     var order = ["auto", "light", "dark"];
     $all("[data-theme-cycle]").forEach(function (b) {
       b.addEventListener("click", function () {
-        setThemePref(order[(order.indexOf(themePref()) + 1) % order.length]);
+        setThemePref(order[(order.indexOf(themePref()) + 1) % order.length], b);
       });
     });
     $all("[data-theme-set]").forEach(function (b) {
-      b.addEventListener("click", function () { setThemePref(b.getAttribute("data-theme-set")); });
+      b.addEventListener("click", function () { setThemePref(b.getAttribute("data-theme-set"), b); });
     });
     // Auto: follow the device when it switches between light and dark
     if (darkMQ) {
-      var follow = function () { if (themePref() === "auto") applyTheme("auto"); };
+      var follow = function () { if (themePref() === "auto") fadeTheme(function () { applyTheme("auto"); }); };
       if (darkMQ.addEventListener) darkMQ.addEventListener("change", follow);
       else if (darkMQ.addListener) darkMQ.addListener(follow);
     }

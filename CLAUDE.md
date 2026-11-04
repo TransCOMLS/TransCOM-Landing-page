@@ -47,6 +47,10 @@ provider manages all jobs from one Google Sheet, with no paid server.
   them; the phone/tablet menu has `.theme-seg`. Choice saved in `tr_theme` (removed for Auto).
   A small inline script in `<head>` sets `data-theme` before first paint (no white flash).
   Dark mode shows `img/logo-white.svg` in the header.
+  Switching by hand plays a circle reveal from the pressed button (View Transitions,
+  550ms; skipped when the colours would not change); the device switching on Auto, or a
+  browser without View Transitions, gets a 0.45s colour fade (`.theme-anim`). Reduced
+  motion: instant.
   Page switches play a short fade-and-rise (`.panel-enter`, 0.28s; not on first load,
   off under prefers-reduced-motion; fill-mode `backwards` so no transform is left behind).
   Policy pop-up (`<dialog id="policy-dialog">`, content copied from `#privacy` or `#terms`):

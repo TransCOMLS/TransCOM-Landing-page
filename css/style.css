@@ -1109,3 +1109,13 @@ html.modal-open, html.modal-open body { overflow: hidden; }
 
 /* Content boxes sit on the card surface, not the patterned page */
 .table-wrap, .accordion, .contact-item, .doc-toc { background: var(--surface); }
+
+/* ---------- Theme change effect ----------
+   Circle reveal (js/app.js revealTheme, View Transitions): turn off the default cross-fade
+   so only the circle animates. Fallback / device switch: colours fade for 0.45s. */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-new(root) { z-index: 2; }
+.theme-anim, .theme-anim *, .theme-anim *::before, .theme-anim *::after {
+  transition: background-color .45s ease, color .45s ease, border-color .45s ease,
+              box-shadow .45s ease, fill .45s ease, stroke .45s ease !important;
+}
