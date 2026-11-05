@@ -15,9 +15,9 @@ window.APP_CONFIG = {
     email: "contact@prathaitranslation.com",
     phoneDisplay: "080-629-7450",
     phoneTel: "+66806297450",          // ใช้สำหรับปุ่มโทร (รูปแบบสากล ไม่มีขีด)
-    showLine: false,                   // ซ่อนช่องทาง LINE ไว้ก่อน — เปลี่ยนเป็น true เมื่อพร้อมใช้งาน
-    lineId: "@xxxx",
-    lineUrl: "https://line.me/R/ti/p/@xxxx",
+    showLine: true,                    // false = ซ่อนปุ่ม LINE ทั้งเว็บ
+    lineId: "@transcomls",             // LINE Official Account
+    lineUrl: "https://line.me/R/ti/p/@transcomls",   // ลิงก์เพิ่มเพื่อน
     hours: { th: "ทุกวัน 09:00–17:00 น.", en: "Daily, 9:00–17:00 (GMT+7)" }
   },
 

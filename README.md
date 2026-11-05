@@ -308,7 +308,7 @@
 | ค่า | ความหมาย |
 |---|---|
 | `appsScriptUrl` | URL ของ Web App (ขั้นตอนที่ 3) |
-| `contact` | อีเมล เบอร์โทร เวลาทำการ · `showLine: false` ซ่อนปุ่ม LINE ทั้งเว็บ (เปลี่ยนเป็น `true` เมื่อพร้อม และใส่ `lineId`, `lineUrl`) |
+| `contact` | อีเมล เบอร์โทร เวลาทำการ · LINE OA `@transcomls` (`lineId`, `lineUrl`) · `showLine: false` ซ่อนปุ่ม LINE ทั้งเว็บ |
 | `categories` | ประเภทเอกสารและราคาต่อหน้า `[ต่ำสุด, สูงสุด]` แบบปกติ/ด่วน · ถ้า **เพิ่มประเภทใหม่** ให้เพิ่มชื่อใน `CATEGORY_NAMES` ตอนต้นไฟล์ `Code.gs` ด้วย (ใช้ในอีเมลและ Dashboard) |
 | `certificationFee` / `shippingFee` | ค่ารับรองคำแปล / ค่าจัดส่งฉบับจริง (ต่องาน) |
 | `turnaround` | ระยะเวลางานปกติ/ด่วน (วันทำการ) |

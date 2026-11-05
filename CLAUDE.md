@@ -34,8 +34,8 @@ provider manages all jobs from one Google Sheet, with no paid server.
   Prices are per-page ranges `[min, max]` (a single number also works); use
   `App.priceRange(cat, urgency)` / `App.formatRange(min, max)`, never `cat.normal` directly.
   `shippingFee` (paper copy by post, per job) adds a calculator option and, in the job form,
-  a shipping choice with a required delivery address (`f-address`). `contact.showLine:
-  false` hides every LINE link (`[data-contact="line"]`) until the owner switches it on.
+  a shipping choice with a required delivery address (`f-address`). LINE OA `@transcomls`
+  is on (`contact.showLine: true`); `false` hides every LINE link (`[data-contact="line"]`).
 - `js/i18n.js` — `window.I18N.th` / `.en`, flat keys. Every key must exist in both.
   `{tokens}` are filled from config (`{serviceName}`, `{retentionDays}`, …).
 - `js/app.js` — IIFE; exposes `window.App` (`t`, `config`, `getLang`, `showTab`,
