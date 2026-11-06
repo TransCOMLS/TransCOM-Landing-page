@@ -73,6 +73,9 @@
     btn.setAttribute("aria-busy", "true");
     status("", t("submit.sending"));
     progress(0, files.length + 1);
+    // pop-up over the page until it's done, so nobody closes the page half-way
+    App.busy.open({ title: t("busy.sendTitle"), text: t("busy.wait") });
+    App.busy.step(t("busy.preparing"), 0, files.length + 1);
 
     var job = {
       name: d.name, email: d.email, line: d.line, phone: d.phone, langPair: d.langPair, category: d.category,
@@ -94,6 +97,7 @@
         chain = chain.then(function () {
           status("", t("submit.uploading", { n: i + 1, total: files.length }));
           progress(i, files.length + 1);
+          App.busy.step(t("submit.uploading", { n: i + 1, total: files.length }), i, files.length + 1);
           if (p.sent[x.kind + ":" + x.name]) return;
           return readBase64(x.file).then(function (data) {
             return App.api("uploadFile", { jobNo: p.jobNo, uploadToken: p.token, kind: x.kind, name: x.name, data: data });
@@ -103,13 +107,16 @@
       return chain.then(function () {
         status("", t("submit.finishing"));
         progress(files.length, files.length + 1);
+        App.busy.step(t("submit.finishing"), files.length, files.length + 1);
         return App.api("finishJob", { jobNo: p.jobNo, uploadToken: p.token });
       });
     }).then(function (res) {
       pending = null;
       showDone(res.jobNo, d.email);
+      App.busy.done({ title: t("busy.sentTitle"), text: t("busy.sentText", { jobNo: res.jobNo }) });
     }, function (err) {
       if (err && err.code === "upload_expired") pending = null;   // start over next time
+      App.busy.close();
       progress(null);
       status("error", errorText(err));
     }).then(function () {
