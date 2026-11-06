@@ -1174,6 +1174,7 @@
 
   /* ---------- start ---------- */
   function init() {
+    initBusy();
     var saved = storageGet(LANG_KEY);
     renderContactLinks();
     applyLanguage(saved === "en" ? "en" : "th");
@@ -1190,6 +1191,76 @@
   }
 
   // Shared with later phases
+  /* ---------- "Please wait" pop-up while sending (job form, translation uploads) ----------
+     App.busy.open({ title, text }) → step(text, value, max) → done({ title, text }): the spinner turns
+     into a tick, then the pop-up closes by itself (BUSY_DONE_MS) — or close() on an error.
+     While sending: Escape is ignored and leaving the page asks first. */
+  var BUSY_DONE_MS = 1800;
+  var busyState = { on: false, resolve: null };
+  function busyEls() {
+    return { dlg: $("#busy-dialog"), title: $("#busy-title"), step: $("#busy-step"), bar: $("#busy-progress"),
+             text: $("#busy-text"), actions: $("#busy-actions"), ok: $("#busy-ok") };
+  }
+  function busyLeaveGuard(e) { if (busyState.on) { e.preventDefault(); e.returnValue = ""; return ""; } }
+  var busy = {
+    open: function (o) {
+      var b = busyEls();
+      if (!b.dlg) return;
+      busyState.on = true;
+      b.dlg.classList.remove("is-done");
+      b.title.textContent = o.title || "";
+      b.text.textContent = o.text || "";
+      b.step.textContent = "";
+      b.bar.hidden = true;
+      b.actions.hidden = true;
+      if (!b.dlg.open) {
+        document.documentElement.classList.add("modal-open");
+        if (typeof b.dlg.showModal === "function") b.dlg.showModal(); else b.dlg.setAttribute("open", "");
+      }
+      window.addEventListener("beforeunload", busyLeaveGuard);
+    },
+    step: function (text, value, max) {
+      var b = busyEls();
+      if (!b.dlg) return;
+      b.step.textContent = text || "";
+      if (typeof value === "number" && max) { b.bar.hidden = false; b.bar.max = max; b.bar.value = value; }
+    },
+    done: function (o) {
+      var b = busyEls();
+      busyState.on = false;
+      window.removeEventListener("beforeunload", busyLeaveGuard);
+      if (!b.dlg) return Promise.resolve();
+      b.dlg.classList.add("is-done");
+      b.title.textContent = o.title || "";
+      b.text.textContent = o.text || "";
+      b.step.textContent = "";
+      b.bar.hidden = true;
+      b.actions.hidden = true;
+      return new Promise(function (resolve) {
+        busyState.resolve = resolve;
+        clearTimeout(busyState.timer);
+        busyState.timer = setTimeout(busy.close, BUSY_DONE_MS);
+      });
+    },
+    close: function () {
+      var b = busyEls();
+      clearTimeout(busyState.timer);
+      busyState.on = false;
+      window.removeEventListener("beforeunload", busyLeaveGuard);
+      if (b.dlg && b.dlg.open) { if (typeof b.dlg.close === "function") b.dlg.close(); else b.dlg.removeAttribute("open"); }
+      document.documentElement.classList.remove("modal-open");
+      var r = busyState.resolve; busyState.resolve = null;
+      if (r) r();
+    },
+    isOpen: function () { return busyState.on; }
+  };
+  function initBusy() {
+    var b = busyEls();
+    if (!b.dlg) return;
+    b.dlg.addEventListener("cancel", function (e) { e.preventDefault(); if (!busyState.on) busy.close(); });   // Escape
+    if (b.ok) b.ok.addEventListener("click", function () { busy.close(); });
+  }
+
   window.App = {
     t: t,
     config: CFG,
@@ -1205,6 +1276,7 @@
     resetJobForm: resetJobForm,
     validateJobForm: validateJobForm,
     showStatus: showStatus,
+    busy: busy,
     setFieldError: setFieldError,
     storage: { get: storageGet, set: storageSet, remove: storageRemove },
     rules: { email: EMAIL_RE, line: LINE_RE },

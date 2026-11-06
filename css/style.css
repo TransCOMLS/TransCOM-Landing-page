@@ -1397,3 +1397,31 @@ button.dash-bar-row:hover .dash-bar { background: var(--accent-line); }
 .dash-revision { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
 .dash-revision summary { display: inline-flex; align-items: center; min-height: var(--tap); cursor: pointer; font-weight: 600; color: var(--accent); }
 .dash-revision textarea { margin-top: 6px; }
+
+/* ---------- "Please wait" pop-up (App.busy) ---------- */
+.busy-modal { width: min(440px, calc(100vw - 32px)); max-height: none; }
+.busy-body { padding: 30px 26px 26px; text-align: center; }
+.busy-body h2 { margin: 16px 0 6px; }
+.busy-icon { position: relative; width: 76px; height: 76px; margin: 0 auto; }
+.busy-spinner {
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 6px solid var(--accent-line); border-top-color: var(--accent-bright);
+  animation: busy-spin .9s linear infinite;
+}
+.busy-check { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
+.busy-check circle { fill: var(--success-soft); stroke: var(--success); stroke-width: 3; }
+.busy-check path { fill: none; stroke: var(--success); stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 40; stroke-dashoffset: 40; }
+.busy-modal.is-done .busy-spinner { display: none; }
+.busy-modal.is-done .busy-check { opacity: 1; animation: busy-pop .35s ease-out; }
+.busy-modal.is-done .busy-check path { animation: busy-draw .45s .15s ease-out forwards; }
+.busy-step { margin: 0; min-height: 1.6em; font-weight: 600; color: var(--accent); }
+.busy-progress { display: block; width: 100%; height: 8px; margin: 10px 0 4px; accent-color: var(--accent-bright); }
+.busy-text { margin: 10px 0 0; color: var(--muted); font-size: 0.9375rem; }
+.busy-actions { margin-top: 18px; }
+@keyframes busy-spin { to { transform: rotate(360deg); } }
+@keyframes busy-pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes busy-draw { to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .busy-spinner { animation-duration: 2.4s; }
+  .busy-modal.is-done .busy-check, .busy-modal.is-done .busy-check path { animation: none; stroke-dashoffset: 0; }
+}

@@ -14,7 +14,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
   font — with a sans-serif fallback stack. Do not switch to other display fonts.
 
 ## Files
-- `index.html` — single page; 13 `.panel` sections in `<main>`: home, services, pricing,
+- `index.html` — CSS/JS links carry `?v=<date+letter>` (cache-busting: GitHub Pages lets browsers keep
+  files ~10 min) — **bump it on every release** or customers keep running old JS.
+  Single page; 13 `.panel` sections in `<main>`: home, services, pricing,
   calculator, news, submit, track, account, how, faq, contact, privacy, terms. Ids double as `#hash` routes.
   Menu (`.main-nav` in the header): Home · Services & pricing ▾ (services, pricing,
   calculator, news) · Orders ▾ (how, submit, track) · Help ▾ (faq, privacy, terms) · Contact.
@@ -59,6 +61,10 @@ provider manages all jobs from one Google Sheet, with no paid server.
   opened by `[data-modal="privacy"|"terms"]` (consent links in the job form) and by
   `data-goto` to those pages while on the submit page, so customers never leave the form.
   Privacy and terms pages have a contents list (`.doc-toc`, built by `buildTocs()`).
+  `App.busy` (`<dialog id="busy-dialog">`): pop-up while sending the job form or uploading
+  translations — spinner + step + progress + "don't close, large files take a moment"; Escape is
+  ignored and leaving the page asks first; `done()` shows a tick, then it closes by itself
+  (owner's choice, ~1.8 s); `close()` on errors (the form keeps its data).
 - `js/terms.js` — `window.TERMS.th` / `.en`: terms and conditions text (legal; edited by
   the owner — do not reword without being asked). `**bold**` is rendered as <strong>.
   Source: the owner's Claude doc "ข้อกำหนดและเงื่อนไขการรับบริการ TransCOM",

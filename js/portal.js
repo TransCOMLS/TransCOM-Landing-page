@@ -355,14 +355,19 @@
       var bad = files.filter(function (f) { var ext = (f.name.split(".").pop() || "").toLowerCase(); return f.size > max || allowed.indexOf(ext) === -1; });
       if (bad.length) { status(st, "error", t("dash.err.bad_file") + " " + bad.map(function (f) { return f.name; }).join(", ")); return; }
       var chain = Promise.resolve();
+      App.busy.open({ title: t("busy.uploadTitle"), text: t("busy.wait") });
       files.forEach(function (f, i) {
         chain = chain.then(function () {
           status(st, "", t("submit.uploading", { n: i + 1, total: files.length }));
+          App.busy.step(t("submit.uploading", { n: i + 1, total: files.length }), i, files.length);
           return readBase64(f).then(function (data) { return api("uploadTranslation", { jobNo: jobNo, name: f.name, data: data }); });
         });
       });
-      chain.then(function () { status(st, "success", t("dash.uploaded")); onDone(); },
-        function (err) { status(st, "error", errText(err)); });
+      chain.then(function () {
+        status(st, "success", t("dash.uploaded"));
+        App.busy.done({ title: t("busy.uploadedTitle"), text: t("busy.uploadedText", { n: files.length }) });
+        onDone();
+      }, function (err) { App.busy.close(); status(st, "error", errText(err)); });
     });
     return wrap;
   }
