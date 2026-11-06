@@ -1300,7 +1300,7 @@ function getContent_() {
         start: day_(r.start, tz), end: day_(r.end, tz),
         tag: { th: str_(r.tagTh), en: str_(r.tagEn) },
         title: { th: str_(r.titleTh), en: str_(r.titleEn) },
-        text: { th: str_(r.textTh), en: str_(r.textEn) },
+        text: { th: longStr_(r.textTh), en: longStr_(r.textEn) },
         cta: CTA_PAGES.indexOf(str_(r.cta)) > -1 ? str_(r.cta) : ''
       };
     }).filter(function (p) { return p.title.th || p.title.en; }),
