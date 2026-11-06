@@ -86,7 +86,7 @@ window.APP_CONFIG = {
     },
     {
       tag: { th: "ฟรี", en: "Free" },
-      title: { th: "สมัครบัญชีฟรี ไม่ต้องตั้งรหัสผ่าน", en: "Free account — no password needed" },
+      title: { th: "สมัครบัญชีฟรี เข้าสู่ระบบด้วยอีเมล", en: "Free account — sign in with your email" },
       text: { th: "บันทึกข้อมูลไว้ครั้งเดียว ระบบกรอกแบบฟอร์มส่งงานให้อัตโนมัติ และดูสถานะงานทุกชิ้นได้ในที่เดียว",
               en: "Save your details once. We fill in the job form for you and show all your jobs in one place." },
       cta: "account", start: "", end: ""   // แสดงเมื่อเชื่อม Apps Script แล้วเท่านั้น

@@ -830,6 +830,23 @@ a.contact-item:hover { border-color: var(--accent); }
 .acct-card { padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); min-width: 0; }
 .acct-card .form { margin-top: 8px; }
 .acct-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* Sign-in security card: optional password + backup email */
+.sec-block { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border); }
+.sec-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.sec-head h3 { margin: 0; }
+.sec-current { margin: 8px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.sec-help { margin-top: 18px; }
+/* Password field with a show/hide eye */
+.pw-wrap { position: relative; }
+.pw-wrap input { padding-right: 52px; }
+.pw-toggle {
+  position: absolute; top: 0; right: 0; width: 48px; height: 100%; min-height: 44px;
+  display: grid; place-items: center; border: 0; background: transparent; color: var(--muted); cursor: pointer; border-radius: 0 var(--radius) var(--radius) 0;
+}
+.pw-toggle svg { width: 22px; height: 22px; }
+.pw-toggle[aria-pressed="true"] { color: var(--accent); }
+.pw-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
+.acct-mode { justify-content: center; margin-top: 4px; }
 .acct-card-head h2 { margin: 0; }
 .confirm-box { margin-top: 12px; padding: 14px 16px; border: 1px solid var(--error-line); border-radius: var(--radius); background: var(--error-soft); }
 .confirm-box p { margin: 0; }
@@ -1364,6 +1381,15 @@ button.dash-bar-row:hover .dash-bar { background: var(--accent-line); }
 .dash-user-who { display: flex; flex-direction: column; min-width: 0; }
 .dash-user-name { font-weight: 700; overflow-wrap: anywhere; }
 .dash-user-meta { font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.dash-email-change { margin-top: 4px; }
+.dash-email-change summary { display: inline-flex; align-items: center; min-height: 44px; cursor: pointer; list-style: none; font-size: 0.9375rem; }
+.dash-email-change summary::-webkit-details-marker { display: none; }
+.dash-email-change[open] summary { font-weight: 600; }
+.dash-email-change .note { margin: 0 0 8px; }
+.dash-email-change input { flex: 1 1 200px; min-width: 0; }
+/* Customer overview: suggest a password / backup email */
+.dash-nudge { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; border-color: var(--accent-line); background: var(--promo-tint); }
+.dash-nudge-text { margin: 0; flex: 1 1 260px; }
 .dash-user-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .dash-user-ctl select { width: auto; flex: 1 1 150px; min-height: var(--tap); }
 .dash-saved { font-size: 0.875rem; color: var(--success); }

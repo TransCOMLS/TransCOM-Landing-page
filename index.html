@@ -80,7 +80,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20261107b">
+  <link rel="stylesheet" href="css/style.css?v=20261107c">
   <script>
     /* Theme before first paint (no white flash in dark mode). Logic lives in js/app.js. */
     (function () {
@@ -613,10 +613,24 @@
           <form id="acct-email-form" class="form" novalidate>
             <div class="field">
               <label for="a-email" data-i18n="acct.email"></label>
-              <input id="a-email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="160" aria-describedby="a-email-err">
+              <input id="a-email" name="email" type="email" autocomplete="username" inputmode="email" maxlength="160" aria-describedby="a-email-err">
               <p class="field-error" id="a-email-err" hidden></p>
             </div>
-            <button type="submit" class="btn btn-primary btn-block" data-i18n="acct.sendCode"></button>
+            <!-- Password: only for accounts that set one (sign-in mode switch below) -->
+            <div class="field" id="a-password-field" hidden>
+              <label for="a-password" data-i18n="acct.password"></label>
+              <div class="pw-wrap">
+                <input id="a-password" name="password" type="password" autocomplete="current-password" maxlength="100" aria-describedby="a-password-err">
+                <button type="button" class="pw-toggle" data-pw-toggle="a-password" aria-pressed="false" data-i18n-aria="sec.showPw">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+                </button>
+              </div>
+              <p class="field-error" id="a-password-err" hidden></p>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block" id="a-submit" data-i18n="acct.sendCode"></button>
+            <div class="acct-links acct-mode">
+              <button type="button" class="btn-link" id="a-mode" data-i18n="acct.usePassword"></button>
+            </div>
           </form>
           <form id="acct-code-form" class="form" novalidate hidden>
             <p class="notice" id="acct-code-sent"></p>
@@ -689,6 +703,82 @@
               <button type="submit" class="btn btn-outline" data-i18n="acct.save"></button>
               <div id="acct-profile-status" class="form-status" role="status" aria-live="polite" hidden></div>
             </form>
+          </section>
+
+          <!-- Sign-in security: optional password + backup email (js/account.js) -->
+          <section class="acct-card" id="acct-security" aria-labelledby="acct-sec-h">
+            <h2 class="h3" id="acct-sec-h" data-i18n="sec.title"></h2>
+            <p class="note" data-i18n="sec.lead"></p>
+
+            <div class="sec-block">
+              <div class="sec-head">
+                <h3 class="h4" data-i18n="sec.pwTitle"></h3>
+                <span class="flag" id="sec-pw-flag"></span>
+              </div>
+              <p class="note" id="sec-pw-note"></p>
+              <form id="sec-pw-form" class="form" novalidate>
+                <input type="email" id="sec-user" autocomplete="username" hidden tabindex="-1" aria-hidden="true">
+                <div class="field" id="sec-cur-field" hidden>
+                  <label for="sec-cur" data-i18n="sec.current"></label>
+                  <input id="sec-cur" type="password" autocomplete="current-password" maxlength="100" aria-describedby="sec-cur-hint sec-cur-err">
+                  <p class="hint" id="sec-cur-hint" data-i18n="sec.currentHint"></p>
+                  <p class="field-error" id="sec-cur-err" hidden></p>
+                </div>
+                <div class="grid-2">
+                  <div class="field">
+                    <label for="sec-new" data-i18n="sec.new"></label>
+                    <input id="sec-new" type="password" autocomplete="new-password" maxlength="100" aria-describedby="sec-new-hint sec-new-err">
+                    <p class="hint" id="sec-new-hint" data-i18n="sec.rule"></p>
+                    <p class="field-error" id="sec-new-err" hidden></p>
+                  </div>
+                  <div class="field">
+                    <label for="sec-new2" data-i18n="sec.confirmPw"></label>
+                    <input id="sec-new2" type="password" autocomplete="new-password" maxlength="100" aria-describedby="sec-new2-err">
+                    <p class="field-error" id="sec-new2-err" hidden></p>
+                  </div>
+                </div>
+                <label class="choice"><input type="checkbox" id="sec-show"><span data-i18n="sec.showPw"></span></label>
+                <div class="acct-links">
+                  <button type="submit" class="btn btn-outline" id="sec-pw-save" data-i18n="sec.setPw"></button>
+                  <button type="button" class="btn-link danger" id="sec-pw-remove" data-i18n="sec.removePw" hidden></button>
+                </div>
+                <div id="sec-pw-status" class="form-status" role="status" aria-live="polite" hidden></div>
+              </form>
+            </div>
+
+            <div class="sec-block">
+              <div class="sec-head">
+                <h3 class="h4" data-i18n="sec.bkTitle"></h3>
+                <span class="flag" id="sec-bk-flag"></span>
+              </div>
+              <p class="note" data-i18n="sec.bkLead"></p>
+              <p class="sec-current" id="sec-bk-current" hidden></p>
+              <form id="sec-bk-form" class="form" novalidate>
+                <div class="field">
+                  <label for="sec-bk" data-i18n="sec.bkEmail"></label>
+                  <input id="sec-bk" type="email" inputmode="email" autocomplete="off" maxlength="160" aria-describedby="sec-bk-err">
+                  <p class="field-error" id="sec-bk-err" hidden></p>
+                </div>
+                <div class="acct-links">
+                  <button type="submit" class="btn btn-outline" id="sec-bk-send" data-i18n="sec.bkSend"></button>
+                  <button type="button" class="btn-link danger" id="sec-bk-remove" data-i18n="sec.bkRemove" hidden></button>
+                </div>
+              </form>
+              <form id="sec-bk-code-form" class="form" novalidate hidden>
+                <p class="notice" id="sec-bk-sent"></p>
+                <div class="field">
+                  <label for="sec-bk-code" data-i18n="acct.code"></label>
+                  <input id="sec-bk-code" class="code-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" aria-describedby="sec-bk-code-err">
+                  <p class="field-error" id="sec-bk-code-err" hidden></p>
+                </div>
+                <div class="acct-links">
+                  <button type="submit" class="btn btn-outline" data-i18n="sec.bkConfirm"></button>
+                  <button type="button" class="btn-link" id="sec-bk-cancel" data-i18n="acct.cancel"></button>
+                </div>
+              </form>
+              <div id="sec-bk-status" class="form-status" role="status" aria-live="polite" hidden></div>
+            </div>
+            <p class="note sec-help" data-i18n="sec.help"></p>
           </section>
 
           <section class="acct-card" aria-labelledby="acct-manage-h">
@@ -939,14 +1029,14 @@
 
   <noscript><p class="noscript">Please enable JavaScript. / กรุณาเปิดใช้งาน JavaScript</p></noscript>
 
-  <script src="js/config.js?v=20261107b"></script>
-  <script src="js/i18n.js?v=20261107b"></script>
-  <script src="js/terms.js?v=20261107b"></script>
-  <script src="js/app.js?v=20261107b"></script>
-  <script src="js/account.js?v=20261107b"></script>
-  <script src="js/submit.js?v=20261107b"></script>
-  <script src="js/track.js?v=20261107b"></script>
-  <script src="js/portal.js?v=20261107b"></script>
-  <script src="js/home.js?v=20261107b"></script>
+  <script src="js/config.js?v=20261107c"></script>
+  <script src="js/i18n.js?v=20261107c"></script>
+  <script src="js/terms.js?v=20261107c"></script>
+  <script src="js/app.js?v=20261107c"></script>
+  <script src="js/account.js?v=20261107c"></script>
+  <script src="js/submit.js?v=20261107c"></script>
+  <script src="js/track.js?v=20261107c"></script>
+  <script src="js/portal.js?v=20261107c"></script>
+  <script src="js/home.js?v=20261107c"></script>
 </body>
 </html>
