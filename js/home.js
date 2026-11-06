@@ -357,14 +357,29 @@
   }
 
   // Owner-managed content from the Google Sheet, when connected
+  // Offers/news from the sheet. The last copy is kept on this device and shown at once;
+  // the fresh copy replaces it when Apps Script answers (it takes a second or two).
+  var CONTENT_KEY = "tr_content";
+  function applySheetContent(res) {
+    var next = {
+      promotions: res && res.promotions && res.promotions.length ? res.promotions : (CFG.promotions || []),
+      news: res && res.news && res.news.length ? res.news : (CFG.news || [])
+    };
+    var changed = JSON.stringify(next.promotions) !== JSON.stringify(content.promotions) ||
+                  JSON.stringify(next.news) !== JSON.stringify(content.news);
+    content.promotions = next.promotions;
+    content.news = next.news;
+    return changed;
+  }
   function loadSheetContent() {
     if (!CFG.appsScriptUrl || !App.api) return;
+    var cached = null;
+    try { cached = JSON.parse(App.storage.get(CONTENT_KEY) || "null"); } catch (e) { cached = null; }
+    if (cached && applySheetContent(cached)) renderAll();
     App.api("getContent", {}).then(function (res) {
-      var changed = false;
-      if (res.promotions && res.promotions.length) { content.promotions = res.promotions; changed = true; }
-      if (res.news && res.news.length) { content.news = res.news; changed = true; }
-      if (changed) renderAll();
-    }, function () { /* keep the built-in content */ });
+      App.storage.set(CONTENT_KEY, JSON.stringify({ promotions: res.promotions || [], news: res.news || [] }));
+      if (applySheetContent(res)) renderAll();
+    }, function () { /* keep what is shown */ });
   }
 
   /* ---------- visitor counter (footer) ---------- */
@@ -372,10 +387,16 @@
     var box = $("#visit-count");
     if (!box || !CFG.appsScriptUrl || CFG.showVisitorCount === false || !App.api) return;
     var today = App.todayISO(), isNew = App.storage.get("tr_visit") !== today;
+    function show(total) {
+      $("#visit-n").textContent = App.formatNumber(total || 0);
+      box.hidden = !(total > 0);
+    }
+    var last = parseInt(App.storage.get("tr_visits") || "0", 10);
+    if (last > 0) show(last);           // last known number at once, the fresh one replaces it
     App.api("visit", { isNew: isNew }).then(function (res) {
       App.storage.set("tr_visit", today);
-      $("#visit-n").textContent = App.formatNumber(res.total || 0);
-      box.hidden = !(res.total > 0);
+      App.storage.set("tr_visits", String(res.total || 0));
+      show(res.total);
     }, function () { /* no counter without the backend */ });
   }
 

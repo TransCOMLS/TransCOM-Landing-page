@@ -14,6 +14,7 @@
   var t = App.t;
   var TOKEN_KEY = "tr_session";
   var MODE_KEY = "tr_login";     // "password" = this device last signed in with a password
+  var CACHE_KEY = "tr_account";  // last profile + job list, shown at once while the fresh copy loads
 
   var state = {
     token: null,        // kept in localStorage (key tr_session) when the browser allows it
@@ -76,7 +77,19 @@
   function saveToken(tok) {
     state.token = tok;
     if (tok) App.storage.set(TOKEN_KEY, tok);
-    else App.storage.remove(TOKEN_KEY);
+    else { App.storage.remove(TOKEN_KEY); App.storage.remove(CACHE_KEY); }
+  }
+
+  // Keep the last account data for this sign-in only (tagged with the end of the token)
+  function cacheAccount() {
+    if (!state.token || !state.profile) return;
+    App.storage.set(CACHE_KEY, JSON.stringify({ tag: state.token.slice(-8), profile: state.profile, jobs: state.jobs }));
+  }
+  function cachedAccount() {
+    try {
+      var c = JSON.parse(App.storage.get(CACHE_KEY) || "null");
+      return c && state.token && c.tag === state.token.slice(-8) && c.profile ? c : null;
+    } catch (e) { return null; }
   }
 
   function signedOut(message) {
@@ -141,6 +154,7 @@
       renderJobs();
     }
     renderPrefillHint();
+    if (signedIn) cacheAccount();
     // js/portal.js draws the dashboard for the person's role
     document.dispatchEvent(new CustomEvent("accountchange", { detail: { signedIn: signedIn, profile: state.profile, jobs: state.jobs } }));
   }
@@ -325,6 +339,7 @@
 
   // Signed in (emailed code or password)
   function signedIn(res) {
+    needPortal();
     saveToken(res.token);
     state.profile = res.profile;
     state.isNew = !!res.isNew;
@@ -491,6 +506,7 @@
         state.profile = res.profile;
         state.jobs = res.jobs || [];
         state.fresh = !!res.fresh;
+        cacheAccount();
         render();
         if (document.querySelector("#submit:not([hidden])")) prefillJobForm();
       }, function (err) {
@@ -775,10 +791,19 @@
     if (box) box.removeAttribute("data-filled");
   }
 
+  // The dashboard (js/portal.js) is only fetched for signed-in people or the "My account" page
+  function needPortal() {
+    if (App.loadScript) App.loadScript("js/portal.js").catch(function () { /* retried on the next visit to the page */ });
+  }
+
   /* ---------- start ---------- */
   function init() {
     state.token = App.storage.get(TOKEN_KEY);
     if (state.token && !/^[0-9a-f]{64}$/.test(state.token)) saveToken(null);
+    if (state.token || /[?&]job=/.test(location.search) || location.hash === "#account") needPortal();
+    // Show the last known account straight away; loadAccount() below brings the fresh copy
+    var cached = cachedAccount();
+    if (cached) { state.profile = cached.profile; state.jobs = cached.jobs || []; }
 
     initSignIn();
     initHome();
@@ -797,6 +822,7 @@
     });
     document.addEventListener("tabchange", function (e) {
       if (e.detail.tab === "submit") prefillJobForm();
+      if (e.detail.tab === "account") needPortal();
     });
     // A job was just sent: refresh the history
     document.addEventListener("jobsubmitted", function () { loadAccount(); });
