@@ -103,7 +103,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
   to `accountchange` from account.js. New accounts without a name open on the profile view.
   Customers are never told who translated. Sidebar on ≥1024px; a scrollable chip row below.
 - `js/account.js` — customer accounts (optional; guests can still submit): sign in with a
-  6-digit code emailed by Apps Script (no passwords), job history, profile that fills in
+  6-digit code emailed by Apps Script; after that an optional password (`login`; form remembers
+  password mode in `tr_login`) and a verified backup email (security card `#acct-security` in
+  settings; overview nudges until one is set). No SMS (owner: only if free — it isn't). Job history, profile that fills in
   the job form, sign out, delete account (PDPA). Exposes `App.api(action, payload)` and
   `App.account` (`token()`, `profile()`, `isSignedIn()`). Session token in localStorage
   key `tr_session`; if storage is blocked (e.g. some iframes) the sign-in lasts until reload.
@@ -120,7 +122,17 @@ provider manages all jobs from one Google Sheet, with no paid server.
   ("Coupons" sheet: code, % or THB, max discount, min spend, start/end, maxUses, perUser, membersOnly;
   "CouponUses" log counts uses), adminPosts / adminSavePost / adminDeletePost (News/Promotions rows get a
   "รหัสโพสต์" id; clear the content cache), adminUploadImage (≤5 MB image into the public Drive folder
-  `IMAGES_FOLDER_ID`, shared anyone-with-link; `sharing_blocked` if Workspace forbids it). Roles: Users "บทบาท" (ROLES), bootstrap admins = provider email, script
+  `IMAGES_FOLDER_ID`, shared anyone-with-link; `sharing_blocked` if Workspace forbids it); login, setPassword,
+  removePassword, requestBackupCode, verifyBackupCode, removeBackupEmail, adminChangeEmail (owner's request
+  2026-11-06). Passwords: Users "รหัสผ่าน (เข้ารหัส — ห้ามแก้)" = `v1$rounds$salt$hex` iterated HMAC-SHA256 with
+  the PEPPER; one generic `login_invalid`; 5 misses/email/15 min → `password_locked`. Changing needs the
+  current password unless the session came from an emailed code in the last 15 min (`fresh`, cache) —
+  Forgot password is its own flow: requestCode `purpose: 'reset'` (own email wording) →
+  verifyResetCode (no session; a 15-min reset token) → resetPassword (new password required, ends every
+  session, then signs in). Reset and sign-in codes can't be swapped. Setting a password signs out other sessions. A verified
+  `backupEmail` can receive sign-in codes and log in (`userByLogin_`). adminChangeEmail moves Users,
+  Jobs (+ note) and CouponUses to the new email, ends sessions, emails both. Security notices:
+  `securityMail_`. Roles: Users "บทบาท" (ROLES), bootstrap admins = provider email, script
   owner, Script Property ADMIN_EMAILS (`need_(req, roles)` checks every call). Customer types in
   "ประเภทลูกค้า" (CUSTOMER_TYPES); "Discounts" sheet (type % + tiers by spend) for Phase 6 quotes.
   Jobs gain assignee, readyAt, cancelRequest, internalNotes (log). Translations go to subfolder
@@ -175,7 +187,7 @@ provider manages all jobs from one Google Sheet, with no paid server.
   Tap targets ≥44px. One primary button per section. Light page = soft logo-blue gradient
   with white cards; navy accent (`--accent`). Check both themes when changing styles.
 - `localStorage` only via the try/catch helpers in `app.js` (`App.storage`; keys `tr_lang`,
-  `tr_session`, `tr_theme`, `tr_visit`) — plus the try/catch theme read in the `<head>` script.
+  `tr_session`, `tr_theme`, `tr_visit`, `tr_login`) — plus the try/catch theme read in the `<head>` script.
 - Thai copy: formal but concise; years in Thai text use พ.ศ. (job no. `TR-2569-0001`).
 - Placeholders in `[brackets]` in config.js are filled in by the owner — keep them.
 

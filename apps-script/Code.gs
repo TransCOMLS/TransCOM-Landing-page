@@ -26,6 +26,11 @@ var CONFIG = {
   codeResendSec: 60,     // wait before another code can be sent to the same email
   codeMaxPerHour: 5,     // codes per email per hour
   sessionDays: 30,       // how long a sign-in lasts
+  passwordMin: 8,        // optional password (set after the first sign-in with an emailed code)
+  passwordIters: 2000,   // HMAC-SHA256 rounds per password check (slows down guessing)
+  passwordMaxFails: 5,   // wrong passwords per email in 15 minutes, then a pause
+  passwordFailsPerHour: 300,  // wrong passwords from everyone together, then a pause
+  freshMin: 15,          // after signing in with an emailed code, a new password can be set without the old one
   maxJobs: 50,           // jobs returned in the account history
   idRetentionDays: 15,   // civil registration jobs (ID attached): delete data this many
                          // days after the customer confirms the translation
@@ -77,7 +82,10 @@ var USER_COLS = [
   ['createdAt', 'สมัครเมื่อ'],
   ['lastLoginAt', 'เข้าสู่ระบบล่าสุด'],
   ['role', 'บทบาท'],                    // Phase 5: ลูกค้า (ว่าง) / พนักงาน / ผู้ดูแลระบบ
-  ['customerType', 'ประเภทลูกค้า']      // Phase 5: ทั่วไป / องค์กร/บริษัท / เอเจนซี่/ตัวแทน / นักเรียน/นักศึกษา
+  ['customerType', 'ประเภทลูกค้า'],     // Phase 5: ทั่วไป / องค์กร/บริษัท / เอเจนซี่/ตัวแทน / นักเรียน/นักศึกษา
+  ['passwordHash', 'รหัสผ่าน (เข้ารหัส — ห้ามแก้)'],   // optional; salted + peppered, never the password itself
+  ['passwordSetAt', 'ตั้งรหัสผ่านเมื่อ'],
+  ['backupEmail', 'อีเมลสำรอง']          // verified with a code; can receive sign-in codes
 ];
 
 // Phase 5: roles. Admin sets them on the website (or in the "บทบาท" column).
@@ -249,6 +257,14 @@ var ACTIONS = {
   requestCode: requestCode_,
   verifyCode: verifyCode_,
   getAccount: getAccount_,
+  login: login_,
+  verifyResetCode: verifyResetCode_,
+  resetPassword: resetPassword_,
+  setPassword: setPassword_,
+  removePassword: removePassword_,
+  requestBackupCode: requestBackupCode_,
+  verifyBackupCode: verifyBackupCode_,
+  removeBackupEmail: removeBackupEmail_,
   updateProfile: updateProfile_,
   logout: logout_,
   deleteAccount: deleteAccount_,
@@ -287,7 +303,8 @@ var ACTIONS = {
   adminPosts: adminPosts_,
   adminSavePost: adminSavePost_,
   adminDeletePost: adminDeletePost_,
-  adminUploadImage: adminUploadImage_
+  adminUploadImage: adminUploadImage_,
+  adminChangeEmail: adminChangeEmail_
 };
 
 /* ======================================================================
@@ -297,6 +314,7 @@ var ACTIONS = {
 function requestCode_(req) {
   var email = email_(req.email);
   var lang = req.lang === 'en' ? 'en' : 'th';
+  var reset = req.purpose === 'reset';       // "forgot password": the code only lets them set a new one
   var cache = CacheService.getScriptCache();
   var now = Date.now();
 
@@ -308,39 +326,44 @@ function requestCode_(req) {
     if (sent >= CONFIG.codeMaxPerHour) fail_('rate_limited');
 
     var code = randomCode_();
-    var entry = { h: hash_(code + '|' + email), a: 0, sentAt: now, exp: now + CONFIG.codeTtlMin * 60000 };
+    var entry = { h: hash_(code + '|' + email), a: 0, sentAt: now, exp: now + CONFIG.codeTtlMin * 60000, p: reset ? 'reset' : 'login' };
     cache.put('code:' + email, JSON.stringify(entry), CONFIG.codeTtlMin * 60);
     cache.put('sent:' + email, String(sent + 1), 3600);
 
-    sendCodeMail_(email, code, lang);
+    sendCodeMail_(email, code, lang, reset ? 'reset' : '');
     // Same reply whether or not the email has an account (no account discovery)
     return { ok: true, resendSec: CONFIG.codeResendSec };
   });
 }
 
-function verifyCode_(req) {
-  var email = email_(req.email);
-  var code = String(req.code || '').replace(/\s/g, '');
+// Check an emailed code (used once). Throws on a wrong / expired code.
+function takeCode_(email, code, purpose) {
+  code = String(code || '').replace(/\s/g, '');
   if (!/^\d{6}$/.test(code)) fail_('code_invalid');
   var cache = CacheService.getScriptCache();
   var key = 'code:' + email;
+  var entry = parse_(cache.get(key));
+  var now = Date.now();
+  if (!entry || now > entry.exp) fail_('code_expired');
+  if ((entry.p || 'login') !== purpose) fail_('code_invalid');   // a "forgot password" code can't sign in directly
+  if (entry.a >= CONFIG.codeMaxAttempts) fail_('too_many_attempts');
+  if (hash_(code + '|' + email) !== entry.h) {
+    entry.a += 1;
+    var left = Math.max(1, Math.floor((entry.exp - now) / 1000));
+    cache.put(key, JSON.stringify(entry), left);
+    fail_(entry.a >= CONFIG.codeMaxAttempts ? 'too_many_attempts' : 'code_invalid');
+  }
+  cache.remove(key);
+}
+
+function verifyCode_(req) {
+  var email = email_(req.email);
 
   return withLock_(function () {
-    var entry = parse_(cache.get(key));
-    var now = Date.now();
-    if (!entry || now > entry.exp) fail_('code_expired');
-    if (entry.a >= CONFIG.codeMaxAttempts) fail_('too_many_attempts');
-
-    if (hash_(code + '|' + email) !== entry.h) {
-      entry.a += 1;
-      var left = Math.max(1, Math.floor((entry.exp - now) / 1000));
-      cache.put(key, JSON.stringify(entry), left);
-      fail_(entry.a >= CONFIG.codeMaxAttempts ? 'too_many_attempts' : 'code_invalid');
-    }
-    cache.remove(key);
+    takeCode_(email, req.code, 'login');
 
     var users = table_(SHEETS.users, USER_COLS);
-    var user = find_(users, 'email', email);
+    var user = userByLogin_(users, email);   // the account's email, or its verified backup email
     var isNew = !user;
     var stamp = new Date();
     if (isNew) {
@@ -349,8 +372,9 @@ function verifyCode_(req) {
     } else {
       updateRow_(users, user, { lastLoginAt: stamp });
     }
-    var token = createSession_(email);
-    return { ok: true, token: token, isNew: isNew, profile: profile_(user) };
+    var token = createSession_(email_(user.email, true));
+    markFresh_(token);
+    return { ok: true, token: token, isNew: isNew, fresh: true, profile: profile_(user) };
   });
 }
 
@@ -362,7 +386,7 @@ function getAccount_(req) {
   var email = auth_(req.token);
   var user = find_(table_(SHEETS.users, USER_COLS), 'email', email);
   if (!user) fail_('session_expired');
-  return { ok: true, profile: profile_(user), jobs: jobsFor_(email) };
+  return { ok: true, profile: profile_(user), jobs: jobsFor_(email), fresh: isFresh_(req.token) };
 }
 
 
@@ -415,6 +439,327 @@ function deleteAccount_(req) {
   return { ok: true };
 }
 
+/* ======================================================================
+   Optional password and backup email (owner's request 2026-11-06)
+   - Everyone signs up with an emailed code. Afterwards they may set a
+     password; without one they keep signing in with emailed codes.
+   - A verified backup email can receive sign-in codes too, so losing the
+     main inbox does not lock the person out. No SMS (it costs per message).
+   - If both are lost, an admin changes the account's email (adminChangeEmail).
+   ====================================================================== */
+
+// The account for an email: its main email, or a verified backup email
+function userByLogin_(users, email) {
+  var u = find_(users, 'email', email);
+  if (u) return u;
+  for (var i = 0; i < users.rows.length; i++) {
+    if (users.rows[i].email && email_(users.rows[i].backupEmail, true) === email) return users.rows[i];
+  }
+  return null;
+}
+
+function hex_(bytes) {
+  return bytes.map(function (b) { return ('0' + (b & 0xff).toString(16)).slice(-2); }).join('');
+}
+
+// Salted, peppered, iterated HMAC-SHA256 ("v1$rounds$salt$hash"). The pepper lives in
+// Script Properties, so the Users sheet alone is not enough to test guesses.
+function pwHash_(password, salt, rounds) {
+  rounds = rounds || CONFIG.passwordIters;
+  salt = salt || Utilities.getUuid().replace(/-/g, '');
+  var key = Utilities.newBlob(salt + '|' + pepper_()).getBytes();
+  var h = Utilities.computeHmacSha256Signature(Utilities.newBlob(String(password)).getBytes(), key);
+  for (var i = 1; i < rounds; i++) h = Utilities.computeHmacSha256Signature(h, key);
+  return 'v1$' + rounds + '$' + salt + '$' + hex_(h);
+}
+
+function pwCheck_(password, stored) {
+  var parts = String(stored || '').split('$');
+  if (parts.length !== 4 || parts[0] !== 'v1') return false;
+  var rounds = parseInt(parts[1], 10);
+  if (!(rounds > 0 && rounds <= 100000)) return false;
+  var a = pwHash_(password, parts[2], rounds), b = String(stored);
+  var diff = a.length ^ b.length;
+  for (var i = 0; i < a.length && i < b.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+function checkNewPassword_(pw, email) {
+  pw = String(pw || '');
+  if (pw.length < CONFIG.passwordMin || pw.length > 100) fail_('password_weak');
+  if (!/\d/.test(pw) || !/[^\d\s]/.test(pw)) fail_('password_weak');     // letters (any language) and numbers
+  if (pw.toLowerCase() === String(email).toLowerCase()) fail_('password_weak');
+  return pw;
+}
+
+// Signed in with an emailed code in the last few minutes (may set a new password without the old one)
+function markFresh_(token) {
+  CacheService.getScriptCache().put('fresh:' + hash_(token), '1', CONFIG.freshMin * 60);
+}
+function isFresh_(token) {
+  return !!CacheService.getScriptCache().get('fresh:' + hash_(String(token || '')));
+}
+
+function pwFailGuard_(email) {
+  var cache = CacheService.getScriptCache();
+  var fails = parseInt(cache.get('pwfail:' + email) || '0', 10);
+  var all = parseInt(cache.get('pwfail:all') || '0', 10);
+  if (fails >= CONFIG.passwordMaxFails) fail_('password_locked');
+  if (all >= CONFIG.passwordFailsPerHour) fail_('rate_limited');
+  return function failed() {
+    cache.put('pwfail:' + email, String(fails + 1), 900);
+    cache.put('pwfail:all', String(all + 1), 3600);
+  };
+}
+
+// Sign in with email (main or backup) + password. One generic error for every miss.
+function login_(req) {
+  var email = email_(req.email);
+  var pw = String(req.password || '');
+  var failed = pwFailGuard_(email);
+  var users = table_(SHEETS.users, USER_COLS);
+  var user = userByLogin_(users, email);
+  var good = !!(user && user.passwordHash && pw.length <= 100 && pwCheck_(pw, user.passwordHash));
+  if (!user || !user.passwordHash) pwHash_(pw || 'x');      // same work either way (no account discovery)
+  if (!good) { failed(); fail_('login_invalid'); }
+  CacheService.getScriptCache().remove('pwfail:' + email);
+  return withLock_(function () {
+    var t2 = table_(SHEETS.users, USER_COLS);
+    var u = find_(t2, 'email', email_(user.email, true));
+    if (!u) fail_('login_invalid');
+    updateRow_(t2, u, { lastLoginAt: new Date() });
+    return { ok: true, token: createSession_(email_(u.email, true)), isNew: false, fresh: false, profile: profile_(u) };
+  });
+}
+
+// Forgot password, step 2: the emailed code gives a one-time permission (15 min) to set a new
+// password. No session yet, so the person can't get in without choosing a new password first.
+function verifyResetCode_(req) {
+  var email = email_(req.email);
+  return withLock_(function () {
+    takeCode_(email, req.code, 'reset');
+    var resetToken = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
+    CacheService.getScriptCache().put('reset:' + hash_(resetToken), email, CONFIG.freshMin * 60);
+    return { ok: true, resetToken: resetToken };
+  });
+}
+
+// Forgot password, step 3: new password → signed in. Every other sign-in of the account ends.
+function resetPassword_(req) {
+  var resetToken = String(req.resetToken || '');
+  var cache = CacheService.getScriptCache();
+  var key = 'reset:' + hash_(resetToken);
+  var email = /^[0-9a-f]{64}$/.test(resetToken) ? cache.get(key) : null;
+  if (!email) fail_('reset_expired');
+  var pw = checkNewPassword_(req.password, email);
+  return withLock_(function () {
+    var users = table_(SHEETS.users, USER_COLS);
+    var user = userByLogin_(users, email);     // the code may have gone to the backup email
+    var stamp = new Date();
+    var isNew = !user, had = !!(user && user.passwordHash);
+    if (isNew) {
+      appendRow_(users, { email: email, lang: req.lang === 'en' ? 'en' : 'th', createdAt: stamp, lastLoginAt: stamp, passwordHash: pwHash_(pw), passwordSetAt: stamp });
+    } else {
+      checkNewPassword_(pw, user.email);
+      updateRow_(users, user, { passwordHash: pwHash_(pw), passwordSetAt: stamp, lastLoginAt: stamp });
+    }
+    var main = isNew ? email : email_(user.email, true);
+    cache.remove(key);
+    cache.remove('pwfail:' + main);
+    cache.remove('pwfail:' + email);
+    deleteRows_(table_(SHEETS.sessions, SESSION_COLS), function (r) { return r.email === main; });
+    var u = find_(table_(SHEETS.users, USER_COLS), 'email', main);
+    securityMail_(u, had ? 'pwChanged' : 'pwSet');
+    return { ok: true, token: createSession_(main), isNew: isNew, fresh: false, profile: profile_(u) };
+  });
+}
+
+// Set or change the password. With a password already set, the current one is needed
+// unless the person signed in with an emailed code in the last few minutes (forgot password).
+function setPassword_(req) {
+  var email = auth_(req.token);
+  var pw = checkNewPassword_(req.password, email);
+  var fresh = isFresh_(req.token);
+  var failed = pwFailGuard_(email);
+  return withLock_(function () {
+    var users = table_(SHEETS.users, USER_COLS);
+    var user = find_(users, 'email', email);
+    if (!user) fail_('session_expired');
+    var had = !!user.passwordHash;
+    if (had && !fresh && !pwCheck_(String(req.current || ''), user.passwordHash)) { failed(); fail_('password_current'); }
+    updateRow_(users, user, { passwordHash: pwHash_(pw), passwordSetAt: new Date() });
+    user = find_(table_(SHEETS.users, USER_COLS), 'email', email);
+    endOtherSessions_(email, req.token);
+    securityMail_(user, had ? 'pwChanged' : 'pwSet');
+    return { ok: true, profile: profile_(user) };
+  });
+}
+
+// Back to emailed codes only
+function removePassword_(req) {
+  var email = auth_(req.token);
+  var fresh = isFresh_(req.token);
+  var failed = pwFailGuard_(email);
+  return withLock_(function () {
+    var users = table_(SHEETS.users, USER_COLS);
+    var user = find_(users, 'email', email);
+    if (!user) fail_('session_expired');
+    if (!user.passwordHash) return { ok: true, profile: profile_(user) };
+    if (!fresh && !pwCheck_(String(req.current || ''), user.passwordHash)) { failed(); fail_('password_current'); }
+    updateRow_(users, user, { passwordHash: '', passwordSetAt: '' });
+    user = find_(table_(SHEETS.users, USER_COLS), 'email', email);
+    securityMail_(user, 'pwRemoved');
+    return { ok: true, profile: profile_(user) };
+  });
+}
+
+function endOtherSessions_(email, keepToken) {
+  var keep = hash_(String(keepToken || ''));
+  deleteRows_(table_(SHEETS.sessions, SESSION_COLS), function (r) { return r.email === email && r.tokenHash !== keep; });
+}
+
+// An email that is not free to be someone's backup / new address
+function emailTaken_(users, email, exceptUser) {
+  return users.rows.some(function (r) {
+    if (!r.email || r === exceptUser) return false;
+    return email_(r.email, true) === email || email_(r.backupEmail, true) === email;
+  });
+}
+
+// Step 1: send a code to the new backup email
+function requestBackupCode_(req) {
+  var email = auth_(req.token);
+  var backup = email_(req.backupEmail);
+  if (backup === email) fail_('backup_same');
+  var lang = req.lang === 'en' ? 'en' : 'th';
+  var cache = CacheService.getScriptCache();
+  var now = Date.now();
+  return withLock_(function () {
+    var users = table_(SHEETS.users, USER_COLS);
+    var me = find_(users, 'email', email);
+    if (!me) fail_('session_expired');
+    if (emailTaken_(users, backup, me)) fail_('email_in_use');
+    var prev = parse_(cache.get('bcode:' + email));
+    if (prev && now - prev.sentAt < CONFIG.codeResendSec * 1000) fail_('too_soon');
+    var sent = parseInt(cache.get('sent:' + backup) || '0', 10);
+    if (sent >= CONFIG.codeMaxPerHour) fail_('rate_limited');
+    var code = randomCode_();
+    cache.put('bcode:' + email, JSON.stringify({ h: hash_(code + '|' + backup), b: backup, a: 0, sentAt: now, exp: now + CONFIG.codeTtlMin * 60000 }), CONFIG.codeTtlMin * 60);
+    cache.put('sent:' + backup, String(sent + 1), 3600);
+    sendCodeMail_(backup, code, lang, 'backup');
+    return { ok: true, resendSec: CONFIG.codeResendSec };
+  });
+}
+
+// Step 2: the code proves the person can read the backup inbox
+function verifyBackupCode_(req) {
+  var email = auth_(req.token);
+  var code = String(req.code || '').replace(/\s/g, '');
+  if (!/^\d{6}$/.test(code)) fail_('code_invalid');
+  var cache = CacheService.getScriptCache();
+  var key = 'bcode:' + email;
+  return withLock_(function () {
+    var entry = parse_(cache.get(key));
+    var now = Date.now();
+    if (!entry || now > entry.exp) fail_('code_expired');
+    if (entry.a >= CONFIG.codeMaxAttempts) fail_('too_many_attempts');
+    if (hash_(code + '|' + entry.b) !== entry.h) {
+      entry.a += 1;
+      cache.put(key, JSON.stringify(entry), Math.max(1, Math.floor((entry.exp - now) / 1000)));
+      fail_(entry.a >= CONFIG.codeMaxAttempts ? 'too_many_attempts' : 'code_invalid');
+    }
+    cache.remove(key);
+    var users = table_(SHEETS.users, USER_COLS);
+    var user = find_(users, 'email', email);
+    if (!user) fail_('session_expired');
+    if (emailTaken_(users, entry.b, user)) fail_('email_in_use');
+    updateRow_(users, user, { backupEmail: entry.b });
+    user = find_(table_(SHEETS.users, USER_COLS), 'email', email);
+    securityMail_(user, 'backupSet');
+    return { ok: true, profile: profile_(user) };
+  });
+}
+
+function removeBackupEmail_(req) {
+  var email = auth_(req.token);
+  return withLock_(function () {
+    var users = table_(SHEETS.users, USER_COLS);
+    var user = find_(users, 'email', email);
+    if (!user) fail_('session_expired');
+    if (user.backupEmail) {
+      updateRow_(users, user, { backupEmail: '' });
+      user = find_(table_(SHEETS.users, USER_COLS), 'email', email);
+      securityMail_(user, 'backupRemoved');
+    }
+    return { ok: true, profile: profile_(user) };
+  });
+}
+
+// Admin: move an account to a new email (the person lost the old inbox).
+// Check who they are first (LINE / phone). Jobs and code uses move with the account;
+// the person is signed out everywhere and both addresses get a notice.
+function adminChangeEmail_(req) {
+  var me = need_(req, ['admin']);
+  var from = email_(req.email), to = email_(req.newEmail);
+  if (from === to) fail_('invalid_email');
+  if (bootstrapAdmins_().indexOf(from) > -1) fail_('fixed_admin');
+  var moved = [], after = null;
+  withLock_(function () {
+    var users = table_(SHEETS.users, USER_COLS);
+    var u = find_(users, 'email', from);
+    if (!u) fail_('not_found');
+    if (emailTaken_(users, to, u)) fail_('email_in_use');
+    var changes = { email: to };
+    if (email_(u.backupEmail, true) === to) changes.backupEmail = '';
+    updateRow_(users, u, changes);
+    if (ss_().getSheetByName(SHEETS.jobs)) {
+      var jobs = table_(SHEETS.jobs, JOB_COLS);
+      jobs.rows.forEach(function (r) {
+        if (r.jobNo && email_(r.email, true) === from) { updateRow_(jobs, r, { email: to }); moved.push(r); }
+      });
+    }
+    if (ss_().getSheetByName(SHEETS.couponUses)) {
+      var uses = table_(SHEETS.couponUses, COUPON_USE_COLS);
+      uses.rows.forEach(function (r) { if (email_(r.email, true) === from) updateRow_(uses, r, { email: to }); });
+    }
+    deleteRows_(table_(SHEETS.sessions, SESSION_COLS), function (r) { return r.email === from; });
+    after = find_(table_(SHEETS.users, USER_COLS), 'email', to);
+  });
+  // note_ takes the lock itself, so it runs after ours is released
+  moved.forEach(function (r) { note_(r, me.email, 'อีเมลลูกค้าเปลี่ยนจาก ' + from + ' เป็น ' + to); });
+  securityMail_(after, 'emailChanged', to);
+  securityMail_(after, 'emailChanged', from);
+  return adminUsers_(req);
+}
+
+// Short security notices (sent to the account's email unless `to` is given)
+function securityMail_(user, kind, to) {
+  if (!user) return;
+  var th = user.lang !== 'en';
+  var email = String(user.email || '');
+  var T = {
+    pwSet:        ['ตั้งรหัสผ่านแล้ว', 'Password set', 'บัญชีของท่านตั้งรหัสผ่านแล้ว ต่อไปเข้าสู่ระบบด้วยรหัสผ่าน หรือรหัสทางอีเมลก็ได้', 'A password was set on your account. You can now sign in with it, or with an emailed code.'],
+    pwChanged:    ['เปลี่ยนรหัสผ่านแล้ว', 'Password changed', 'รหัสผ่านของบัญชีถูกเปลี่ยน และอุปกรณ์อื่นที่เข้าสู่ระบบอยู่ถูกออกจากระบบแล้ว', 'Your password was changed and other devices were signed out.'],
+    pwRemoved:    ['ลบรหัสผ่านแล้ว', 'Password removed', 'บัญชีของท่านไม่มีรหัสผ่านแล้ว เข้าสู่ระบบด้วยรหัสทางอีเมลตามเดิม', 'Your account no longer has a password. Sign in with an emailed code.'],
+    backupSet:    ['เพิ่มอีเมลสำรองแล้ว', 'Backup email added', 'เพิ่มอีเมลสำรองแล้ว: ' + String(user.backupEmail || '') + ' — ใช้รับรหัสเข้าสู่ระบบได้หากเข้าอีเมลหลักไม่ได้', 'Backup email added: ' + String(user.backupEmail || '') + ' — it can receive sign-in codes if you cannot reach your main inbox.'],
+    backupRemoved:['ลบอีเมลสำรองแล้ว', 'Backup email removed', 'อีเมลสำรองถูกลบออกจากบัญชีแล้ว', 'The backup email was removed from your account.'],
+    emailChanged: ['อีเมลบัญชีถูกเปลี่ยน', 'Account email changed', 'ผู้ดูแลระบบเปลี่ยนอีเมลของบัญชีเป็น ' + email + ' ตามคำขอ ประวัติงานย้ายไปด้วยแล้ว', 'At your request, our team changed the account email to ' + email + '. Your job history moved with it.']
+  }[kind];
+  if (!T) return;
+  var title = th ? T[0] : T[1], line = th ? T[2] : T[3];
+  var small = th ? 'หากท่านไม่ได้ทำรายการนี้ โปรดติดต่อเราทันทีทาง LINE ' + CONFIG.lineId + ' หรือโทร ' + CONFIG.contactPhone
+                 : 'If this was not you, contact us now on LINE ' + CONFIG.lineId + ' or call ' + CONFIG.contactPhone + '.';
+  try {
+    MailApp.sendEmail({
+      to: to || email,
+      subject: CONFIG.serviceName + ': ' + title,
+      body: line + '\n\n' + small + '\n\n— ' + CONFIG.serviceName,
+      htmlBody: mailLayout_({ th: th, preheader: line, title: title, intro: [esc_(line)], small: esc_(small) }),
+      name: CONFIG.serviceName
+    });
+  } catch (e) { console.log('securityMail_: ' + e); }
+}
+
 function profile_(u) {
   var email = String(u.email || '');
   return {
@@ -426,7 +771,9 @@ function profile_(u) {
     phone: String(u.phone || ''),
     nameSpelling: String(u.nameSpelling || ''),
     langPair: String(u.langPair || ''),
-    lang: u.lang === 'en' ? 'en' : 'th'
+    lang: u.lang === 'en' ? 'en' : 'th',
+    hasPassword: !!String(u.passwordHash || ''),
+    backupEmail: String(u.backupEmail || '')
   };
 }
 
@@ -919,6 +1266,7 @@ function adminUsers_(req) {
   var users = table_(SHEETS.users, USER_COLS).rows.filter(function (u) { return u.email; }).map(function (u) {
     var e = email_(u.email, true);
     return { email: e, name: String(u.name || ''), phone: String(u.phone || ''), role: roleOf_(e, u),
+             backupEmail: String(u.backupEmail || ''), hasPassword: !!String(u.passwordHash || ''),
              customerType: typeCode_(u.customerType), jobs: counts[e] || 0,
              createdAt: day_(u.createdAt, tz), lastLoginAt: day_(u.lastLoginAt, tz),
              fixedAdmin: bootstrapAdmins_().indexOf(e) > -1 };
@@ -1878,20 +2226,24 @@ function auth_(token) {
    Email
    ====================================================================== */
 
-function sendCodeMail_(email, code, lang) {
+function sendCodeMail_(email, code, lang, kind) {
   var th = lang !== 'en';
-  var subject = th
-    ? 'รหัสเข้าสู่ระบบ ' + CONFIG.serviceName + ': ' + code
-    : CONFIG.serviceName + ' sign-in code: ' + code;
+  var W = {   // [subject TH, subject EN, line TH, line EN, title TH, title EN]
+    backup: ['รหัสยืนยันอีเมลสำรอง', 'backup email code', 'รหัสยืนยันอีเมลสำรองของท่านคือ', 'Your code to confirm this backup email is', 'ยืนยันอีเมลสำรอง', 'Confirm your backup email'],
+    reset:  ['รหัสตั้งรหัสผ่านใหม่', 'password reset code', 'รหัสสำหรับตั้งรหัสผ่านใหม่ของท่านคือ', 'Your code to set a new password is', 'ตั้งรหัสผ่านใหม่', 'Set a new password'],
+    login:  ['รหัสเข้าสู่ระบบ', 'sign-in code', 'รหัสเข้าสู่ระบบของท่านคือ', 'Your sign-in code is', 'รหัสเข้าสู่ระบบของท่าน', 'Your sign-in code']
+  }[kind || 'login'] || null;
+  W = W || ['รหัสเข้าสู่ระบบ', 'sign-in code', 'รหัสเข้าสู่ระบบของท่านคือ', 'Your sign-in code is', 'รหัสเข้าสู่ระบบของท่าน', 'Your sign-in code'];
+  var subject = th ? W[0] + ' ' + CONFIG.serviceName + ': ' + code : CONFIG.serviceName + ' ' + W[1] + ': ' + code;
   var lines = th
-    ? ['รหัสเข้าสู่ระบบของท่านคือ', code, 'รหัสนี้ใช้ได้ ' + CONFIG.codeTtlMin + ' นาที และใช้ได้ครั้งเดียว',
-       'หากท่านไม่ได้ขอรหัสนี้ โปรดเพิกเฉยต่ออีเมลฉบับนี้']
-    : ['Your sign-in code is', code, 'It is valid for ' + CONFIG.codeTtlMin + ' minutes and can be used once.',
-       'If you did not ask for this code, you can ignore this email.'];
+    ? [W[2], code, 'รหัสนี้ใช้ได้ ' + CONFIG.codeTtlMin + ' นาที และใช้ได้ครั้งเดียว',
+       'หากท่านไม่ได้ขอรหัสนี้ โปรดเพิกเฉยต่ออีเมลฉบับนี้' + (kind === 'reset' ? ' รหัสผ่านเดิมยังใช้ได้ตามปกติ' : '')]
+    : [W[3], code, 'It is valid for ' + CONFIG.codeTtlMin + ' minutes and can be used once.',
+       'If you did not ask for this code, you can ignore this email.' + (kind === 'reset' ? ' Your current password still works.' : '')];
   var html = mailLayout_({
     th: th,
     preheader: lines[0] + ' ' + code,
-    title: th ? 'รหัสเข้าสู่ระบบของท่าน' : 'Your sign-in code',
+    title: th ? W[4] : W[5],
     intro: [esc_(lines[0]) + ':',
       '<span style="display:inline-block;margin:4px 0;padding:14px 26px;border-radius:12px;background:#eef2f8;border:1px dashed #b9c1ce;' +
       'font-size:34px;font-weight:700;letter-spacing:8px;color:#01417b;font-family:Consolas,Menlo,monospace">' + code + '</span>',

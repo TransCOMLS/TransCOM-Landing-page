@@ -13,6 +13,7 @@
   var CFG = App.config;
   var t = App.t;
   var TOKEN_KEY = "tr_session";
+  var MODE_KEY = "tr_login";     // "password" = this device last signed in with a password
 
   var state = {
     token: null,        // kept in localStorage (key tr_session) when the browser allows it
@@ -20,7 +21,12 @@
     jobs: [],
     pendingEmail: "",
     resendAt: 0,
-    isNew: false
+    isNew: false,
+    fresh: false,       // signed in with an emailed code a few minutes ago (new password without the old one)
+    mode: "code",       // sign-in form: "code" (emailed code) or "password"
+    bkPending: "",      // backup email waiting for its confirmation code
+    purpose: "login",   // emailed code for "login" or "reset" (forgot password)
+    resetToken: ""      // forgot password: permission to set a new one (no session until then)
   };
 
   function $(sel) { return document.querySelector(sel); }
@@ -77,6 +83,8 @@
     saveToken(null);
     state.profile = null;
     state.jobs = [];
+    state.fresh = false;
+    state.bkPending = "";
     render();
     if (message) App.showStatus($("#acct-signin-status"), "", message);
   }
@@ -129,6 +137,7 @@
       $("#acct-hello").textContent = name ? t("acct.hello", { name: name }) : t("acct.helloNoName");
       show($("#acct-welcome"), state.isNew && !state.profile.name);
       fillProfileForm();
+      renderSecurity();
       renderJobs();
     }
     renderPrefillHint();
@@ -267,11 +276,20 @@
     updateResend();
   }
 
+  function codeStepText() {
+    var reset = state.purpose === "reset";
+    $("#acct-code-sent").textContent = t(reset ? "acct.resetSent" : "acct.codeSent", { email: state.pendingEmail });
+    var v = $("#a-verify");
+    v.setAttribute("data-i18n", reset ? "acct.resetVerify" : "acct.verify");
+    if (!v.disabled) v.textContent = t(reset ? "acct.resetVerify" : "acct.verify");
+  }
+
   function showCodeStep(email) {
     state.pendingEmail = email;
     show($("#acct-email-form"), false);
+    show($("#acct-reset-form"), false);
     show($("#acct-code-form"), true);
-    $("#acct-code-sent").textContent = t("acct.codeSent", { email: email });
+    codeStepText();
     App.showStatus($("#acct-signin-status"), "", "");
     var code = $("#a-code");
     code.value = "";
@@ -280,15 +298,18 @@
   }
 
   function showEmailStep() {
+    state.resetToken = "";
     show($("#acct-code-form"), false);
+    show($("#acct-reset-form"), false);
     show($("#acct-email-form"), true);
     App.showStatus($("#acct-signin-status"), "", "");
     $("#a-email").focus();
   }
 
-  function requestCode(email, btn) {
+  function requestCode(email, btn, purpose) {
+    state.purpose = purpose === "reset" ? "reset" : "login";
     busy(btn, true);
-    return api("requestCode", { email: email })
+    return api("requestCode", { email: email, purpose: state.purpose })
       .then(function (res) {
         showCodeStep(email);
         startResendTimer(res.resendSec);
@@ -300,6 +321,70 @@
         busy(btn, false);
         updateResend();   // the resend button has a countdown, not a fixed label
       });
+  }
+
+  // Signed in (emailed code or password)
+  function signedIn(res) {
+    saveToken(res.token);
+    state.profile = res.profile;
+    state.isNew = !!res.isNew;
+    state.fresh = !!res.fresh;
+    state.jobs = [];
+    clearInterval(resendTimer);
+    show($("#acct-code-form"), false);
+    show($("#acct-reset-form"), false);
+    show($("#acct-email-form"), true);
+    $("#a-password").value = "";
+    render();
+    loadAccount();          // job history
+    var h = $("#acct-hello");
+    if (h) { h.tabIndex = -1; h.focus(); }
+  }
+
+  function setMode(mode) {
+    state.mode = mode === "password" ? "password" : "code";
+    var pw = state.mode === "password";
+    show($("#a-password-field"), pw);
+    var submit = $("#a-submit"), toggle = $("#a-mode");
+    submit.setAttribute("data-i18n", pw ? "acct.signInPw" : "acct.sendCode");
+    submit.textContent = t(pw ? "acct.signInPw" : "acct.sendCode");
+    show($("#a-forgot"), pw);
+    toggle.setAttribute("data-i18n", pw ? "acct.useCode" : "acct.usePassword");
+    toggle.textContent = t(pw ? "acct.useCode" : "acct.usePassword");
+    App.setFieldError($("#a-password"), null);
+    App.showStatus($("#acct-signin-status"), "", "");
+  }
+
+  // Forgot password: after the code, a new password must be set before the account opens
+  function showResetStep() {
+    show($("#acct-code-form"), false);
+    show($("#acct-email-form"), false);
+    show($("#acct-reset-form"), true);
+    $("#acct-reset-note").textContent = t("acct.resetNote", { email: state.pendingEmail });
+    $("#a-reset-user").value = state.pendingEmail;
+    ["#a-new", "#a-new2"].forEach(function (sel) { var i = $(sel); i.value = ""; App.setFieldError(i, null); });
+    App.showStatus($("#acct-signin-status"), "", "");
+    $("#a-new").focus();
+  }
+
+  function weakPassword(pw, email) {
+    return pw.length < 8 || pw.length > 100 || !/\d/.test(pw) || !/[^\d\s]/.test(pw) || pw.toLowerCase() === String(email || "").toLowerCase();
+  }
+
+  function passwordLogin(email, btn) {
+    var input = $("#a-password");
+    var pw = input.value;
+    if (!pw) { App.setFieldError(input, [t("err.required")]); input.focus(); return; }
+    busy(btn, true);
+    api("login", { email: email, password: pw })
+      .then(function (res) {
+        App.storage.set(MODE_KEY, "password");
+        signedIn(res);
+      }, function (err) {
+        if (err.code === "login_invalid") { App.setFieldError(input, [errorText(err)]); input.select(); }
+        else App.showStatus($("#acct-signin-status"), "error", errorText(err));
+      })
+      .then(function () { busy(btn, false); });
   }
 
   function initSignIn() {
@@ -314,9 +399,55 @@
       if (!email) { App.setFieldError(input, [t("err.required")]); input.focus(); return; }
       if (!App.rules.email.test(email)) { App.setFieldError(input, [t("err.email")]); input.focus(); return; }
       App.setFieldError(input, null);
-      requestCode(email, emailForm.querySelector('button[type="submit"]'));
+      if (state.mode === "password") passwordLogin(email, $("#a-submit"));
+      else requestCode(email, $("#a-submit"));
     });
     $("#a-email").addEventListener("input", function () { App.setFieldError(this, null); });
+    $("#a-password").addEventListener("input", function () { App.setFieldError(this, null); });
+    $("#a-mode").addEventListener("click", function () {
+      setMode(state.mode === "password" ? "code" : "password");
+      // Remember the choice only once a password sign-in works; switching back to codes forgets it
+      if (state.mode === "code") App.storage.remove(MODE_KEY);
+      (state.mode === "password" && $("#a-email").value ? $("#a-password") : $("#a-email")).focus();
+    });
+    setMode(App.storage.get(MODE_KEY) === "password" ? "password" : "code");
+
+    $("#a-forgot").addEventListener("click", function () {
+      var input = $("#a-email");
+      var email = input.value.trim().toLowerCase();
+      if (!email) { App.setFieldError(input, [t("err.required")]); input.focus(); return; }
+      if (!App.rules.email.test(email)) { App.setFieldError(input, [t("err.email")]); input.focus(); return; }
+      App.setFieldError(input, null);
+      requestCode(email, this, "reset");
+    });
+
+    var resetForm = $("#acct-reset-form");
+    ["#a-new", "#a-new2"].forEach(function (sel) {
+      $(sel).addEventListener("input", function () { App.setFieldError(this, null); });
+    });
+    resetForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var nw = $("#a-new"), nw2 = $("#a-new2");
+      if (weakPassword(nw.value, state.pendingEmail)) { App.setFieldError(nw, [t("acct.err.password_weak")]); nw.focus(); return; }
+      if (nw.value !== nw2.value) { App.setFieldError(nw2, [t("sec.mismatch")]); nw2.focus(); return; }
+      var btn = $("#a-reset-save");
+      busy(btn, true);
+      api("resetPassword", { resetToken: state.resetToken, password: nw.value })
+        .then(function (res) {
+          App.storage.set(MODE_KEY, "password");
+          state.resetToken = "";
+          nw.value = nw2.value = "";
+          show(resetForm, false);
+          setMode("password");
+          signedIn(res);
+        }, function (err) {
+          if (err.code === "password_weak") { App.setFieldError(nw, [errorText(err)]); nw.focus(); }
+          else if (err.code === "reset_expired") { showEmailStep(); App.showStatus($("#acct-signin-status"), "error", errorText(err)); }
+          else App.showStatus($("#acct-signin-status"), "error", errorText(err));
+        })
+        .then(function () { busy(btn, false); });
+    });
+    $("#a-reset-cancel").addEventListener("click", showEmailStep);
 
     var codeInput = $("#a-code");
     codeInput.addEventListener("input", function () {
@@ -331,19 +462,13 @@
       if (code.length !== 6) { App.setFieldError(codeInput, [t("acct.err.code_format")]); codeInput.focus(); return; }
       var btn = codeForm.querySelector('button[type="submit"]');
       busy(btn, true);
-      api("verifyCode", { email: state.pendingEmail, code: code })
+      var reset = state.purpose === "reset";
+      api(reset ? "verifyResetCode" : "verifyCode", { email: state.pendingEmail, code: code })
         .then(function (res) {
-          saveToken(res.token);
-          state.profile = res.profile;
-          state.isNew = !!res.isNew;
-          state.jobs = [];
+          if (!reset) { signedIn(res); return; }
           clearInterval(resendTimer);
-          show($("#acct-code-form"), false);
-          show($("#acct-email-form"), true);
-          render();
-          loadAccount();          // job history
-          var h = $("#acct-hello");
-          if (h) { h.tabIndex = -1; h.focus(); }
+          state.resetToken = res.resetToken;
+          showResetStep();
         }, function (err) {
           if (err.code === "code_invalid") App.setFieldError(codeInput, [errorText(err)]);
           else App.showStatus($("#acct-signin-status"), "error", errorText(err));
@@ -353,7 +478,7 @@
     });
 
     $("#a-resend").addEventListener("click", function () {
-      requestCode(state.pendingEmail, this);
+      requestCode(state.pendingEmail, this, state.purpose);
     });
     $("#a-change").addEventListener("click", showEmailStep);
   }
@@ -365,6 +490,7 @@
       .then(function (res) {
         state.profile = res.profile;
         state.jobs = res.jobs || [];
+        state.fresh = !!res.fresh;
         render();
         if (document.querySelector("#submit:not([hidden])")) prefillJobForm();
       }, function (err) {
@@ -453,6 +579,189 @@
     });
   }
 
+  /* ---------- sign-in security: optional password + backup email ---------- */
+  function renderSecurity() {
+    var p = state.profile;
+    if (!p || !$("#acct-security")) return;
+    var has = !!p.hasPassword;
+    var pf = $("#sec-pw-flag");
+    pf.className = "flag" + (has ? " flag-ok" : "");
+    pf.textContent = t(has ? "sec.pwOn" : "sec.pwOff");
+    $("#sec-pw-note").textContent = t(has ? "sec.pwNoteOn" : "sec.pwNoteOff");
+    $("#sec-user").value = p.email || "";
+    // The current password is needed to change it, unless the person just signed in with an emailed code
+    show($("#sec-cur-field"), has && !state.fresh);
+    var save = $("#sec-pw-save");
+    save.setAttribute("data-i18n", has ? "sec.changePw" : "sec.setPw");
+    if (!save.disabled) save.textContent = t(has ? "sec.changePw" : "sec.setPw");
+    show($("#sec-pw-remove"), has);
+
+    var bk = p.backupEmail || "";
+    var bf = $("#sec-bk-flag");
+    bf.className = "flag" + (bk ? " flag-ok" : "");
+    bf.textContent = t(bk ? "sec.bkOn" : "sec.bkOff");
+    var cur = $("#sec-bk-current");
+    cur.textContent = bk ? t("sec.bkCurrent", { email: bk }) : "";
+    show(cur, !!bk);
+    $("#sec-bk-form").querySelector("label").textContent = t(bk ? "sec.bkEmailNew" : "sec.bkEmail");
+    show($("#sec-bk-remove"), !!bk);
+    if (state.bkPending) $("#sec-bk-sent").textContent = t("sec.bkSent", { email: state.bkPending });
+  }
+
+  function initSecurity() {
+    var pwForm = $("#sec-pw-form");
+    if (!pwForm) return;
+    var pwStatus = $("#sec-pw-status");
+    var cur = $("#sec-cur"), nw = $("#sec-new"), nw2 = $("#sec-new2");
+
+    $("#sec-show").addEventListener("change", function () {
+      var type = this.checked ? "text" : "password";
+      [cur, nw, nw2].forEach(function (i) { i.type = type; });
+    });
+    [cur, nw, nw2].forEach(function (i) {
+      i.addEventListener("input", function () { App.setFieldError(i, null); App.showStatus(pwStatus, "", ""); });
+    });
+
+    function weak(pw) { return weakPassword(pw, state.profile ? state.profile.email : ""); }
+
+    pwForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var needCur = !$("#sec-cur-field").hidden;
+      if (needCur && !cur.value) { App.setFieldError(cur, [t("err.required")]); cur.focus(); return; }
+      if (weak(nw.value)) { App.setFieldError(nw, [t("acct.err.password_weak")]); nw.focus(); return; }
+      if (nw.value !== nw2.value) { App.setFieldError(nw2, [t("sec.mismatch")]); nw2.focus(); return; }
+      var btn = $("#sec-pw-save");
+      busy(btn, true);
+      api("setPassword", { token: state.token, password: nw.value, current: needCur ? cur.value : "" })
+        .then(function (res) {
+          state.profile = res.profile;
+          cur.value = nw.value = nw2.value = "";
+          busy(btn, false);
+          render();
+          App.showStatus(pwStatus, "success", t("sec.pwSaved"));
+        }, function (err) {
+          busy(btn, false);
+          if (err.code === "password_current") {
+            // The 15 minutes after an emailed-code sign-in ran out: ask for the current password
+            if ($("#sec-cur-field").hidden) { state.fresh = false; renderSecurity(); }
+            App.setFieldError(cur, [errorText(err)]);
+            cur.focus();
+          }
+          else if (err.code === "password_weak") { App.setFieldError(nw, [errorText(err)]); nw.focus(); }
+          else handleAuthError(err, pwStatus);
+        });
+    });
+
+    $("#sec-pw-remove").addEventListener("click", function () {
+      var needCur = !$("#sec-cur-field").hidden;
+      if (needCur && !cur.value) { App.setFieldError(cur, [t("err.required")]); cur.focus(); return; }
+      if (!window.confirm(t("sec.removeConfirm"))) return;
+      var btn = this;
+      btn.disabled = true;
+      api("removePassword", { token: state.token, current: needCur ? cur.value : "" })
+        .then(function (res) {
+          state.profile = res.profile;
+          cur.value = "";
+          App.storage.remove(MODE_KEY);
+          render();
+          App.showStatus(pwStatus, "success", t("sec.pwRemoved"));
+        }, function (err) {
+          if (err.code === "password_current") {
+            if ($("#sec-cur-field").hidden) { state.fresh = false; renderSecurity(); }
+            App.setFieldError(cur, [errorText(err)]);
+            cur.focus();
+          } else handleAuthError(err, pwStatus);
+        })
+        .then(function () { btn.disabled = false; });
+    });
+
+    // Backup email: send a code, then confirm it
+    var bkForm = $("#sec-bk-form"), bkCodeForm = $("#sec-bk-code-form"), bkStatus = $("#sec-bk-status");
+    var bkInput = $("#sec-bk"), bkCode = $("#sec-bk-code");
+    bkInput.addEventListener("input", function () { App.setFieldError(bkInput, null); App.showStatus(bkStatus, "", ""); });
+    bkCode.addEventListener("input", function () {
+      var d = bkCode.value.replace(/\D/g, "").slice(0, 6);
+      if (d !== bkCode.value) bkCode.value = d;
+      App.setFieldError(bkCode, null);
+    });
+    bkForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var v = bkInput.value.trim().toLowerCase();
+      if (!v) { App.setFieldError(bkInput, [t("err.required")]); bkInput.focus(); return; }
+      if (!App.rules.email.test(v)) { App.setFieldError(bkInput, [t("err.email")]); bkInput.focus(); return; }
+      if (state.profile && v === state.profile.email) { App.setFieldError(bkInput, [t("acct.err.backup_same")]); bkInput.focus(); return; }
+      var btn = $("#sec-bk-send");
+      busy(btn, true);
+      api("requestBackupCode", { token: state.token, backupEmail: v })
+        .then(function () {
+          state.bkPending = v;
+          $("#sec-bk-sent").textContent = t("sec.bkSent", { email: v });
+          show(bkForm, false);
+          show(bkCodeForm, true);
+          App.showStatus(bkStatus, "", "");
+          bkCode.value = "";
+          bkCode.focus();
+        }, function (err) {
+          if (err.code === "email_in_use" || err.code === "backup_same" || err.code === "invalid_email") { App.setFieldError(bkInput, [errorText(err)]); bkInput.focus(); }
+          else handleAuthError(err, bkStatus);
+        })
+        .then(function () { busy(btn, false); });
+    });
+    function closeCode() {
+      state.bkPending = "";
+      show(bkCodeForm, false);
+      show(bkForm, true);
+    }
+    $("#sec-bk-cancel").addEventListener("click", function () { closeCode(); bkInput.focus(); });
+    bkCodeForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var code = bkCode.value.replace(/\D/g, "");
+      if (code.length !== 6) { App.setFieldError(bkCode, [t("acct.err.code_format")]); bkCode.focus(); return; }
+      var btn = bkCodeForm.querySelector('button[type="submit"]');
+      busy(btn, true);
+      api("verifyBackupCode", { token: state.token, code: code })
+        .then(function (res) {
+          state.profile = res.profile;
+          bkInput.value = "";
+          closeCode();
+          render();
+          App.showStatus(bkStatus, "success", t("sec.bkSaved"));
+        }, function (err) {
+          if (err.code === "code_invalid") { App.setFieldError(bkCode, [errorText(err)]); bkCode.select(); }
+          else {
+            if (err.code === "code_expired" || err.code === "too_many_attempts") closeCode();
+            handleAuthError(err, bkStatus);
+          }
+        })
+        .then(function () { busy(btn, false); });
+    });
+    $("#sec-bk-remove").addEventListener("click", function () {
+      if (!window.confirm(t("sec.bkRemoveConfirm"))) return;
+      var btn = this;
+      btn.disabled = true;
+      api("removeBackupEmail", { token: state.token })
+        .then(function (res) {
+          state.profile = res.profile;
+          render();
+          App.showStatus(bkStatus, "success", t("sec.bkRemoved"));
+        }, function (err) { handleAuthError(err, bkStatus); })
+        .then(function () { btn.disabled = false; });
+    });
+  }
+
+  // Eye buttons next to password fields
+  function initPwToggles() {
+    $all("[data-pw-toggle]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var input = document.getElementById(b.getAttribute("data-pw-toggle"));
+        var showIt = input.type === "password";
+        input.type = showIt ? "text" : "password";
+        b.setAttribute("aria-pressed", showIt ? "true" : "false");
+        input.focus();
+      });
+    });
+  }
+
   // After signing out, don't leave the account's details sitting in the job form
   function clearJobFormFromAccount() {
     var p = state.profile;
@@ -473,15 +782,17 @@
 
     initSignIn();
     initHome();
+    initSecurity();
+    initPwToggles();
     render();
     updateResend();
     loadAccount();
 
     document.addEventListener("langchange", function () {
       render();
-      if (state.pendingEmail && !$("#acct-code-form").hidden) {
-        $("#acct-code-sent").textContent = t("acct.codeSent", { email: state.pendingEmail });
-      }
+      setMode(state.mode);
+      if (state.pendingEmail && !$("#acct-code-form").hidden) codeStepText();
+      if (!$("#acct-reset-form").hidden) $("#acct-reset-note").textContent = t("acct.resetNote", { email: state.pendingEmail });
       updateResend();
     });
     document.addEventListener("tabchange", function (e) {

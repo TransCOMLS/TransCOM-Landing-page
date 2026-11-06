@@ -405,6 +405,14 @@
       w.appendChild(el("p", "dash-attention-title", t("dash.toReview", { n: waiting.length })));
       w.appendChild(jobList(waiting, function (j) { show("c-job", j.jobNo); }));
     }
+    // No password and no backup email yet: suggest one, so losing the inbox doesn't lock them out
+    var me = App.account.profile() || {};
+    if (!me.hasPassword && !me.backupEmail) {
+      var n = card(box);
+      n.classList.add("dash-nudge");
+      n.appendChild(el("p", "dash-nudge-text", t("sec.nudge")));
+      n.appendChild(button(t("sec.nudgeBtn"), "btn btn-outline btn-sm", function () { show("settings"); }));
+    }
     var grid = el("div", "dash-stats");
     stat(grid, jobs.filter(function (j) { return OPEN.indexOf(j.status) > -1; }).length, "dash.stat.open", "", function () { show("c-orders", "open"); });
     stat(grid, jobs.filter(function (j) { return j.status === "quoted"; }).length, "dash.stat.toPay", "warn", function () { show("c-orders", "open"); });
@@ -855,6 +863,33 @@
         var who = el("div", "dash-user-who");
         who.appendChild(el("span", "dash-user-name", u.name || u.email));
         who.appendChild(el("span", "dash-user-meta", (u.name ? u.email + " · " : "") + t("dash.jobsN", { n: u.jobs }) + (u.lastLoginAt ? " · " + t("dash.lastLogin", { date: day(u.lastLoginAt) }) : "")));
+        var sec = [];
+        if (u.hasPassword) sec.push(t("dash.hasPw"));
+        if (u.backupEmail) sec.push(t("dash.backupShort", { email: u.backupEmail }));
+        if (sec.length) who.appendChild(el("span", "dash-user-meta", sec.join(" · ")));
+        // Change the account email (customer lost the inbox) — not for the fixed admins
+        if (!u.fixedAdmin) {
+          var chg = el("details", "dash-email-change");
+          chg.appendChild(el("summary", "btn-link", t("dash.changeEmail")));
+          chg.appendChild(el("p", "note", t("dash.changeEmailHint")));
+          var crow = el("div", "dash-toolbar");
+          var ne = el("input"); ne.type = "email"; ne.inputMode = "email"; ne.placeholder = t("dash.newEmail"); ne.setAttribute("aria-label", t("dash.newEmail") + " " + u.email);
+          var cb = button(t("dash.changeEmail"), "btn btn-outline btn-sm");
+          crow.appendChild(ne); crow.appendChild(cb);
+          chg.appendChild(crow);
+          var cst = el("div", "form-status"); cst.hidden = true; chg.appendChild(cst);
+          cb.addEventListener("click", function () {
+            var to = ne.value.trim().toLowerCase();
+            if (!App.rules.email.test(to)) { status(cst, "error", t("err.email")); ne.focus(); return; }
+            if (!window.confirm(t("dash.changeEmailConfirm", { from: u.email, to: to }))) return;
+            busy(cb, true);
+            api("adminChangeEmail", { email: u.email, newEmail: to }).then(function (res) {
+              users = res.users; paint();
+              App.showStatus(ast, "success", t("dash.emailChanged") + ": " + to);
+            }, function (err) { status(cst, "error", errText(err)); busy(cb, false); });
+          });
+          who.appendChild(chg);
+        }
         li.appendChild(who);
         var ctl = el("div", "dash-user-ctl");
         var role = el("select"); role.setAttribute("aria-label", t("dash.role") + " " + u.email);
