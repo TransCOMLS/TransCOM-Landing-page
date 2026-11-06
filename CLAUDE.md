@@ -59,6 +59,11 @@ provider manages all jobs from one Google Sheet, with no paid server.
   Privacy and terms pages have a contents list (`.doc-toc`, built by `buildTocs()`).
 - `js/terms.js` — `window.TERMS.th` / `.en`: terms and conditions text (legal; edited by
   the owner — do not reword without being asked). `**bold**` is rendered as <strong>.
+  Source: the owner's Claude doc "ข้อกำหนดและเงื่อนไขการรับบริการ TransCOM",
+  https://claude.ai/artifact/WPowapbhHQNouryR3mHDZB (since 2026-11-05 terms.js has LINE removed,
+  at the owner's request; the doc may still mention it). Numbers are written out ("เจ็ด (7)") and
+  do NOT follow config.js — if a policy number changes (retention, revision days, refunds),
+  change the doc, terms.js and the privacy text in i18n.js together. Thai version prevails (9.6).
 - `js/home.js` — home page: instant estimate in the hero (carries into the calculator),
   offers & highlights (`config.promotions`), popular documents (`config.popularDocs`,
   open the calculator), compact steps, FAQ teaser, closing CTA. Also the News page
