@@ -854,6 +854,8 @@ function adminUpdateJob_(req) {
     }
   }
   if (req.cancel === 'approve' || req.cancel === 'reject') {
+    // Once the customer has the translation to check, the job can't be cancelled (stops getting the work for free)
+    if (req.cancel === 'approve' && ['review', 'delivered'].indexOf(statusCode_(r.status)) > -1) fail_('cannot_cancel');
     withLock_(function () {
       var t = table_(SHEETS.jobs, JOB_COLS), row = jobRow_(t, jobNo);
       updateRow_(t, row, { cancelRequest: '' });
@@ -1409,6 +1411,11 @@ function onJobEdit(e) {
 
 // Side effects of a new status (sheet edit or website): delivery dates, then the customer email
 function afterStatus_(jobs, row, code) {
+  // Paid or further on: a cancel request still waiting can't be approved any more (closed automatically)
+  if (['paid', 'inProgress', 'review', 'delivered'].indexOf(code) > -1 && String(row.cancelRequest || '').trim()) {
+    updateRow_(jobs, row, { cancelRequest: '' });
+    try { note_(row, 'system', 'ปิดคำขอยกเลิกอัตโนมัติ (งานถึงขั้น ' + statusLabel_(code) + ' แล้ว)'); } catch (e) { /* note only */ }
+  }
   if (code === 'delivered') {
     var changes = { deliveredAt: new Date() };
     if (!row.deleteBy) changes.deleteBy = addDays_(new Date(), CONFIG.retentionDays);

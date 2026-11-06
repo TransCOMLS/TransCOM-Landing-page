@@ -732,7 +732,8 @@
         cr.appendChild(el("p", null, t("dash.cancelRequested") + " " + j.cancelRequest));
         var cra = el("div", "acct-links");
         var st0 = el("div", "form-status"); st0.hidden = true;
-        ["approve", "reject"].forEach(function (a) {
+        // no cancelling once the customer has the translation to check
+        (j.status === "review" || j.status === "delivered" ? ["reject"] : ["approve", "reject"]).forEach(function (a) {
           var b = button(t("dash.cancel." + a), a === "approve" ? "btn btn-danger btn-sm" : "btn btn-outline btn-sm");
           b.addEventListener("click", function () {
             busy(b, true);

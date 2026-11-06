@@ -129,7 +129,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
   then clears the query); the customer downloads the files and either confirms
   (`confirmTranslation` → confirm_ → delivered + confirmedAt) or asks for corrections
   (`requestRevision` → back to inProgress, `revisionRequest` column, admin + assignee emailed).
-  Emails never carry a one-click confirm any more; old `?confirm=` links still work. Confirming a civil job moves
+  Emails never carry a one-click confirm any more; old `?confirm=` links still work.
+  No cancelling once paid: customers may request it only at received/quoted; reaching paid or later
+  closes a pending request (afterStatus_), and approving is refused at review/delivered (owner: anti-fraud). Confirming a civil job moves
   deleteBy to +15 d; daily `purgeDueJobs` trashes the folder and clears personal columns.
   `setup()` creates sheets, the jobs folder and both triggers (idempotent), rebuilds the
   formula-only "Dashboard" (columns found by header with MATCH) and seeds "Glossary" once. Sheets: "Users", "Jobs",
