@@ -15,8 +15,8 @@
   var App = window.App;
   var CFG = App.config;
   var t = App.t;
-  var STEPS = ["received", "quoted", "paid", "inProgress", "delivered"];
-  var OPEN = ["received", "quoted", "paid", "inProgress"];
+  var STEPS = ["received", "quoted", "paid", "inProgress", "review", "delivered"];
+  var OPEN = ["received", "quoted", "paid", "inProgress", "review"];
   var STATUS_CODES = STEPS.concat(["cancelled"]);
   var TYPES = ["general", "corporate", "agency", "student"];
 
@@ -199,6 +199,8 @@
     state.view = view;
     state.arg = arg;
     draw();
+    // customer lists come from the account: fetch fresh statuses (redraws when they arrive)
+    if (/^c-(overview|orders)$/.test(view)) App.account.reload();
     var main = $(".dash-main");
     if (main && window.innerWidth < 1024) main.scrollIntoView({ block: "start", behavior: "smooth" });
   }
@@ -293,6 +295,7 @@
       var flags = el("span", "job-flags");
       if (extra) extra(j, flags);
       if (j.cancelRequested) flags.appendChild(el("span", "flag flag-warn", t("dash.flag.cancel")));
+      if (j.status === "review" && state.role === "customer") flags.appendChild(el("span", "flag flag-review", t("dash.flag.review")));
       if (flags.childNodes.length) b.appendChild(flags);
       li.appendChild(b);
       ul.appendChild(li);
@@ -389,6 +392,13 @@
   VIEWS["c-overview"] = function (box) {
     var jobs = App.account.jobs();
     heading(box, "dash.overview");
+    var waiting = jobs.filter(function (j) { return j.status === "review"; });
+    if (waiting.length) {
+      var w = card(box);
+      w.classList.add("dash-attention");
+      w.appendChild(el("p", "dash-attention-title", t("dash.toReview", { n: waiting.length })));
+      w.appendChild(jobList(waiting, function (j) { show("c-job", j.jobNo); }));
+    }
     var grid = el("div", "dash-stats");
     stat(grid, jobs.filter(function (j) { return OPEN.indexOf(j.status) > -1; }).length, "dash.stat.open", "", function () { show("c-orders", "open"); });
     stat(grid, jobs.filter(function (j) { return j.status === "quoted"; }).length, "dash.stat.toPay", "warn", function () { show("c-orders", "open"); });
@@ -440,17 +450,22 @@
       var s = steps(j.status);
       if (s) c.appendChild(s);
       c.appendChild(el("p", "track-next" + (j.status === "cancelled" ? " is-cancelled" : ""), t("track.next." + (STATUS_CODES.indexOf(j.status) > -1 ? j.status : "other"))));
+      if (j.revisionRequest && j.status === "inProgress") c.appendChild(el("p", "notice", t("dash.revisionSentNote")));
       c.appendChild(details([
         ["form.category", catName(j.category)], ["form.langPair", pairName(j.langPair)],
         ["form.pages", j.pages || ""], ["track.submittedAt", day(j.submittedAt)],
         ["track.neededBy", day(j.neededBy)], ["track.deliveredAt", day(j.deliveredAt)],
         ["dash.certified", j.certified ? t("form.yes") : t("form.no")]
       ]));
-      // translated files (after delivery)
+      // translated files (from "ready for your review")
       var f = card(box, "dash.translatedFiles");
-      if (j.status !== "delivered") f.appendChild(el("p", "note", t("dash.filesAfterDelivery")));
+      var canSee = j.status === "review" || j.status === "delivered";
+      if (!canSee) f.appendChild(el("p", "note", t("dash.filesAfterDelivery")));
       else if (!j.files.length) f.appendChild(el("p", "note", t("dash.filesByEmail")));
       else f.appendChild(fileList(j.jobNo, j.files, false));
+      // check the translation: confirm, or ask for corrections
+      if (j.confirmedAt) f.appendChild(el("p", "track-confirmed", t("dash.confirmedOn", { date: day(j.confirmedAt) })));
+      else if (j.status === "review" || j.status === "delivered") reviewCard(box, j);
       // cancel request
       if (j.cancelRequested) card(box).appendChild(el("p", "notice notice-warn", t("dash.cancelPending")));
       else if (j.status === "received" || j.status === "quoted") {
@@ -472,6 +487,50 @@
       }
     });
   };
+
+  function reviewCard(box, j) {
+    var c = card(box, "dash.reviewTitle");
+    c.classList.add("dash-review");
+    var inWindow = j.status === "review" || !!j.revisionUntil;
+    c.appendChild(el("p", null, j.status === "review" ? t("dash.reviewHint") : t("dash.deliveredHint", { date: day(j.revisionUntil) })));
+    var st = el("div", "form-status"); st.hidden = true;
+    var row = el("div", "actions");
+    var ok = button(t("dash.confirm"), "btn btn-primary");
+    ok.addEventListener("click", function () {
+      busy(ok, true);
+      api("confirmTranslation", { jobNo: j.jobNo }).then(function () {
+        App.account.reload().then(function () { show("c-job", j.jobNo); });
+      }, function (err) { status(st, "error", errText(err)); busy(ok, false); });
+    });
+    row.appendChild(ok);
+    c.appendChild(row);
+    if (inWindow) {
+      var d = el("details", "dash-revision");
+      d.appendChild(el("summary", null, t("dash.revision")));
+      var ta = el("textarea"); ta.rows = 4; ta.maxLength = 1500; ta.placeholder = t("dash.revisionPh");
+      ta.setAttribute("aria-label", t("dash.revision"));
+      d.appendChild(ta);
+      var send = button(t("dash.revisionSend"), "btn btn-outline btn-sm");
+      send.addEventListener("click", function () {
+        if (ta.value.trim().length < 5) { status(st, "error", t("dash.err.revision_text")); ta.focus(); return; }
+        busy(send, true);
+        api("requestRevision", { jobNo: j.jobNo, text: ta.value.trim() }).then(function () {
+          App.account.reload().then(function () { show("c-job", j.jobNo); });
+        }, function (err) { status(st, "error", errText(err)); busy(send, false); });
+      });
+      var r2 = el("div", "actions"); r2.appendChild(send); d.appendChild(r2);
+      c.appendChild(d);
+    }
+    c.appendChild(st);
+  }
+
+  // Staff/admin: the customer's latest correction request, shown above the files
+  function revisionNotice(box, j) {
+    if (!j.revisionRequest) return;
+    var n = el("div", "notice notice-warn");
+    n.appendChild(el("p", null, t("dash.revisionLatest") + ": " + j.revisionRequest));
+    box.appendChild(n);
+  }
 
   function soon(box, titleKey, textKey) {
     heading(box, titleKey);
@@ -544,6 +603,7 @@
       if (working && j.status !== "inProgress") step("start", "dash.start", "btn btn-outline");
       if (working && !j.readyAt) step("ready", "dash.ready", "btn btn-primary");
       if (j.readyAt && working) c.appendChild(el("p", "notice", t("dash.readyNote")));
+      revisionNotice(c, j);
       if (row.childNodes.length) { c.appendChild(row); c.appendChild(st); }
       workCards(box, j, "staff", reopen);
       notesCard(box, j, function (text) { return api("staffUpdate", { jobNo: j.jobNo, note: text }).then(reopen); });
@@ -683,6 +743,7 @@
         cr.appendChild(cra); cr.appendChild(st0);
         m.appendChild(cr);
       }
+      revisionNotice(m, j);
       var grid = el("div", "grid-2");
       var f1 = el("div", "field"), l1 = el("label", null, t("dash.assignee")), s1 = el("select");
       s1.id = "a-assignee"; l1.htmlFor = "a-assignee";
@@ -885,13 +946,30 @@
       state.role = role; state.arg = undefined;
       // a new account without a name starts on the profile form (the welcome notice points there)
       state.view = d.profile.name ? HOME[role] : "settings";
+      // emails link to ?job=TR-…#account: open that job once signed in
+      var want = linkedJob();
+      if (want) {
+        state.view = role === "admin" ? "a-job" : role === "staff" ? "s-job" : "c-job";
+        state.arg = want;
+        clearLinkedJob();
+      }
       draw(); return;
     }
     // customer lists come with the account; redraw them in place
     if (/^c-(overview|orders)$/.test(state.view)) draw(); else drawMenu();
   }
 
+  function linkedJob() {
+    var m = /[?&]job=([A-Za-z]{1,5}-\d{4}-\d{4,})/.exec(location.search || "");
+    return m ? m[1].toUpperCase() : "";
+  }
+  function clearLinkedJob() {
+    try { history.replaceState(null, "", location.pathname + location.hash); } catch (e) { /* sandboxed */ }
+  }
+
   function init() {
+    // a link from an email: show the sign-in on My account straight away
+    if (linkedJob() && (location.hash || "#account") === "#account" && App.showTab) App.showTab("account");
     document.addEventListener("accountchange", onAccount);
     document.addEventListener("langchange", function () { if (state.role) draw(); });
     document.addEventListener("tabchange", function (e) {

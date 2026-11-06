@@ -133,7 +133,8 @@ var JOB_COLS = [
   ['assignee', 'ผู้รับผิดชอบ'],          // Phase 5: staff email
   ['readyAt', 'แปลเสร็จเมื่อ'],          // staff marked the translation ready for checking
   ['cancelRequest', 'คำขอยกเลิก'],       // customer's request, waiting for Admin
-  ['internalNotes', 'บันทึกภายใน']       // staff/admin only — customers never see this
+  ['internalNotes', 'บันทึกภายใน'],      // staff/admin only — customers never see this
+  ['revisionRequest', 'คำขอแก้ไขล่าสุด']  // the customer's latest "please correct" message
 ];
 
 // Home page content the owner edits in the Sheet (tick "แสดง" to publish).
@@ -175,6 +176,7 @@ var STATUSES = [
   { code: 'quoted',     th: 'ส่งใบเสนอราคาแล้ว', en: 'Quote sent', color: '#fef7e0', text: '#8a5a00' },
   { code: 'paid',       th: 'ชำระเงินแล้ว',       en: 'Paid',       color: '#e6f4ea', text: '#137333' },
   { code: 'inProgress', th: 'กำลังแปล',          en: 'Translating', color: '#e3f2fd', text: '#01417b' },
+  { code: 'review',     th: 'รอลูกค้าตรวจ',       en: 'Ready for your review', color: '#f3e8ff', text: '#6b3fa0' },
   { code: 'delivered',  th: 'ส่งมอบแล้ว',         en: 'Delivered',  color: '#d2f0dc', text: '#0b6b2d' },
   { code: 'cancelled',  th: 'ยกเลิก',            en: 'Cancelled',  color: '#f1f3f4', text: '#566072' }
 ];
@@ -231,6 +233,8 @@ var ACTIONS = {
   myJob: myJob_,
   jobFile: jobFile_,
   requestCancel: requestCancel_,
+  confirmTranslation: confirmTranslation_,
+  requestRevision: requestRevision_,
   // Phase 5 — staff (and admin)
   staffJobs: staffJobs_,
   staffJob: staffJob_,
@@ -536,7 +540,11 @@ function myJob_(req) {
   var r = jobRow_(jobs, req.jobNo);
   if (email_(r.email, true) !== me.email) fail_('not_found');
   var job = jobSummary_(r, ss_().getSpreadsheetTimeZone());
-  job.files = job.status === 'delivered' ? jobFiles_(r, ['translation']) : [];
+  job.files = job.status === 'delivered' || job.status === 'review' ? jobFiles_(r, ['translation']) : [];
+  job.revisionRequest = String(r.revisionRequest || '');
+  if (job.status === 'delivered' && !job.confirmedAt && r.deliveredAt) {
+    job.revisionUntil = day_(addDays_(new Date(r.deliveredAt), CONFIG.revisionDays), ss_().getSpreadsheetTimeZone());
+  }
   return { ok: true, job: job };
 }
 
@@ -548,7 +556,7 @@ function jobFile_(req) {
   var kinds;
   if (me.role === 'admin') kinds = ['doc', 'id', 'translation'];
   else if (me.role === 'staff' && email_(r.assignee, true) === me.email) kinds = ['doc', 'id', 'translation'];
-  else if (email_(r.email, true) === me.email && statusCode_(r.status) === 'delivered') kinds = ['translation'];
+  else if (email_(r.email, true) === me.email && ['review', 'delivered'].indexOf(statusCode_(r.status)) > -1) kinds = ['translation'];
   else fail_('not_found');
   var hit = jobFiles_(r, kinds).filter(function (f) { return f.id === String(req.fileId || ''); })[0];
   if (!hit) fail_('not_found');
@@ -584,6 +592,52 @@ function requestCancel_(req) {
   return { ok: true };
 }
 
+// The customer checked the files and confirms they are correct
+function confirmTranslation_(req) {
+  var me = need_(req, ['customer', 'staff', 'admin']);
+  var r = jobRow_(table_(SHEETS.jobs, JOB_COLS), req.jobNo);
+  if (email_(r.email, true) !== me.email) fail_('not_found');
+  var code = statusCode_(r.status);
+  if (code !== 'review' && code !== 'delivered') fail_('not_ready');
+  confirm_(r.jobNo);
+  return myJob_(req);
+}
+
+// The customer asks for corrections: back to "กำลังแปล", the team gets the details
+function requestRevision_(req) {
+  var me = need_(req, ['customer', 'staff', 'admin']);
+  var text = text_(req.text, 1500);
+  if (text.length < 5) fail_('revision_text');
+  var r = jobRow_(table_(SHEETS.jobs, JOB_COLS), req.jobNo);
+  if (email_(r.email, true) !== me.email) fail_('not_found');
+  var code = statusCode_(r.status);
+  if (code === 'delivered') {
+    if (r.confirmedAt) fail_('already_confirmed');
+    var since = r.deliveredAt ? (Date.now() - new Date(r.deliveredAt).getTime()) / 864e5 : 0;
+    if (since > CONFIG.revisionDays) fail_('revision_closed');
+  } else if (code !== 'review') fail_('not_ready');
+  var tz = ss_().getSpreadsheetTimeZone();
+  var stamp = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm');
+  withLock_(function () {
+    var t = table_(SHEETS.jobs, JOB_COLS), row = jobRow_(t, r.jobNo);
+    updateRow_(t, row, { revisionRequest: stamp + ' — ' + text, readyAt: '' });
+  });
+  note_(r, me.email, 'ลูกค้าขอแก้ไข: ' + text);
+  setStatus_(r.jobNo, 'inProgress', null);
+  try {
+    var to = [providerEmail_()];
+    if (r.assignee && email_(r.assignee, true) !== providerEmail_().toLowerCase()) to.push(email_(r.assignee, true));
+    MailApp.sendEmail({
+      to: to.join(','), replyTo: String(r.email), name: CONFIG.serviceName,
+      subject: 'ลูกค้าขอแก้ไขงาน ' + r.jobNo,
+      htmlBody: mailLayout_({ th: true, status: 'inProgress', title: 'ลูกค้าขอแก้ไขงาน ' + r.jobNo,
+        intro: ['รายละเอียดที่ลูกค้าแจ้ง:', '<b>' + esc_(text).replace(/\n/g, '<br>') + '</b>', 'สถานะกลับเป็น "กำลังแปล" แล้ว แก้ไฟล์แล้วอัปโหลดใหม่ จากนั้นเปลี่ยนเป็น "รอลูกค้าตรวจ" อีกครั้ง'],
+        button: { label: 'เปิดหน้าจัดการ', url: CONFIG.siteUrl + '/#account' } })
+    });
+  } catch (e) { console.error('revision mail ' + r.jobNo + ': ' + e); }
+  return myJob_(req);
+}
+
 /* ---------- staff ---------- */
 
 function staffJobs_(req) {
@@ -602,6 +656,7 @@ function staffView_(r, tz) {
   j.nameSpelling = String(r.nameSpelling || '');
   j.notes = String(r.notes || '');
   j.internalNotes = String(r.internalNotes || '');
+  j.revisionRequest = String(r.revisionRequest || '');
   j.files = jobFiles_(r, ['doc', 'id', 'translation']);
   return j;
 }
@@ -1190,7 +1245,7 @@ function esc_(s) {
    Table-based HTML with inline styles (works in Gmail, Outlook, Apple Mail and phones).
    o = { th, preheader, title, status (code), steps (code), intro: [html], rows: [[label, text]],
          button: { label, url }, after: [html], small: html }                                   */
-var MAIL_STEPS = ['received', 'quoted', 'paid', 'inProgress', 'delivered'];
+var MAIL_STEPS = ['received', 'quoted', 'paid', 'inProgress', 'review', 'delivered'];
 
 function mailLayout_(o) {
   var th = o.th !== false, F = 'Sarabun,Tahoma,Arial,sans-serif';
@@ -1257,7 +1312,7 @@ function mailSteps_(code, th) {
     var dot = done ? '#0b6b2d' : cur ? '#006192' : '#ffffff';
     var ring = done ? '#0b6b2d' : cur ? '#006192' : '#b9c1ce';
     var mark = done ? '✓' : String(i + 1);
-    return '<td align="center" valign="top" style="width:20%;padding:0 2px;font-family:' + F + '">' +
+    return '<td align="center" valign="top" style="width:' + Math.floor(100 / MAIL_STEPS.length) + '%;padding:0 2px;font-family:' + F + '">' +
       '<div style="width:30px;height:30px;line-height:30px;border-radius:50%;margin:0 auto;background:' + dot + ';border:2px solid ' + ring +
       ';color:' + (done || cur ? '#ffffff' : '#7f8ba0') + ';font-weight:700;font-size:14px">' + mark + '</div>' +
       '<div style="margin-top:6px;font-size:12px;line-height:1.3;color:' + (cur ? '#01417b' : done ? '#1d2433' : '#7f8ba0') + ';font-weight:' + (cur ? 700 : 400) + '">' +
@@ -1267,6 +1322,8 @@ function mailSteps_(code, th) {
 }
 
 function trackUrl_() { return CONFIG.siteUrl + '/#track'; }
+// The job's page in My account (the customer signs in with the same email, then it opens)
+function jobUrl_(jobNo) { return CONFIG.siteUrl + '/?job=' + encodeURIComponent(jobNo) + '#account'; }
 
 function sendNewJobMails_(r) {
   var th = r.lang !== 'en';
@@ -1367,8 +1424,10 @@ function sendStatusMail_(r, code) {
     quoted:     ['ผู้ให้บริการส่งใบเสนอราคาให้ท่านแล้ว กรุณาตรวจสอบอีเมลที่ได้รับ', 'We have sent you a quote. Please check your email.'],
     paid:       ['ได้รับการชำระเงินแล้ว เราจะเริ่มแปลเอกสารของท่าน', 'Payment received. We will start translating your documents.'],
     inProgress: ['เอกสารของท่านอยู่ระหว่างการแปลและตรวจทาน', 'Your documents are being translated and reviewed.'],
-    delivered:  ['ส่งมอบงานแปลแล้ว กรุณาตรวจสอบงานแปล หากพบข้อผิดพลาด แจ้งได้ภายใน ' + CONFIG.revisionDays + ' วัน',
-                 'Your translation has been delivered. Please check it — you can ask for corrections within ' + CONFIG.revisionDays + ' days.'],
+    review:     ['งานแปลพร้อมให้ท่านตรวจแล้ว กรุณาเปิดดูไฟล์บนเว็บไซต์ แล้วกดยืนยันว่าถูกต้อง หรือแจ้งจุดที่ต้องการแก้ไข',
+                 'Your translation is ready for you to check. Please open the files on our website, then confirm it is correct or tell us what to change.'],
+    delivered:  ['ส่งมอบงานแปลแล้ว ดาวน์โหลดไฟล์ได้ที่หน้างานบนเว็บไซต์ หากพบข้อผิดพลาด แจ้งได้ภายใน ' + CONFIG.revisionDays + ' วัน',
+                 'Your translation has been delivered. Download the files from the job page on our website — you can ask for corrections within ' + CONFIG.revisionDays + ' days.'],
     cancelled:  ['งานนี้ถูกยกเลิกแล้ว หากมีข้อสงสัย กรุณาตอบกลับอีเมลนี้', 'This job has been cancelled. Reply to this email if you have any questions.']
   }[code];
   if (!text || !r.email) return;
@@ -1380,13 +1439,21 @@ function sendStatusMail_(r, code) {
     intro: [th ? 'เรียนคุณ' + esc_(r.name) : 'Dear ' + esc_(r.name) + ',', esc_(th ? text[0] : text[1])],
     button: { label: th ? 'ติดตามสถานะงาน' : 'Track your job', url: trackUrl_() }
   };
+  var civil = String(r.requiresId).toUpperCase() === 'TRUE';
+  var idNote = civil ? (th ? ' เมื่อยืนยันแล้ว ข้อมูลและไฟล์ทั้งหมดของงานนี้ รวมถึงสำเนาบัตร จะถูกลบภายใน ' + CONFIG.idRetentionDays + ' วัน'
+                           : ' Once you confirm, all data and files for this job, including the ID copy, are deleted within ' + CONFIG.idRetentionDays + ' days.') : '';
+  // Review and delivery link to the job page: the customer looks at the files before confirming
+  if (code === 'review') {
+    o.button = { label: th ? 'ดูและตรวจงานแปล' : 'View and check the translation', url: jobUrl_(r.jobNo) };
+    o.small = (th ? 'เข้าสู่ระบบด้วยอีเมลนี้ (ไม่ต้องใช้รหัสผ่าน) แล้วระบบจะเปิดหน้างานให้' : 'Sign in with this email (no password needed) and the job page opens.') + idNote;
+  }
   if (code === 'delivered') {
-    var url = confirmUrl_(r.jobNo);
-    var civil = String(r.requiresId).toUpperCase() === 'TRUE';
-    if (url) {
-      o.button = { label: th ? 'ยืนยันว่างานแปลถูกต้อง' : 'Confirm the translation is correct', url: url };
-      o.small = th ? 'กดปุ่มเมื่อตรวจงานแปลแล้วว่าถูกต้อง' + (civil ? ' เมื่อยืนยันแล้ว ข้อมูลและไฟล์ทั้งหมดของงานนี้ รวมถึงสำเนาบัตร จะถูกลบภายใน ' + CONFIG.idRetentionDays + ' วัน' : '')
-                   : 'Press the button once you have checked the translation.' + (civil ? ' Once you confirm, all data and files for this job, including the ID copy, are deleted within ' + CONFIG.idRetentionDays + ' days.' : '');
+    o.button = { label: th ? 'ดูและดาวน์โหลดงานแปล' : 'View and download the translation', url: jobUrl_(r.jobNo) };
+    if (r.confirmedAt) {
+      o.intro[1] = esc_(th ? 'ขอบคุณที่ยืนยันความถูกต้อง งานนี้เสร็จสมบูรณ์แล้ว ดาวน์โหลดไฟล์งานแปลได้ที่หน้างานบนเว็บไซต์'
+                           : 'Thank you for confirming. This job is complete — you can download the translated files from the job page.');
+    } else {
+      o.small = (th ? 'ตรวจงานแปลแล้ว กดยืนยันความถูกต้องหรือแจ้งแก้ไขได้ที่หน้างาน' : 'After checking, confirm the translation or ask for corrections on the job page.') + idNote;
     }
   }
   if (code === 'cancelled') o.button = { label: th ? 'ติดต่อเรา' : 'Contact us', url: CONFIG.siteUrl + '/#contact' };
@@ -1410,26 +1477,32 @@ function confirmUrl_(jobNo) {
   return base ? base + '?confirm=' + encodeURIComponent(jobNo) + '&t=' + confirmToken_(jobNo) : '';
 }
 
+// The customer confirms the translation is correct (job page, or the link in older emails).
+// From "รอลูกค้าตรวจ" this also delivers the job. Civil jobs: delete-by moves to idRetentionDays.
+function confirm_(jobNo) {
+  var row = withLock_(function () {
+    var jobs = table_(SHEETS.jobs, JOB_COLS);
+    var r = find_(jobs, 'jobNo', jobNo);
+    if (!r) return null;
+    if (!r.confirmedAt) {
+      var changes = { confirmedAt: new Date(), revisionRequest: '' };
+      if (String(r.requiresId).toUpperCase() === 'TRUE') {
+        var due = addDays_(new Date(), CONFIG.idRetentionDays);
+        if (!r.deleteBy || new Date(r.deleteBy) > due) changes.deleteBy = due;
+      }
+      updateRow_(jobs, r, changes);
+    }
+    return r;
+  });
+  if (row && statusCode_(row.status) === 'review') setStatus_(row.jobNo, 'delivered', null);
+  return row;
+}
+
 function confirmPage_(jobNo, token) {
   jobNo = String(jobNo || '');
   var ok = token && String(token) === confirmToken_(jobNo);
   var msg;
-  if (ok) {
-    msg = withLock_(function () {
-      var jobs = table_(SHEETS.jobs, JOB_COLS);
-      var r = find_(jobs, 'jobNo', jobNo);
-      if (!r) return null;
-      if (!r.confirmedAt) {
-        var changes = { confirmedAt: new Date() };
-        if (String(r.requiresId).toUpperCase() === 'TRUE') {
-          var due = addDays_(new Date(), CONFIG.idRetentionDays);
-          if (!r.deleteBy || new Date(r.deleteBy) > due) changes.deleteBy = due;
-        }
-        updateRow_(jobs, r, changes);
-      }
-      return 'ขอบคุณที่ยืนยัน งาน ' + jobNo + ' เรียบร้อยแล้ว<br>Thank you — job ' + jobNo + ' is confirmed.';
-    });
-  }
+  if (ok && confirm_(jobNo)) msg = 'ขอบคุณที่ยืนยัน งาน ' + jobNo + ' เรียบร้อยแล้ว<br>Thank you — job ' + jobNo + ' is confirmed.';
   if (!msg) msg = 'ลิงก์ไม่ถูกต้องหรือหมดอายุ<br>This link is not valid.';
   var good = msg.indexOf('ขอบคุณ') === 0;
   return HtmlService.createHtmlOutput(
@@ -1646,7 +1719,8 @@ function buildDashboard_() {
   rows.push(['', '', '', '', '']);
   var followRow = rows.length + 1;
   rows.push(['ต้องติดตาม', 'จำนวนงาน', '', '', '']);
-  rows.push(['งานที่ยังไม่เสร็จ', '=SUM(B' + first + ':B' + (first + 3) + ')', '', '', '']);
+  var openCount = STATUSES.map(function (x) { return x.code; }).indexOf('delivered');   // received … review
+  rows.push(['งานที่ยังไม่เสร็จ', '=SUM(B' + first + ':B' + (first + openCount - 1) + ')', '', '', '']);
   rows.push(['ครบกำหนดภายใน 3 วัน', '=COUNTIFS(' + need + ', ">="&TODAY(), ' + need + ', "<="&TODAY()+3' + open + ')', '', '', '']);
   rows.push(['เลยวันที่ลูกค้าต้องการแล้ว', '=COUNTIFS(' + need + ', "<"&TODAY()' + open + ')', '', '', '']);
   rows.push(['จะลบข้อมูลภายใน 7 วัน', '=COUNTIFS(' + col('deleteBy') + ', ">="&TODAY(), ' + col('deleteBy') + ', "<="&TODAY()+7, ' + col('purgedAt') + ', "")', '', '', '']);

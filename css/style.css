@@ -47,6 +47,7 @@
   --st-quoted: #fef7e0;     --st-quoted-text: #8a5a00;
   --st-paid: #e6f4ea;       --st-paid-text: #137333;
   --st-progress: #e3f2fd;   --st-progress-text: #01417b;
+  --st-review: #f3e8ff;     --st-review-text: #6b3fa0;
   --st-delivered: #d2f0dc;  --st-delivered-text: #0b6b2d;
   --st-cancelled: #f1f3f4;  --st-cancelled-text: #566072;
 
@@ -114,6 +115,7 @@
   --st-quoted: #3a2e12;     --st-quoted-text: #f3cf7a;
   --st-paid: #12321f;       --st-paid-text: #7fdca2;
   --st-progress: #12304d;   --st-progress-text: #8cc8f5;
+  --st-review: #2c1d45;     --st-review-text: #cdb2f5;
   --st-delivered: #0f3a24;  --st-delivered-text: #6fe0a0;
   --st-cancelled: #222a38;  --st-cancelled-text: #a3afc2;
 
@@ -164,6 +166,7 @@
     --st-quoted: #3a2e12;     --st-quoted-text: #f3cf7a;
     --st-paid: #12321f;       --st-paid-text: #7fdca2;
     --st-progress: #12304d;   --st-progress-text: #8cc8f5;
+    --st-review: #2c1d45;     --st-review-text: #cdb2f5;
     --st-delivered: #0f3a24;  --st-delivered-text: #6fe0a0;
     --st-cancelled: #222a38;  --st-cancelled-text: #a3afc2;
 
@@ -845,6 +848,7 @@ a.contact-item:hover { border-color: var(--accent); }
 .status-quoted     { background: var(--st-quoted); color: var(--st-quoted-text); }
 .status-paid       { background: var(--st-paid); color: var(--st-paid-text); }
 .status-inProgress { background: var(--st-progress); color: var(--st-progress-text); }
+.status-review     { background: var(--st-review); color: var(--st-review-text); }
 .status-delivered  { background: var(--st-delivered); color: var(--st-delivered-text); }
 .status-cancelled  { background: var(--st-cancelled); color: var(--st-cancelled-text); }
 
@@ -1210,7 +1214,7 @@ html.modal-open, html.modal-open body { overflow: hidden; }
 
 @media (min-width: 640px) {
   .track-card { max-width: 560px; padding: 24px; }
-  .track-steps { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .track-steps { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   .track-steps li { flex-direction: column; align-items: center; gap: 8px; padding: 0 2px; text-align: center; }
   .track-steps li::before { left: calc(50% + 16px); right: calc(-50% + 16px); top: 11px; bottom: auto; width: auto; height: 2px; }
   .track-step { align-items: center; padding-top: 0; font-size: 0.9375rem; }
@@ -1332,6 +1336,7 @@ button.dash-bar-row:hover .dash-bar { background: var(--accent-line); }
 .dash-bar-fill.status-quoted { background: var(--st-quoted-text); }
 .dash-bar-fill.status-paid { background: var(--st-paid-text); }
 .dash-bar-fill.status-inProgress { background: var(--st-progress-text); }
+.dash-bar-fill.status-review { background: var(--st-review-text); }
 .dash-bar-fill.status-delivered { background: var(--st-delivered-text); }
 .dash-bar-fill.status-cancelled { background: var(--st-cancelled-text); }
 .dash-bar-n { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -1385,3 +1390,10 @@ button.dash-bar-row:hover .dash-bar { background: var(--accent-line); }
   .dash-link[aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
   .dash-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+.flag-review { background: var(--st-review); border-color: var(--st-review-text); color: var(--st-review-text); }
+.dash-attention { border-color: var(--st-review-text); background: var(--st-review); }
+.dash-attention-title { margin: 0 0 10px; font-weight: 700; color: var(--st-review-text); }
+.dash-review { border-color: var(--accent); }
+.dash-revision { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.dash-revision summary { display: inline-flex; align-items: center; min-height: var(--tap); cursor: pointer; font-weight: 600; color: var(--accent); }
+.dash-revision textarea { margin-top: 6px; }
