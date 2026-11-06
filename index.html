@@ -566,20 +566,23 @@
 
       <!-- Signed in -->
       <div id="acct-home" hidden>
-        <p class="lead" id="acct-hello"></p>
-        <p class="notice" id="acct-welcome" data-i18n="acct.welcomeNew" hidden></p>
-        <div class="acct-grid">
-          <section class="acct-card acct-jobs" aria-labelledby="acct-jobs-h">
-            <div class="acct-card-head">
-              <h2 class="h3" id="acct-jobs-h" data-i18n="acct.jobs"></h2>
-              <button type="button" class="btn-link" id="a-refresh" data-i18n="acct.refresh"></button>
+        <div class="dash">
+          <!-- Sidebar: who is signed in + menu for their role (built by js/portal.js) -->
+          <aside class="dash-side">
+            <div class="dash-me">
+              <span class="dash-avatar" id="dash-avatar" aria-hidden="true"></span>
+              <div class="dash-me-text">
+                <p class="dash-name" id="acct-hello"></p>
+                <p class="dash-role" id="dash-role"></p>
+              </div>
             </div>
-            <ul class="job-list" id="acct-jobs" aria-live="polite"></ul>
-            <div class="actions">
-              <button type="button" class="btn btn-primary" data-goto="submit" data-i18n="acct.newJob"></button>
-            </div>
-          </section>
-
+            <nav class="dash-nav" id="dash-nav" data-i18n-aria="dash.menu"></nav>
+          </aside>
+          <div class="dash-main">
+            <p class="notice" id="acct-welcome" data-i18n="acct.welcomeNew" hidden></p>
+            <div id="dash-view"></div>
+            <!-- Account settings view (profile + sign out / delete; js/account.js) -->
+            <div class="dash-settings" id="dash-settings" hidden>
           <section class="acct-card" aria-labelledby="acct-profile-h">
             <h2 class="h3" id="acct-profile-h" data-i18n="acct.profile"></h2>
             <p class="note" data-i18n="acct.profileHint"></p>
@@ -631,6 +634,8 @@
               </div>
             </div>
           </section>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -847,6 +852,7 @@
   <script src="js/account.js"></script>
   <script src="js/submit.js"></script>
   <script src="js/track.js"></script>
+  <script src="js/portal.js"></script>
   <script src="js/home.js"></script>
 </body>
 </html>

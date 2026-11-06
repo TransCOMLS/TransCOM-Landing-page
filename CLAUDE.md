@@ -87,6 +87,15 @@ provider manages all jobs from one Google Sheet, with no paid server.
   vertical on phone, a row ≥640px; cancelled = note only; unknown status = `other`), next-step
   note, dates, contact link. Redraws on `langchange`; editing an input hides the old card;
   signed-in customers get their email filled in.
+- `js/portal.js` — Phase 5: the signed-in dashboard in `#account` (`.dash`: sidebar `#dash-nav` +
+  `#dash-view`; `#dash-settings` holds account.js's profile/manage cards). Menu and views per
+  `profile.role`: customer (overview, orders open/closed/cancel, job detail + translated-file
+  download + cancel request, quotes/payment = "coming soon" until Phase 6, settings), staff
+  (assigned jobs, job detail without customer contacts, source download, translation upload,
+  start / ready, internal notes), admin (overview stats + bars, all jobs search/filter, job
+  detail: assign, status, cancel approve/reject, notes, files; users & roles; discounts). Listens
+  to `accountchange` from account.js. New accounts without a name open on the profile view.
+  Customers are never told who translated. Sidebar on ≥1024px; a scrollable chip row below.
 - `js/account.js` — customer accounts (optional; guests can still submit): sign in with a
   6-digit code emailed by Apps Script (no passwords), job history, profile that fills in
   the job form, sign out, delete account (PDPA). Exposes `App.api(action, payload)` and
@@ -95,7 +104,16 @@ provider manages all jobs from one Google Sheet, with no paid server.
 - `apps-script/Code.gs` — Web App bound to the Sheet. `doPost` actions: requestCode,
   verifyCode, getAccount, updateProfile, logout, deleteAccount, getContent, createJob,
   uploadFile, finishJob, trackJob (job no. + email → status and dates only; one generic
-  `not_found` for wrong pair / unfinished / purged; 30 lookups/email/hour + 300 failed/hour overall).
+  `not_found` for wrong pair / unfinished / purged; 30 lookups/email/hour + 300 failed/hour overall);
+  Phase 5: myJob, jobFile (base64 download, checked per role), requestCancel, staffJobs, staffJob,
+  uploadTranslation, deleteTranslation, staffUpdate (start / ready / note), adminOverview,
+  adminJobs, adminJob, adminUpdateJob (assignee, status via setStatus_ → afterStatus_ = same
+  emails as onJobEdit, cancel approve/reject, note), adminUsers, adminSetUser, adminDiscounts,
+  adminSaveDiscounts. Roles: Users "บทบาท" (ROLES), bootstrap admins = provider email, script
+  owner, Script Property ADMIN_EMAILS (`need_(req, roles)` checks every call). Customer types in
+  "ประเภทลูกค้า" (CUSTOMER_TYPES); "Discounts" sheet (type % + tiers by spend) for Phase 6 quotes.
+  Jobs gain assignee, readyAt, cancelRequest, internalNotes (log). Translations go to subfolder
+  `งานแปล (ส่งลูกค้า)`. setup() adds missing columns to existing sheets (`addMissingColumns_`).
   `CATEGORY_NAMES` maps category codes to TH/EN names (emails, Dashboard) — keep in step with config. `doGet?confirm=<jobNo>&t=<token>` = "translation is correct" page.
   Jobs: number `TR-<BE year>-0001` from Script Property `SEQ_<year>`; files in a Drive folder
   per job under `JOBS_FOLDER_ID` (ID files in a subfolder); server re-checks every field,
@@ -156,7 +174,11 @@ provider manages all jobs from one Google Sheet, with no paid server.
 - [x] Phase 4 — status lookup (POST action `trackJob`, so the email stays out of URLs;
       job no. + email, status only) with the `js/track.js` card, "Dashboard" and "Glossary"
       sheets, README sections 5.1.1, 5.5, 5.6. Built before the owner deployed Phase 3.
-- [ ] Phase 5 — finance (owner's decisions, 2026-11-04). Build after Phase 3/4, all switchable
+- [x] Phase 5 — role dashboards (owner's request 2026-11-06): customer · staff (incl. translators)
+      · admin, managed on the website; discount settings stored for Phase 6. Owner's choices:
+      no wallet / top-up, translators never named to customers, "pay" + "payment history" in one
+      Payment group, admin manages nearly everything on the web.
+- [ ] Phase 6 — finance (owner's decisions, 2026-11-04). Build after Phase 5, all switchable
       in config and managed from the Sheet:
       - Not VAT-registered: issue **electronic receipts** (ใบเสร็จรับเงิน). Tax invoices
         (full + abbreviated) are built but **off** until VAT registration (illegal to issue
@@ -169,6 +191,8 @@ provider manages all jobs from one Google Sheet, with no paid server.
       - Members only: discount codes (Coupons sheet: code, % or THB, min spend, dates,
         uses) and loyalty points by amount spent (e.g. 1 point per 100 THB, redeem as a
         discount; rates in config). Guests can still get quotes, pay and get receipts.
+      - Apply the Discounts sheet (customer type % / spend tiers, higher one wins) on quotes;
+        fill the dashboard's Quotes, Pay and Payment history views.
 
 The owner asked to stop after each phase and show the result before continuing.
 
@@ -181,6 +205,6 @@ console errors, `node --check js/*.js` passes, and i18n keys match between th/en
 The owner keeps a matching preview copy on claude.ai: https://claude.ai/artifact/WrtJLSJG77T717XyWkqMrF
 After each phase, republish it with the Artifact tool, passing that URL as `url` (read it first).
 Publish `index.html` with its `<!DOCTYPE>`, `<html>`, `<head>`/`<body>` tags and the charset/viewport
-metas removed (title, font links, the stylesheet link and the theme script stay), plus `css/style.css`, the eight
-`js/*.js` files (config, i18n, terms, app, account, submit, track, home) and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
+metas removed (title, font links, the stylesheet link and the theme script stay), plus `css/style.css`, the nine
+`js/*.js` files (config, i18n, terms, app, account, submit, track, portal, home) and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
 inline for that copy only.

@@ -61,7 +61,7 @@ function categoryName_(code, th) {
 }
 
 var SHEETS = { users: 'Users', jobs: 'Jobs', sessions: '_sessions', promotions: 'Promotions', news: 'News',
-              dashboard: 'Dashboard', glossary: 'Glossary' };
+              dashboard: 'Dashboard', glossary: 'Glossary', discounts: 'Discounts' };
 
 // Column headers (Thai, for the owner) and the keys the code uses.
 // Columns are found by header text, so the owner may reorder them.
@@ -74,8 +74,35 @@ var USER_COLS = [
   ['langPair', 'คู่ภาษาที่ใช้บ่อย'],
   ['lang', 'ภาษาเว็บไซต์'],
   ['createdAt', 'สมัครเมื่อ'],
-  ['lastLoginAt', 'เข้าสู่ระบบล่าสุด']
+  ['lastLoginAt', 'เข้าสู่ระบบล่าสุด'],
+  ['role', 'บทบาท'],                    // Phase 5: ลูกค้า (ว่าง) / พนักงาน / ผู้ดูแลระบบ
+  ['customerType', 'ประเภทลูกค้า']      // Phase 5: ทั่วไป / องค์กร/บริษัท / เอเจนซี่/ตัวแทน / นักเรียน/นักศึกษา
 ];
+
+// Phase 5: roles. Admin sets them on the website (or in the "บทบาท" column).
+// The provider email, the script owner and Script Property ADMIN_EMAILS are always admins.
+var ROLES = [
+  { code: 'customer', th: 'ลูกค้า' },
+  { code: 'staff',    th: 'พนักงาน' },
+  { code: 'admin',    th: 'ผู้ดูแลระบบ' }
+];
+var CUSTOMER_TYPES = [
+  { code: 'general',   th: 'ทั่วไป',             en: 'General' },
+  { code: 'corporate', th: 'องค์กร/บริษัท',      en: 'Corporate' },
+  { code: 'agency',    th: 'เอเจนซี่/ตัวแทน',     en: 'Agency' },
+  { code: 'student',   th: 'นักเรียน/นักศึกษา',   en: 'Student' }
+];
+// Discounts sheet (Admin edits on the website). Used on quotes from Phase 6.
+var DISCOUNT_COLS = [
+  ['kind', 'ชนิด'],                 // type = ประเภทลูกค้า, tier = ขั้นสมาชิกตามยอดใช้จ่าย
+  ['code', 'รหัส'],
+  ['nameTh', 'ชื่อ (ไทย)'],
+  ['nameEn', 'ชื่อ (EN)'],
+  ['percent', 'ส่วนลด (%)'],
+  ['minSpend', 'ยอดสะสมขั้นต่ำ (บาท)'],
+  ['active', 'ใช้งาน']
+];
+var TRANSLATED_FOLDER = 'งานแปล (ส่งลูกค้า)';
 
 // Phase 3 writes these columns; history reads them.
 var JOB_COLS = [
@@ -102,7 +129,11 @@ var JOB_COLS = [
   ['deleteBy', 'กำหนดลบข้อมูล'],
   ['fileCount', 'จำนวนไฟล์'],
   ['deliveredAt', 'ส่งมอบเมื่อ'],
-  ['purgedAt', 'ลบข้อมูลแล้วเมื่อ']
+  ['purgedAt', 'ลบข้อมูลแล้วเมื่อ'],
+  ['assignee', 'ผู้รับผิดชอบ'],          // Phase 5: staff email
+  ['readyAt', 'แปลเสร็จเมื่อ'],          // staff marked the translation ready for checking
+  ['cancelRequest', 'คำขอยกเลิก'],       // customer's request, waiting for Admin
+  ['internalNotes', 'บันทึกภายใน']       // staff/admin only — customers never see this
 ];
 
 // Home page content the owner edits in the Sheet (tick "แสดง" to publish).
@@ -195,7 +226,26 @@ var ACTIONS = {
   createJob: createJob_,
   uploadFile: uploadFile_,
   finishJob: finishJob_,
-  trackJob: trackJob_
+  trackJob: trackJob_,
+  // Phase 5 — customer
+  myJob: myJob_,
+  jobFile: jobFile_,
+  requestCancel: requestCancel_,
+  // Phase 5 — staff (and admin)
+  staffJobs: staffJobs_,
+  staffJob: staffJob_,
+  uploadTranslation: uploadTranslation_,
+  deleteTranslation: deleteTranslation_,
+  staffUpdate: staffUpdate_,
+  // Phase 5 — admin
+  adminOverview: adminOverview_,
+  adminJobs: adminJobs_,
+  adminJob: adminJob_,
+  adminUpdateJob: adminUpdateJob_,
+  adminUsers: adminUsers_,
+  adminSetUser: adminSetUser_,
+  adminDiscounts: adminDiscounts_,
+  adminSaveDiscounts: adminSaveDiscounts_
 };
 
 /* ======================================================================
@@ -273,6 +323,7 @@ function getAccount_(req) {
   return { ok: true, profile: profile_(user), jobs: jobsFor_(email) };
 }
 
+
 function updateProfile_(req) {
   var email = auth_(req.token);
   var p = req.profile || {};
@@ -312,6 +363,7 @@ function logout_(req) {
 // retention period in the privacy policy (needed to finish and invoice work).
 function deleteAccount_(req) {
   var email = auth_(req.token);
+  if (roleOf_(email) !== 'customer') fail_('forbidden');   // staff/admin: ask an admin
   withLock_(function () {
     var users = table_(SHEETS.users, USER_COLS);
     deleteRows_(users, function (r) { return email_(r.email, true) === email; });
@@ -322,8 +374,11 @@ function deleteAccount_(req) {
 }
 
 function profile_(u) {
+  var email = String(u.email || '');
   return {
-    email: String(u.email || ''),
+    email: email,
+    role: roleOf_(email, u),
+    customerType: typeCode_(u.customerType),
     name: String(u.name || ''),
     line: String(u.line || ''),
     phone: String(u.phone || ''),
@@ -346,7 +401,10 @@ function jobsFor_(email) {
         langPair: String(r.langPair || ''),
         category: String(r.category || ''),
         pages: r.pages === '' || r.pages == null ? null : Number(r.pages),
-        neededBy: iso_(r.neededBy)
+        neededBy: iso_(r.neededBy),
+        deliveredAt: iso_(r.deliveredAt),
+        cancelRequested: !!String(r.cancelRequest || '').trim(),
+        purged: !!r.purgedAt
       };
     })
     .sort(function (a, b) { return (b.submittedAt || '').localeCompare(a.submittedAt || ''); })
@@ -359,6 +417,476 @@ function statusCode_(label) {
     if (STATUSES[i].th === v || STATUSES[i].code === v) return STATUSES[i].code;
   }
   return v ? 'other' : 'received';
+}
+
+/* ======================================================================
+   Phase 5 — roles and dashboards
+   customer: own jobs, delivered files, cancel request
+   staff:    jobs assigned to them (no customer contact details), files, upload translation
+   admin:    everything, assign staff, statuses, users, discount settings
+   Every action checks the role on the server.
+   ====================================================================== */
+
+function bootstrapAdmins_() {
+  var list = String(PropertiesService.getScriptProperties().getProperty('ADMIN_EMAILS') || '').split(/[,\s]+/);
+  list.push(providerEmail_());
+  try { list.push(Session.getEffectiveUser().getEmail()); } catch (e) { /* not available */ }
+  return list.map(function (e) { return String(e || '').trim().toLowerCase(); }).filter(Boolean);
+}
+
+function roleCode_(label) {
+  var v = String(label || '').trim();
+  for (var i = 0; i < ROLES.length; i++) if (ROLES[i].th === v || ROLES[i].code === v) return ROLES[i].code;
+  return 'customer';
+}
+function roleLabel_(code) {
+  for (var i = 0; i < ROLES.length; i++) if (ROLES[i].code === code) return ROLES[i].th;
+  return '';
+}
+function typeCode_(label) {
+  var v = String(label || '').trim();
+  for (var i = 0; i < CUSTOMER_TYPES.length; i++) if (CUSTOMER_TYPES[i].th === v || CUSTOMER_TYPES[i].code === v) return CUSTOMER_TYPES[i].code;
+  return 'general';
+}
+function typeLabel_(code) {
+  for (var i = 0; i < CUSTOMER_TYPES.length; i++) if (CUSTOMER_TYPES[i].code === code) return CUSTOMER_TYPES[i].th;
+  return CUSTOMER_TYPES[0].th;
+}
+
+function roleOf_(email, user) {
+  email = String(email || '').toLowerCase();
+  if (bootstrapAdmins_().indexOf(email) > -1) return 'admin';
+  if (user === undefined) user = find_(table_(SHEETS.users, USER_COLS), 'email', email);
+  return user ? roleCode_(user.role) : 'customer';
+}
+
+// Signed-in person with one of the given roles → { email, role }
+function need_(req, roles) {
+  var email = auth_(req.token);
+  var role = roleOf_(email);
+  if (roles.indexOf(role) === -1) fail_('forbidden');
+  return { email: email, role: role };
+}
+
+function jobRow_(jobs, jobNo) {
+  jobNo = String(jobNo || '').trim().toUpperCase();
+  if (!JOBNO_RE.test(jobNo)) fail_('not_found');
+  for (var i = 0; i < jobs.rows.length; i++) {
+    if (String(jobs.rows[i].jobNo).trim().toUpperCase() === jobNo && String(jobs.rows[i].status || '').trim()) return jobs.rows[i];
+  }
+  fail_('not_found');
+}
+
+function folderOf_(row) {
+  var m = /folders\/([\w-]+)/.exec(String(row.folder || ''));
+  if (!m || row.purgedAt) return null;
+  try { return DriveApp.getFolderById(m[1]); } catch (e) { return null; }
+}
+function subFolder_(folder, test, create) {
+  var it = folder.getFolders();
+  while (it.hasNext()) { var f = it.next(); if (test(f.getName())) return f; }
+  return create ? folder.createFolder(create) : null;
+}
+function fileInfo_(f, kind) {
+  return { id: f.getId(), name: f.getName(), size: f.getSize(), kind: kind };
+}
+function filesIn_(folder, kind) {
+  var out = [];
+  if (!folder) return out;
+  var it = folder.getFiles();
+  while (it.hasNext()) out.push(fileInfo_(it.next(), kind));
+  return out.sort(function (a, b) { return a.name.localeCompare(b.name); });
+}
+// Files of a job: source documents, ID copies, translations
+function jobFiles_(row, kinds) {
+  var folder = folderOf_(row);
+  if (!folder) return [];
+  var out = [];
+  if (kinds.indexOf('doc') > -1) out = out.concat(filesIn_(folder, 'doc'));
+  if (kinds.indexOf('id') > -1) out = out.concat(filesIn_(subFolder_(folder, function (n) { return n.indexOf('บัตร') === 0; }), 'id'));
+  if (kinds.indexOf('translation') > -1) out = out.concat(filesIn_(subFolder_(folder, function (n) { return n === TRANSLATED_FOLDER; }), 'translation'));
+  return out;
+}
+
+function jobSummary_(r, tz) {
+  return {
+    jobNo: String(r.jobNo),
+    status: statusCode_(r.status),
+    category: String(r.category || ''),
+    langPair: String(r.langPair || ''),
+    pages: r.pages === '' || r.pages == null ? null : Number(r.pages),
+    certified: r.certified === true || String(r.certified).toUpperCase() === 'TRUE',
+    shipping: r.shipping === true || String(r.shipping).toUpperCase() === 'TRUE',
+    requiresId: String(r.requiresId).toUpperCase() === 'TRUE',
+    submittedAt: day_(r.submittedAt, tz),
+    neededBy: day_(r.neededBy, tz),
+    deliveredAt: day_(r.deliveredAt, tz),
+    confirmedAt: day_(r.confirmedAt, tz),
+    readyAt: day_(r.readyAt, tz),
+    cancelRequested: !!String(r.cancelRequest || '').trim(),
+    purged: !!r.purgedAt
+  };
+}
+
+/* ---------- customer ---------- */
+
+function myJob_(req) {
+  var me = need_(req, ['customer', 'staff', 'admin']);
+  var jobs = table_(SHEETS.jobs, JOB_COLS);
+  var r = jobRow_(jobs, req.jobNo);
+  if (email_(r.email, true) !== me.email) fail_('not_found');
+  var job = jobSummary_(r, ss_().getSpreadsheetTimeZone());
+  job.files = job.status === 'delivered' ? jobFiles_(r, ['translation']) : [];
+  return { ok: true, job: job };
+}
+
+// Download one file (base64). Customer: own delivered translations. Staff: assigned jobs. Admin: any.
+function jobFile_(req) {
+  var me = need_(req, ['customer', 'staff', 'admin']);
+  var jobs = table_(SHEETS.jobs, JOB_COLS);
+  var r = jobRow_(jobs, req.jobNo);
+  var kinds;
+  if (me.role === 'admin') kinds = ['doc', 'id', 'translation'];
+  else if (me.role === 'staff' && email_(r.assignee, true) === me.email) kinds = ['doc', 'id', 'translation'];
+  else if (email_(r.email, true) === me.email && statusCode_(r.status) === 'delivered') kinds = ['translation'];
+  else fail_('not_found');
+  var hit = jobFiles_(r, kinds).filter(function (f) { return f.id === String(req.fileId || ''); })[0];
+  if (!hit) fail_('not_found');
+  var file = DriveApp.getFileById(hit.id);
+  return { ok: true, name: hit.name, mime: file.getMimeType(), data: Utilities.base64Encode(file.getBlob().getBytes()) };
+}
+
+function requestCancel_(req) {
+  var me = need_(req, ['customer', 'staff', 'admin']);
+  var reason = text_(req.reason, 500);
+  var row = withLock_(function () {
+    var jobs = table_(SHEETS.jobs, JOB_COLS);
+    var r = jobRow_(jobs, req.jobNo);
+    if (email_(r.email, true) !== me.email) fail_('not_found');
+    var code = statusCode_(r.status);
+    if (['received', 'quoted'].indexOf(code) === -1) fail_('cannot_cancel');   // work has started: contact us
+    if (String(r.cancelRequest || '').trim()) return r;
+    var tz = ss_().getSpreadsheetTimeZone();
+    var note = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm') + ' — ' + (reason || '-');
+    updateRow_(jobs, r, { cancelRequest: note });
+    r.cancelRequest = note;
+    return r;
+  });
+  try {
+    MailApp.sendEmail({
+      to: providerEmail_(), replyTo: String(row.email), name: CONFIG.serviceName,
+      subject: 'คำขอยกเลิก ' + row.jobNo + ' — ' + row.name,
+      htmlBody: mailLayout_({ th: true, title: 'ลูกค้าขอยกเลิกงาน ' + row.jobNo,
+        intro: ['เหตุผล: ' + esc_(reason || '-'), 'อนุมัติหรือปฏิเสธได้ในหน้า <b>บัญชีของฉัน → งานทั้งหมด</b> บนเว็บไซต์'],
+        button: { label: 'เปิดหน้าจัดการ', url: CONFIG.siteUrl + '/#account' } })
+    });
+  } catch (e) { console.error('cancel mail ' + row.jobNo + ': ' + e); }
+  return { ok: true };
+}
+
+/* ---------- staff ---------- */
+
+function staffJobs_(req) {
+  var me = need_(req, ['staff', 'admin']);
+  var tz = ss_().getSpreadsheetTimeZone();
+  var jobs = table_(SHEETS.jobs, JOB_COLS).rows.filter(function (r) {
+    return r.jobNo && String(r.status || '').trim() && !r.purgedAt && email_(r.assignee, true) === me.email;
+  }).map(function (r) { return jobSummary_(r, tz); });
+  jobs.sort(function (a, b) { return (a.neededBy || '9').localeCompare(b.neededBy || '9'); });
+  return { ok: true, jobs: jobs };
+}
+
+// What a translator needs — never the customer's contact details or address
+function staffView_(r, tz) {
+  var j = jobSummary_(r, tz);
+  j.nameSpelling = String(r.nameSpelling || '');
+  j.notes = String(r.notes || '');
+  j.internalNotes = String(r.internalNotes || '');
+  j.files = jobFiles_(r, ['doc', 'id', 'translation']);
+  return j;
+}
+
+function staffJob_(req) {
+  var me = need_(req, ['staff', 'admin']);
+  var r = jobRow_(table_(SHEETS.jobs, JOB_COLS), req.jobNo);
+  if (me.role !== 'admin' && email_(r.assignee, true) !== me.email) fail_('not_found');
+  return { ok: true, job: staffView_(r, ss_().getSpreadsheetTimeZone()) };
+}
+
+function canWork_(me, r) {
+  if (me.role !== 'admin' && email_(r.assignee, true) !== me.email) fail_('not_found');
+  if (r.purgedAt || ['cancelled'].indexOf(statusCode_(r.status)) > -1) fail_('job_closed');
+}
+
+function uploadTranslation_(req) {
+  var me = need_(req, ['staff', 'admin']);
+  var r = jobRow_(table_(SHEETS.jobs, JOB_COLS), req.jobNo);
+  canWork_(me, r);
+  var name = safeFileName_(req.name);
+  var ext = (name.match(/\.([a-z0-9]+)$/i) || [])[1];
+  if (!ext || CONFIG.allowedExt.indexOf(ext.toLowerCase()) === -1) fail_('bad_file');
+  var bytes;
+  try { bytes = Utilities.base64Decode(String(req.data || '')); } catch (e) { fail_('bad_file'); }
+  if (!bytes.length) fail_('bad_file');
+  if (bytes.length > CONFIG.maxFileMB * 1048576) fail_('too_large');
+  var folder = folderOf_(r);
+  if (!folder) fail_('job_closed');
+  var out = subFolder_(folder, function (n) { return n === TRANSLATED_FOLDER; }, TRANSLATED_FOLDER);
+  var f = out.createFile(Utilities.newBlob(bytes, mimeFor_(ext), name));
+  note_(r, me.email, 'อัปโหลดไฟล์งานแปล ' + name);
+  return { ok: true, file: fileInfo_(f, 'translation') };
+}
+
+function deleteTranslation_(req) {
+  var me = need_(req, ['staff', 'admin']);
+  var r = jobRow_(table_(SHEETS.jobs, JOB_COLS), req.jobNo);
+  canWork_(me, r);
+  if (statusCode_(r.status) === 'delivered' && me.role !== 'admin') fail_('job_closed');
+  var hit = jobFiles_(r, ['translation']).filter(function (f) { return f.id === String(req.fileId || ''); })[0];
+  if (!hit) fail_('not_found');
+  DriveApp.getFileById(hit.id).setTrashed(true);
+  note_(r, me.email, 'ลบไฟล์งานแปล ' + hit.name);
+  return { ok: true };
+}
+
+// Append a line to "บันทึกภายใน" (newest first)
+function note_(r, by, text) {
+  withLock_(function () {
+    var jobs = table_(SHEETS.jobs, JOB_COLS);
+    var row = jobRow_(jobs, r.jobNo);
+    var tz = ss_().getSpreadsheetTimeZone();
+    var line = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm') + ' ' + by + ': ' + text_(text, 600);
+    var all = (line + '\n' + String(row.internalNotes || '')).slice(0, 20000);
+    updateRow_(jobs, row, { internalNotes: all });
+    r.internalNotes = all;
+  });
+}
+
+// Staff: start translating (status → กำลังแปล, customer is emailed), mark ready for checking, add a note
+function staffUpdate_(req) {
+  var me = need_(req, ['staff', 'admin']);
+  var jobs = table_(SHEETS.jobs, JOB_COLS);
+  var r = jobRow_(jobs, req.jobNo);
+  canWork_(me, r);
+  if (req.note) note_(r, me.email, req.note);
+  if (req.step === 'start') {
+    if (statusCode_(r.status) !== 'inProgress') setStatus_(r.jobNo, 'inProgress', me.email);
+  } else if (req.step === 'ready') {
+    if (!jobFiles_(r, ['translation']).length) fail_('no_translation');
+    withLock_(function () {
+      var t = table_(SHEETS.jobs, JOB_COLS), row = jobRow_(t, r.jobNo);
+      updateRow_(t, row, { readyAt: new Date() });
+    });
+    note_(r, me.email, 'แปลเสร็จ รอตรวจ');
+    try {
+      MailApp.sendEmail({
+        to: providerEmail_(), name: CONFIG.serviceName,
+        subject: 'แปลเสร็จ รอตรวจ ' + r.jobNo,
+        htmlBody: mailLayout_({ th: true, title: 'งาน ' + r.jobNo + ' แปลเสร็จแล้ว',
+          intro: [esc_(me.email) + ' อัปโหลดไฟล์งานแปลแล้ว ตรวจแล้วกด "ส่งมอบ" ในหน้าจัดการ'],
+          button: { label: 'เปิดหน้าจัดการ', url: CONFIG.siteUrl + '/#account' } })
+      });
+    } catch (e) { console.error('ready mail ' + r.jobNo + ': ' + e); }
+  }
+  return { ok: true, job: staffView_(jobRow_(table_(SHEETS.jobs, JOB_COLS), r.jobNo), ss_().getSpreadsheetTimeZone()) };
+}
+
+// Change a job's status from the website (same effects as editing the sheet)
+function setStatus_(jobNo, code, by) {
+  if (!statusLabel_(code)) fail_('invalid_choice');
+  var jobs, row;
+  withLock_(function () {
+    jobs = table_(SHEETS.jobs, JOB_COLS);
+    row = jobRow_(jobs, jobNo);
+    updateRow_(jobs, row, { status: statusLabel_(code) });
+    row.status = statusLabel_(code);
+  });
+  afterStatus_(jobs, row, code);
+  if (by) note_(row, by, 'เปลี่ยนสถานะเป็น ' + statusLabel_(code));
+}
+
+/* ---------- admin ---------- */
+
+function adminOverview_(req) {
+  need_(req, ['admin']);
+  var tz = ss_().getSpreadsheetTimeZone();
+  var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  var soon = Utilities.formatDate(addDays_(new Date(), 3), tz, 'yyyy-MM-dd');
+  var counts = {}, open = 0, dueSoon = 0, overdue = 0, cancelRequests = 0, ready = 0, unassigned = 0, months = {};
+  STATUSES.forEach(function (s) { counts[s.code] = 0; });
+  table_(SHEETS.jobs, JOB_COLS).rows.forEach(function (r) {
+    if (!r.jobNo || !String(r.status || '').trim()) return;
+    var code = statusCode_(r.status);
+    counts[code] = (counts[code] || 0) + 1;
+    var m = day_(r.submittedAt, tz).slice(0, 7);
+    if (m) months[m] = (months[m] || 0) + 1;
+    if (code === 'delivered' || code === 'cancelled') return;
+    open++;
+    var need = day_(r.neededBy, tz);
+    if (need && need < today) overdue++;
+    else if (need && need <= soon) dueSoon++;
+    if (String(r.cancelRequest || '').trim()) cancelRequests++;
+    if (r.readyAt) ready++;
+    if (!String(r.assignee || '').trim()) unassigned++;
+  });
+  return { ok: true, counts: counts, open: open, dueSoon: dueSoon, overdue: overdue,
+           cancelRequests: cancelRequests, ready: ready, unassigned: unassigned, months: months };
+}
+
+function adminJobs_(req) {
+  need_(req, ['admin']);
+  var tz = ss_().getSpreadsheetTimeZone();
+  var q = String(req.q || '').trim().toLowerCase();
+  var list = table_(SHEETS.jobs, JOB_COLS).rows.filter(function (r) {
+    if (!r.jobNo || !String(r.status || '').trim()) return false;
+    if (!q) return true;
+    return [r.jobNo, r.name, r.email, r.assignee].some(function (v) { return String(v || '').toLowerCase().indexOf(q) > -1; });
+  }).map(function (r) {
+    var j = jobSummary_(r, tz);
+    j.name = String(r.name || '');
+    j.email = String(r.email || '');
+    j.assignee = String(r.assignee || '');
+    return j;
+  });
+  list.sort(function (a, b) { return b.jobNo.localeCompare(a.jobNo); });
+  return { ok: true, jobs: list.slice(0, 500), staff: staffList_() };
+}
+
+function staffList_() {
+  var admins = bootstrapAdmins_();
+  return table_(SHEETS.users, USER_COLS).rows.filter(function (u) {
+    var e = email_(u.email, true);
+    return e && (roleCode_(u.role) !== 'customer' || admins.indexOf(e) > -1);
+  }).map(function (u) {
+    var e = email_(u.email, true);
+    return { email: e, name: String(u.name || ''), role: roleOf_(e, u) };
+  });
+}
+
+function adminJob_(req) {
+  need_(req, ['admin']);
+  var r = jobRow_(table_(SHEETS.jobs, JOB_COLS), req.jobNo);
+  var j = staffView_(r, ss_().getSpreadsheetTimeZone());
+  ['name', 'email', 'line', 'phone', 'address', 'assignee', 'cancelRequest', 'folder', 'lang'].forEach(function (k) { j[k] = String(r[k] || ''); });
+  var u = find_(table_(SHEETS.users, USER_COLS), 'email', email_(r.email, true));
+  j.customerType = u ? typeCode_(u.customerType) : 'general';
+  return { ok: true, job: j, staff: staffList_() };
+}
+
+function adminUpdateJob_(req) {
+  var me = need_(req, ['admin']);
+  var jobNo = String(req.jobNo || '').trim().toUpperCase();
+  var r = jobRow_(table_(SHEETS.jobs, JOB_COLS), jobNo);
+  if (req.assignee !== undefined) {
+    var to = String(req.assignee || '').trim().toLowerCase();
+    if (to && !staffList_().some(function (s) { return s.email === to; })) fail_('invalid_choice');
+    if (to !== email_(r.assignee, true)) {
+      withLock_(function () {
+        var t = table_(SHEETS.jobs, JOB_COLS), row = jobRow_(t, jobNo);
+        updateRow_(t, row, { assignee: to });
+      });
+      note_(r, me.email, to ? 'มอบหมายให้ ' + to : 'ยกเลิกการมอบหมาย');
+      if (to && to !== me.email) {
+        try {
+          MailApp.sendEmail({
+            to: to, name: CONFIG.serviceName, subject: 'งานใหม่ที่มอบหมายให้คุณ ' + jobNo,
+            htmlBody: mailLayout_({ th: true, title: 'มีงานแปลมอบหมายให้คุณ', intro: ['เลขที่งาน <b>' + esc_(jobNo) + '</b> · ' +
+              esc_(categoryName_(r.category, true)) + ' · ' + esc_(langPairName_(r.langPair, true)) + ' · ต้องการ ' + esc_(dateText_(r.neededBy, true))],
+              button: { label: 'เปิดงาน', url: CONFIG.siteUrl + '/#account' } })
+          });
+        } catch (e) { console.error('assign mail ' + jobNo + ': ' + e); }
+      }
+    }
+  }
+  if (req.cancel === 'approve' || req.cancel === 'reject') {
+    withLock_(function () {
+      var t = table_(SHEETS.jobs, JOB_COLS), row = jobRow_(t, jobNo);
+      updateRow_(t, row, { cancelRequest: '' });
+    });
+    note_(r, me.email, req.cancel === 'approve' ? 'อนุมัติคำขอยกเลิก' : 'ปฏิเสธคำขอยกเลิก');
+    if (req.cancel === 'approve') setStatus_(jobNo, 'cancelled', null);
+  }
+  if (req.status && statusCode_(r.status) !== req.status) setStatus_(jobNo, String(req.status), me.email);
+  if (req.note) note_(r, me.email, req.note);
+  return adminJob_({ token: req.token, jobNo: jobNo });
+}
+
+function adminUsers_(req) {
+  need_(req, ['admin']);
+  var counts = {};
+  table_(SHEETS.jobs, JOB_COLS).rows.forEach(function (r) {
+    if (!r.jobNo || !String(r.status || '').trim()) return;
+    var e = email_(r.email, true);
+    counts[e] = (counts[e] || 0) + 1;
+  });
+  var tz = ss_().getSpreadsheetTimeZone();
+  var users = table_(SHEETS.users, USER_COLS).rows.filter(function (u) { return u.email; }).map(function (u) {
+    var e = email_(u.email, true);
+    return { email: e, name: String(u.name || ''), phone: String(u.phone || ''), role: roleOf_(e, u),
+             customerType: typeCode_(u.customerType), jobs: counts[e] || 0,
+             createdAt: day_(u.createdAt, tz), lastLoginAt: day_(u.lastLoginAt, tz),
+             fixedAdmin: bootstrapAdmins_().indexOf(e) > -1 };
+  });
+  users.sort(function (a, b) { return (b.lastLoginAt || '').localeCompare(a.lastLoginAt || ''); });
+  return { ok: true, users: users };
+}
+
+// Set role / customer type. Adding a staff member who never signed in creates their row.
+function adminSetUser_(req) {
+  var me = need_(req, ['admin']);
+  var email = email_(req.email);
+  var changes = {};
+  if (req.role !== undefined) {
+    var role = String(req.role);
+    if (!roleLabel_(role)) fail_('invalid_choice');
+    if (email === me.email && role !== 'admin') fail_('cannot_demote_self');
+    changes.role = role === 'customer' ? '' : roleLabel_(role);
+  }
+  if (req.customerType !== undefined) {
+    var type = String(req.customerType);
+    if (!CUSTOMER_TYPES.some(function (t) { return t.code === type; })) fail_('invalid_choice');
+    changes.customerType = typeLabel_(type);
+  }
+  withLock_(function () {
+    var users = table_(SHEETS.users, USER_COLS);
+    var u = find_(users, 'email', email);
+    if (u) updateRow_(users, u, changes);
+    else appendRow_(users, Object.assign({ email: email, lang: 'th', createdAt: new Date() }, changes));
+  });
+  return adminUsers_(req);
+}
+
+function discountRows_() {
+  if (!ss_().getSheetByName(SHEETS.discounts)) return [];
+  return table_(SHEETS.discounts, DISCOUNT_COLS).rows.filter(function (r) { return r.code; }).map(function (r) {
+    return { kind: r.kind === 'tier' ? 'tier' : 'type', code: String(r.code), nameTh: String(r.nameTh || ''), nameEn: String(r.nameEn || ''),
+             percent: Math.max(0, Math.min(100, Number(r.percent) || 0)), minSpend: Math.max(0, Number(r.minSpend) || 0), active: active_(r) };
+  });
+}
+
+function adminDiscounts_(req) {
+  need_(req, ['admin']);
+  return { ok: true, items: discountRows_() };
+}
+
+// Replace the whole Discounts table (type rows for each customer type + any number of tiers)
+function adminSaveDiscounts_(req) {
+  need_(req, ['admin']);
+  var items = (req.items || []).slice(0, 50).map(function (it) {
+    var kind = it.kind === 'tier' ? 'tier' : 'type';
+    var code = String(it.code || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 30);
+    if (!code) fail_('invalid_choice');
+    if (kind === 'type' && !CUSTOMER_TYPES.some(function (t) { return t.code === code; })) fail_('invalid_choice');
+    var pct = Number(it.percent), min = Number(it.minSpend || 0);
+    if (!(pct >= 0 && pct <= 100) || !(min >= 0)) fail_('invalid_number');
+    return [kind, code, text_(it.nameTh, 60), text_(it.nameEn, 60), Math.round(pct * 100) / 100, Math.round(min), it.active !== false];
+  });
+  withLock_(function () {
+    var sh = ensureSheet_(SHEETS.discounts, DISCOUNT_COLS);
+    if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, DISCOUNT_COLS.length).clearContent();
+    if (items.length) sh.getRange(2, 1, items.length, DISCOUNT_COLS.length).setValues(items.map(function (r) { return r.map(safe_); }));
+  });
+  return adminDiscounts_(req);
 }
 
 /* ======================================================================
@@ -818,14 +1346,19 @@ function onJobEdit(e) {
     var row = jobs.rows[r - 2];
     if (!row || !row.jobNo || row.purgedAt) continue;
     if (e.range.getNumRows() === 1 && e.oldValue === row.status) continue;
-    var code = statusCode_(row.status);
-    if (code === 'delivered') {
-      var changes = { deliveredAt: new Date() };
-      if (!row.deleteBy) changes.deleteBy = addDays_(new Date(), CONFIG.retentionDays);
-      updateRow_(jobs, row, changes);
-    }
-    try { sendStatusMail_(row, code); } catch (err) { console.error('status mail ' + row.jobNo + ': ' + err); }
+    afterStatus_(jobs, row, statusCode_(row.status));
   }
+}
+
+// Side effects of a new status (sheet edit or website): delivery dates, then the customer email
+function afterStatus_(jobs, row, code) {
+  if (code === 'delivered') {
+    var changes = { deliveredAt: new Date() };
+    if (!row.deleteBy) changes.deleteBy = addDays_(new Date(), CONFIG.retentionDays);
+    updateRow_(jobs, row, changes);
+    for (var k in changes) row[k] = changes[k];
+  }
+  try { sendStatusMail_(row, code); } catch (err) { console.error('status mail ' + row.jobNo + ': ' + err); }
 }
 
 function sendStatusMail_(r, code) {
@@ -1013,6 +1546,23 @@ function setup() {
   var jobs = ensureSheet_(SHEETS.jobs, JOB_COLS);
   var sessions = ensureSheet_(SHEETS.sessions, SESSION_COLS);
   sessions.hideSheet();
+  // Columns added by later phases go on the right of existing sheets; data is untouched
+  addMissingColumns_(users, USER_COLS);
+  addMissingColumns_(jobs, JOB_COLS);
+  // Phase 5: dropdowns for role and customer type on "Users"
+  [['บทบาท', ROLES.filter(function (r) { return r.code !== 'customer'; }).map(function (r) { return r.th; })],
+   ['ประเภทลูกค้า', CUSTOMER_TYPES.map(function (t) { return t.th; })]].forEach(function (d) {
+    var c = colIndex_(users, d[0]);
+    if (c) users.getRange(2, c, users.getMaxRows() - 1, 1).setDataValidation(SpreadsheetApp.newDataValidation()
+      .requireValueInList(d[1], true).setAllowInvalid(false).build());
+  });
+  // Phase 5: discount settings, one row per customer type (0 % until the owner sets them)
+  if (!ss_().getSheetByName(SHEETS.discounts)) {
+    var disc = ensureSheet_(SHEETS.discounts, DISCOUNT_COLS);
+    disc.getRange(2, 1, CUSTOMER_TYPES.length, DISCOUNT_COLS.length).setValues(CUSTOMER_TYPES.map(function (t) {
+      return ['type', t.code, t.th, t.en, 0, 0, true];
+    }));
+  }
 
   // Status dropdown with colours on "Jobs"
   var statusCol = colIndex_(jobs, 'สถานะ');
@@ -1171,6 +1721,15 @@ function buildGlossary_() {
   return sh;
 }
 
+function addMissingColumns_(sh, cols) {
+  var last = Math.max(sh.getLastColumn(), 1);
+  var head = sh.getRange(1, 1, 1, last).getValues()[0].map(function (h) { return String(h).trim(); });
+  var add = cols.filter(function (c) { return head.indexOf(c[1]) === -1; }).map(function (c) { return c[1]; });
+  if (!add.length) return;
+  var start = head.filter(String).length ? last + 1 : 1;
+  sh.getRange(1, start, 1, add.length).setValues([add]).setFontWeight('bold');
+}
+
 function ensureSheet_(name, cols) {
   var ss = ss_();
   var sh = ss.getSheetByName(name) || ss.insertSheet(name);
@@ -1226,6 +1785,9 @@ function updateRow_(t, rowObj, changes) {
   var row = rowObj._values.slice();
   for (var k in changes) if (k in t.idx) row[t.idx[k]] = safe_(changes[k]);
   t.sheet.getRange(rowObj._row, 1, 1, row.length).setValues([row]);
+  // keep the in-memory copy current, so a second update of the same row can't undo the first
+  rowObj._values = row;
+  for (var c in changes) rowObj[c] = changes[c];
 }
 
 function deleteRows_(t, test) {
