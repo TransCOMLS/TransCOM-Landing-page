@@ -109,7 +109,7 @@
     var items = activePromos();
     $("#home-promos").hidden = !items.length;
     list.textContent = "";
-    items.forEach(function (p) {
+    items.forEach(function (p, idx) {
       var li = document.createElement("li");
       li.className = "promo-card";
       if (pick(p.tag)) {
@@ -125,8 +125,18 @@
       if (pick(p.text)) {
         var body = document.createElement("p");
         body.className = "promo-text";
-        body.textContent = text(p.text);
+        body.textContent = text(p.text).trim();
         li.appendChild(body);
+        // Shown only when the text is cut off (see fitPromos)
+        var read = document.createElement("button");
+        read.type = "button";
+        read.className = "btn-link promo-read";
+        read.hidden = true;
+        read.setAttribute("aria-haspopup", "dialog");
+        read.textContent = t("home.promo.read");
+        read.setAttribute("aria-label", t("news.open", { title: text(p.title) }));
+        read.addEventListener("click", function () { openPost(p, idx, read, "promo"); });
+        li.appendChild(read);
       }
       var foot = document.createElement("div");
       foot.className = "promo-foot";
@@ -147,6 +157,15 @@
       }
       if (foot.childNodes.length) li.appendChild(foot);
       list.appendChild(li);
+    });
+    fitPromos();
+  }
+
+  // "Read more" only on cards whose text is cut off at 6 lines (depends on the card width)
+  function fitPromos() {
+    Array.prototype.forEach.call(document.querySelectorAll("#promo-list .promo-card"), function (card) {
+      var body = card.querySelector(".promo-text"), read = card.querySelector(".promo-read");
+      if (body && read) read.hidden = body.scrollHeight <= body.clientHeight + 2;
     });
   }
 
@@ -262,13 +281,14 @@
     });
   }
 
-  var postOpener = null, openIndex = -1;
+  var postOpener = null, openIndex = -1, openSource = "news";
 
-  function openPost(n, i, opener) {
+  function openPost(n, i, opener, source) {
     var dlg = $("#post-dialog");
     if (!dlg || typeof dlg.showModal !== "function") return;
     postOpener = opener || postOpener;
     openIndex = i;
+    openSource = source || openSource;
     $("#post-dialog-date").textContent = n.date ? fmtDate(n.date) : "";
     $("#post-dialog-title").textContent = text(n.title);
     // Always show the post's picture (the owner's image, or the generated cover)
@@ -279,10 +299,10 @@
     media.appendChild(postMedia(n, i));
     var body = $("#post-dialog-text");
     body.textContent = "";
-    text(n.text).split(/\n+/).forEach(function (para) {
+    String(text(n.text) || "").replace(/\r/g, "").split(/\n[ \t]*\n/).forEach(function (para) {
       if (!para.trim()) return;
       var p = document.createElement("p");
-      p.textContent = para.trim();
+      p.textContent = para.replace(/^\s*\n|\s+$/g, "");
       body.appendChild(p);
     });
     var foot = $("#post-dialog-foot");
@@ -315,16 +335,17 @@
       document.documentElement.classList.remove("modal-open");
       // The grid is rebuilt on a language switch, so fall back to the card at the same place
       var back = postOpener && document.contains(postOpener) ? postOpener
-        : document.querySelectorAll("#post-grid .post-card")[openIndex];
+        : document.querySelectorAll(openSource === "promo" ? "#promo-list .promo-read" : "#post-grid .post-card")[openIndex];
       if (back) back.focus({ preventScroll: true });
       openIndex = -1;
       postOpener = null;
+      openSource = "news";
     });
     // Language switch while open: show the same post in the new language
     document.addEventListener("langchange", function () {
       if (!dlg.open || openIndex < 0) return;
-      var items = newsItems();
-      if (items[openIndex]) openPost(items[openIndex], openIndex, null);
+      var items = openSource === "promo" ? activePromos() : newsItems();
+      if (items[openIndex]) openPost(items[openIndex], openIndex, null, openSource);
     });
   }
 
@@ -365,6 +386,16 @@
     renderAll();
     loadSheetContent();
     document.addEventListener("langchange", renderAll);
+    // Re-measure the offer cards once they are visible / resized / the font has loaded
+    var fitQueued = false;
+    function queueFit() {
+      if (fitQueued) return;
+      fitQueued = true;
+      requestAnimationFrame(function () { fitQueued = false; fitPromos(); });
+    }
+    document.addEventListener("tabchange", queueFit);
+    window.addEventListener("resize", queueFit);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(queueFit);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

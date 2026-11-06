@@ -962,7 +962,12 @@ html.modal-open, html.modal-open body { overflow: hidden; }
   background: linear-gradient(160deg, var(--promo-tint) 0%, var(--surface) 60%);
 }
 .promo-card h3 { margin: 0 0 6px; font-size: 1.125rem; color: var(--accent); }
-.promo-text { margin: 0; color: var(--muted); font-size: 0.9875rem; }
+.promo-text {
+  margin: 0; color: var(--muted); font-size: 0.9875rem; white-space: pre-line; overflow-wrap: anywhere;
+  /* Long offers: first 6 lines on the card, the rest in the pop-up ("Read more") */
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; line-clamp: 6; overflow: hidden;
+}
+.promo-read { align-self: flex-start; margin-top: 6px; }
 .promo-foot { margin-top: auto; padding-top: 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
 .promo-until { font-size: 0.875rem; color: var(--muted); }
 @media (min-width: 640px) {
@@ -1080,7 +1085,7 @@ html.modal-open, html.modal-open body { overflow: hidden; }
 .post-dialog-media .post-cover-title { font-size: clamp(1.25rem, 1rem + 1.5vw, 1.75rem); -webkit-line-clamp: 5; }
 .post-dialog-copy { padding: 16px 20px 8px; }
 #post-dialog-title { margin: 0 0 10px; font-size: 1.375rem; line-height: 1.35; }
-.post-dialog-text p { margin: 0 0 0.8em; color: var(--text-soft); line-height: 1.7; }
+.post-dialog-text p { margin: 0 0 0.8em; color: var(--text-soft); line-height: 1.7; white-space: pre-line; overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) { .post-card:hover { transform: none; } }
 @media (min-width: 768px) {
   .modal-post.has-media { width: min(980px, calc(100vw - 48px)); }
