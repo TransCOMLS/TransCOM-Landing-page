@@ -12,10 +12,11 @@ provider manages all jobs from one Google Sheet, with no paid server.
   font — with a sans-serif fallback stack. Do not switch to other display fonts.
 
 ## Files
-- `index.html` — single page; 11 `.panel` sections in `<main>`: home, services, pricing,
-  calculator, submit, track, account, how, faq, contact, privacy. Ids double as `#hash` routes.
+- `index.html` — single page; 12 `.panel` sections in `<main>`: home, services, pricing,
+  calculator, submit, track, account, how, faq, contact, privacy, terms. Ids double as `#hash` routes.
   Menu (`.main-nav` in the header): Home · Services & pricing ▾ (services, pricing,
-  calculator) · Orders ▾ (how, submit, track) · Help ▾ (faq, privacy) · Contact.
+  calculator) · Orders ▾ (how, submit, track) · Help ▾ (faq, privacy, terms) · Contact.
+  Footer bottom links: Terms and Conditions · Privacy Policy.
   Items carry `data-tab`; other in-page links use `data-goto`. "My account" is the
   `.account-btn` in the header (≥640px) and a menu item below 1024px.
 - `css/style.css` — mobile-first. Breakpoints: phone/tablet (<1024px, menu button opens
@@ -28,14 +29,29 @@ provider manages all jobs from one Google Sheet, with no paid server.
   "special rate"; `civilDocuments` lists the 18 documents (TH/EN); `idRetentionDays: 15`.
 - `js/i18n.js` — `window.I18N.th` / `.en`, flat keys. Every key must exist in both.
   `{tokens}` are filled from config (`{serviceName}`, `{retentionDays}`, …).
+- `js/terms.js` — `window.TERMS.th` / `.en`: the full Terms and Conditions of Service
+  (legal text, owner-approved; source = the owner's Claude doc "ข้อกำหนดและเงื่อนไขการรับบริการ
+  TransCOM", https://claude.ai/artifact/WPowapbhHQNouryR3mHDZB). Sections of paragraphs and
+  `{list: [...]}`; `**bold**`. Numbers are written out ("เจ็ด (7)") and do NOT follow config.js —
+  if a policy number changes (retention, revision days, refunds), change the doc, terms.js and
+  the privacy text in i18n.js together. Thai version prevails (clause 9.6).
 - `js/app.js` — IIFE; exposes `window.App` (`t`, `config`, `getLang`, `showTab`,
   `formatNumber`) and fires `langchange` / `tabchange` events on `document` for
   later phases to hook into. Menu is a disclosure pattern (`aria-expanded`, current page
   `aria-current="page"`); Escape and outside clicks close it. After load it scrolls back
   to the top, since the browser jumps to the `#hash` section.
-  Privacy policy pop-up (`<dialog id="privacy-dialog">`, content copied from `#privacy`):
-  opened by `[data-modal="privacy"]` (consent link in the job form) and by any
-  `data-goto="privacy"` while on the submit page, so customers never leave the form.
+  Renders `#terms-body` from `window.TERMS` on every language change. Long pages (terms,
+  privacy; class `.prose.has-toc`) get a contents list: `<details class="doc-toc"
+  data-toc-for="<body id>">` built from the body's `<h2>`s (`buildTocs`/`initTocs`). PC: sticky
+  in the left column, text at reading width (74ch), current section highlighted while
+  scrolling; phone/tablet: folded at the top. The pop-up strips the list.
+  FAQ: 13 questions in 4 groups (`faq.g1`–`g4`, `faq.q1`–`q13`), answers match the terms and
+  use config tokens; PC shows a help side card (`.side-card`, as on the job form).
+  Policy pop-up (`<dialog id="policy-dialog">`, content copied from `#privacy` or `#terms`,
+  page `<h1>` becomes the title): opened by `[data-modal="privacy"|"terms"]` (the two links in
+  the job-form consent) and by any `data-goto="privacy"|"terms"` while on the submit page, so
+  customers never leave the form. The consent checkbox covers acceptance of the terms and
+  explicit consent for sensitive data (PDPA s.26).
 - `js/account.js` — customer accounts (optional; guests can still submit): sign in with a
   6-digit code emailed by Apps Script (no passwords), job history, profile that fills in
   the job form, sign out, delete account (PDPA). Exposes `App.api(action, payload)` and
@@ -104,6 +120,6 @@ console errors, `node --check js/*.js` passes, and i18n keys match between th/en
 The owner keeps a matching preview copy on claude.ai: https://claude.ai/artifact/WrtJLSJG77T717XyWkqMrF
 After each phase, republish it with the Artifact tool, passing that URL as `url` (read it first).
 Publish `index.html` with its `<!DOCTYPE>`, `<html>`, `<head>`/`<body>` tags and the charset/viewport
-metas removed (title, font links and the stylesheet link stay), plus `css/style.css`, the four
-`js/*.js` files (config, i18n, app, account) and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
+metas removed (title, font links and the stylesheet link stay), plus `css/style.css`, the five
+`js/*.js` files (config, i18n, terms, app, account) and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
 inline for that copy only.
