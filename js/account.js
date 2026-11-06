@@ -132,6 +132,8 @@
       renderJobs();
     }
     renderPrefillHint();
+    // js/portal.js draws the dashboard for the person's role
+    document.dispatchEvent(new CustomEvent("accountchange", { detail: { signedIn: signedIn, profile: state.profile, jobs: state.jobs } }));
   }
 
   function fmtDate(iso) {
@@ -415,10 +417,10 @@
       $(sel).addEventListener("input", function () { App.setFieldError(this, null); App.showStatus(status, "", ""); });
     });
 
-    $("#a-refresh").addEventListener("click", function () {
-      var btn = this;
-      busy(btn, true);
-      loadAccount().then(function () { busy(btn, false); });
+    var refresh = $("#a-refresh");
+    if (refresh) refresh.addEventListener("click", function () {
+      busy(refresh, true);
+      loadAccount().then(function () { busy(refresh, false); });
     });
 
     $("#a-logout").addEventListener("click", function () {
@@ -493,7 +495,10 @@
   App.account = {
     token: function () { return state.token; },
     profile: function () { return state.profile; },
-    isSignedIn: function () { return !!(state.token && state.profile); }
+    jobs: function () { return state.jobs.slice(); },
+    reload: function () { return loadAccount(); },
+    isSignedIn: function () { return !!(state.token && state.profile); },
+    expired: function () { signedOut(t("acct.err.session_expired")); }
   };
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
