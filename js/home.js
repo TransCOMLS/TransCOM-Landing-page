@@ -346,7 +346,20 @@
     }, function () { /* keep the built-in content */ });
   }
 
+  /* ---------- visitor counter (footer) ---------- */
+  function loadVisits() {
+    var box = $("#visit-count");
+    if (!box || !CFG.appsScriptUrl || CFG.showVisitorCount === false || !App.api) return;
+    var today = App.todayISO(), isNew = App.storage.get("tr_visit") !== today;
+    App.api("visit", { isNew: isNew }).then(function (res) {
+      App.storage.set("tr_visit", today);
+      $("#visit-n").textContent = App.formatNumber(res.total || 0);
+      box.hidden = !(res.total > 0);
+    }, function () { /* no counter without the backend */ });
+  }
+
   function init() {
+    loadVisits();
     initQuick();
     initPostDialog();
     renderAll();

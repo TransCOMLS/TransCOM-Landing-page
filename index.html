@@ -3,13 +3,84 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>TransCOM</title>
-  <meta name="description" content="">
+  <title>TransCOM — บริการแปลเอกสาร ไทย ⇄ อังกฤษ | รับรองคำแปล</title>
+  <meta name="description" content="บริการแปลเอกสาร ไทย ⇄ อังกฤษ เอกสารทะเบียนราษฎร (ราคาพิเศษ) เอกสารราชการ การศึกษา ธุรกิจ และเอกสารอื่น ๆ พร้อมรับรองคำแปล ตรวจทานทุกฉบับ คำนวณราคา ส่งงาน และติดตามสถานะออนไลน์">
   <meta name="theme-color" content="#01417b">
+  <link rel="canonical" href="https://www.prathaitranslation.com/">
+  <!-- icons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="img/icon-192.png">
+  <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+  <!-- link previews (LINE, Facebook, X) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="TransCOM">
+  <meta property="og:locale" content="th_TH">
+  <meta property="og:locale:alternate" content="en_US">
+  <meta property="og:url" content="https://www.prathaitranslation.com/">
+  <meta property="og:title" content="TransCOM — บริการแปลเอกสาร ไทย ⇄ อังกฤษ">
+  <meta property="og:description" content="บริการแปลเอกสาร ไทย ⇄ อังกฤษ เอกสารทะเบียนราษฎร (ราคาพิเศษ) เอกสารราชการ การศึกษา ธุรกิจ และเอกสารอื่น ๆ พร้อมรับรองคำแปล ตรวจทานทุกฉบับ คำนวณราคา ส่งงาน และติดตามสถานะออนไลน์">
+  <meta property="og:image" content="https://www.prathaitranslation.com/img/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <!-- business details for Google (structured data) -->
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "ProfessionalService",
+  "name": "TransCOM",
+  "alternateName": [
+    "TransCOM Language Service",
+    "บริการแปลเอกสาร TransCOM"
+  ],
+  "url": "https://www.prathaitranslation.com/",
+  "logo": "https://www.prathaitranslation.com/img/icon-512.png",
+  "image": "https://www.prathaitranslation.com/img/og-image.jpg",
+  "description": "บริการแปลเอกสาร ไทย ⇄ อังกฤษ เอกสารทะเบียนราษฎร (ราคาพิเศษ) เอกสารราชการ การศึกษา ธุรกิจ และเอกสารอื่น ๆ พร้อมรับรองคำแปล ตรวจทานทุกฉบับ คำนวณราคา ส่งงาน และติดตามสถานะออนไลน์",
+  "telephone": "+66806297450",
+  "email": "contact@prathaitranslation.com",
+  "areaServed": {
+    "@type": "Country",
+    "name": "Thailand"
+  },
+  "availableLanguage": [
+    "th",
+    "en"
+  ],
+  "openingHoursSpecification": [
+    {
+      "@type": "OpeningHoursSpecification",
+      "dayOfWeek": [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday"
+      ],
+      "opens": "09:00",
+      "closes": "17:00"
+    }
+  ],
+  "sameAs": [
+    "https://line.me/R/ti/p/@transcomls"
+  ],
+  "knowsAbout": [
+    "แปลเอกสาร",
+    "แปลสูติบัตร",
+    "แปลทะเบียนบ้าน",
+    "แปลทะเบียนสมรส",
+    "รับรองคำแปล",
+    "Thai to English translation",
+    "certified translation"
+  ]
+}
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20261106c">
+  <link rel="stylesheet" href="css/style.css?v=20261107a">
   <script>
     /* Theme before first paint (no white flash in dark mode). Logic lives in js/app.js. */
     (function () {
@@ -806,7 +877,10 @@
   <!-- One news post, opened from the News page -->
   <dialog class="modal modal-post" id="post-dialog" aria-labelledby="post-dialog-title">
     <div class="modal-head">
-      <p class="post-dialog-date" id="post-dialog-date"></p>
+      <div class="post-by">
+        <img class="post-by-avatar" src="img/icon-192.png" width="40" height="40" alt="">
+        <div><p class="post-by-name" data-service-name></p><p class="post-dialog-date" id="post-dialog-date"></p></div>
+      </div>
       <button type="button" class="modal-close" data-close-modal data-i18n-aria="a11y.close">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </button>
@@ -851,6 +925,11 @@
     </div>
     <div class="footer-bottom">
       <p data-i18n="footer.rights"></p>
+      <!-- Visitor counter (js/home.js; real visits, one per browser per day) -->
+      <p class="visit-count" id="visit-count" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
+        <span data-i18n="footer.visitors"></span> <strong id="visit-n"></strong>
+      </p>
       <div class="footer-legal">
         <button type="button" class="footer-link" data-goto="terms" data-i18n="footer.terms"></button>
         <button type="button" class="footer-link" data-goto="privacy" data-i18n="footer.privacy"></button>
@@ -860,14 +939,14 @@
 
   <noscript><p class="noscript">Please enable JavaScript. / กรุณาเปิดใช้งาน JavaScript</p></noscript>
 
-  <script src="js/config.js?v=20261106c"></script>
-  <script src="js/i18n.js?v=20261106c"></script>
-  <script src="js/terms.js?v=20261106c"></script>
-  <script src="js/app.js?v=20261106c"></script>
-  <script src="js/account.js?v=20261106c"></script>
-  <script src="js/submit.js?v=20261106c"></script>
-  <script src="js/track.js?v=20261106c"></script>
-  <script src="js/portal.js?v=20261106c"></script>
-  <script src="js/home.js?v=20261106c"></script>
+  <script src="js/config.js?v=20261107a"></script>
+  <script src="js/i18n.js?v=20261107a"></script>
+  <script src="js/terms.js?v=20261107a"></script>
+  <script src="js/app.js?v=20261107a"></script>
+  <script src="js/account.js?v=20261107a"></script>
+  <script src="js/submit.js?v=20261107a"></script>
+  <script src="js/track.js?v=20261107a"></script>
+  <script src="js/portal.js?v=20261107a"></script>
+  <script src="js/home.js?v=20261107a"></script>
 </body>
 </html>

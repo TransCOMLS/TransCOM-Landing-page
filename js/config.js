@@ -144,6 +144,9 @@ window.APP_CONFIG = {
   retentionDays: 90,      // เก็บไฟล์และข้อมูลกี่วันหลังส่งมอบงาน
   privacyUpdated: { th: "4 พฤศจิกายน 2569", en: "4 November 2026" },
 
+  // แสดงจำนวนผู้เยี่ยมชมที่ส่วนท้ายเว็บ (นับจริง 1 ครั้งต่อเครื่องต่อวัน — ต้องเชื่อม Apps Script)
+  showVisitorCount: true,
+
   // ไฟล์แนบ / File upload limits
   maxFileMB: 10,
   maxFiles: 10,           // ต่องาน รวมไฟล์เอกสารและไฟล์บัตร (ตรงกับ CONFIG.maxFiles ใน Code.gs)

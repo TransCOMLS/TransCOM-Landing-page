@@ -155,7 +155,8 @@
     admin: [
       { view: "a-overview", key: "dash.overview" },
       { group: "dash.g.work", items: [{ view: "a-jobs", arg: "all", key: "dash.allJobs" }, { view: "s-jobs", key: "dash.myJobs" }] },
-      { group: "dash.g.admin", items: [{ view: "a-users", key: "dash.users" }, { view: "a-discounts", key: "dash.discounts" }] },
+      { group: "dash.g.admin", items: [{ view: "a-users", key: "dash.users" }, { view: "a-discounts", key: "dash.discounts" },
+                                       { view: "a-coupons", key: "dash.coupons" }, { view: "a-posts", arg: "news", key: "dash.posts" }] },
       { group: "dash.g.account", items: [{ view: "settings", key: "dash.profile" }] }
     ]
   };
@@ -173,7 +174,7 @@
       var b = button(t(it.key), "dash-link");
       if (it.go) b.setAttribute("data-goto", it.go);
       else {
-        var on = it.view === current && (it.arg === undefined || it.arg === state.arg || (PARENT[state.view] && it.arg === "open") || (PARENT[state.view] && it.arg === "all"));
+        var on = it.view === current && (it.arg === undefined || it.arg === state.arg || it.view === "a-posts" || (PARENT[state.view] && it.arg === "open") || (PARENT[state.view] && it.arg === "all"));
         if (on) b.setAttribute("aria-current", "page");
         b.addEventListener("click", function () { show(it.view, it.arg); });
       }
@@ -627,6 +628,25 @@
       stat(grid, o.cancelRequests, "dash.stat.cancel", "warn", function () { show("a-jobs", "cancel"); });
       stat(grid, o.unassigned, "dash.stat.unassigned", "", function () { show("a-jobs", "unassigned"); });
       box.appendChild(grid);
+      if (o.visits) {
+        var v = card(box, "dash.visitors");
+        var vg = el("div", "dash-stats dash-stats-2");
+        stat(vg, o.visits.days[o.visits.days.length - 1].count, "dash.visitsToday", "ok");
+        stat(vg, o.visits.total, "dash.visitsTotal");
+        v.appendChild(vg);
+        var vmax = Math.max.apply(null, o.visits.days.map(function (x) { return x.count; }).concat([1]));
+        var vl = el("ul", "dash-bars");
+        o.visits.days.forEach(function (x) {
+          var li = el("li", "dash-bar-row");
+          li.appendChild(el("span", "dash-bar-label", day(x.day)));
+          var bar = el("span", "dash-bar"), fill = el("span", "dash-bar-fill");
+          fill.style.width = Math.round(100 * x.count / vmax) + "%";
+          bar.appendChild(fill); li.appendChild(bar);
+          li.appendChild(el("span", "dash-bar-n", App.formatNumber(x.count)));
+          vl.appendChild(li);
+        });
+        v.appendChild(vl);
+      }
       var c = card(box, "dash.byStatus");
       var ul = el("ul", "dash-bars");
       var max = 1;
@@ -934,6 +954,278 @@
       });
       var row = el("div", "actions"); row.appendChild(save);
       holder.appendChild(row); holder.appendChild(st);
+    });
+  };
+
+
+  // ----- discount codes -----
+  function fieldBox(labelKey, input, hintKey) {
+    var f = el("div", "field");
+    var id = "fx-" + Math.random().toString(36).slice(2, 8);
+    input.id = id;
+    var l = el("label", null, t(labelKey)); l.htmlFor = id;
+    f.appendChild(l); f.appendChild(input);
+    if (hintKey) f.appendChild(el("p", "hint", t(hintKey)));
+    return f;
+  }
+  function input(type, value, attrs) {
+    var i = el("input"); i.type = type;
+    if (value != null) i.value = value;
+    for (var k in (attrs || {})) i.setAttribute(k, attrs[k]);
+    return i;
+  }
+  function checkbox(labelKey, checked) {
+    var l = el("label", "choice");
+    var i = el("input"); i.type = "checkbox"; i.checked = !!checked;
+    l.appendChild(i); l.appendChild(el("span", null, t(labelKey)));
+    l.input = i;
+    return l;
+  }
+  function couponSummary(c) {
+    var parts = [c.kind === "percent" ? t("dash.cp.percentOff", { n: c.value }) + (c.maxDiscount ? " " + t("dash.cp.capTo", { n: App.formatNumber(c.maxDiscount) }) : "")
+                                      : t("dash.cp.bahtOff", { n: App.formatNumber(c.value) })];
+    if (c.minSpend) parts.push(t("dash.cp.min", { n: App.formatNumber(c.minSpend) }));
+    if (c.start || c.end) parts.push((c.start ? day(c.start) : "…") + " – " + (c.end ? day(c.end) : "…"));
+    parts.push(c.maxUses ? t("dash.cp.usedOf", { used: c.used, max: c.maxUses }) : t("dash.cp.usedN", { used: c.used }));
+    parts.push(c.perUser ? t("dash.cp.perUser", { n: c.perUser }) : t("dash.cp.perUserAny"));
+    if (c.membersOnly) parts.push(t("dash.cp.members"));
+    return parts.join(" · ");
+  }
+  function couponState(c) {
+    var today = isoDay(new Date());
+    if (!c.active) return ["off", "dash.cp.state.off"];
+    if (c.end && today > c.end) return ["bad", "dash.cp.state.expired"];
+    if (c.maxUses && c.used >= c.maxUses) return ["bad", "dash.cp.state.usedUp"];
+    if (c.start && today < c.start) return ["warn", "dash.cp.state.scheduled"];
+    return ["ok", "dash.cp.state.live"];
+  }
+
+  VIEWS["a-coupons"] = function (box, editCode) {
+    heading(box, "dash.coupons");
+    box.appendChild(el("p", "notice", t("dash.cp.note")));
+    var holder = el("div"); box.appendChild(holder);
+    load(holder, "adminCoupons", {}, function (res) {
+      var list = res.coupons;
+      // form (new or edit)
+      var editing = list.filter(function (c) { return c.code === editCode; })[0];
+      var f = card(holder, editing ? "dash.cp.edit" : "dash.cp.new");
+      var code = input("text", editing ? editing.code : "", { maxlength: "30", autocapitalize: "characters", placeholder: "NEWYEAR10" });
+      if (editing) code.readOnly = true;
+      var kind = el("select");
+      [["percent", "dash.cp.kind.percent"], ["amount", "dash.cp.kind.amount"]].forEach(function (k) { var o = el("option", null, t(k[1])); o.value = k[0]; kind.appendChild(o); });
+      kind.value = editing ? editing.kind : "percent";
+      var value = input("number", editing ? editing.value : "", { min: "0", step: "1", inputmode: "decimal" });
+      var cap = input("number", editing ? editing.maxDiscount || "" : "", { min: "0", step: "1", inputmode: "numeric" });
+      var min = input("number", editing ? editing.minSpend || "" : "", { min: "0", step: "1", inputmode: "numeric" });
+      var start = input("date", editing ? editing.start : "");
+      var end = input("date", editing ? editing.end : "");
+      var maxUses = input("number", editing ? editing.maxUses || "" : "", { min: "0", step: "1", inputmode: "numeric" });
+      var perUser = el("select");
+      [["1", "dash.cp.perUser1"], ["0", "dash.cp.perUserAny"], ["2", "dash.cp.perUser2"], ["3", "dash.cp.perUser3"]].forEach(function (k) { var o = el("option", null, t(k[1])); o.value = k[0]; perUser.appendChild(o); });
+      perUser.value = String(editing ? editing.perUser : 1);
+      var members = checkbox("dash.cp.membersOnly", editing ? editing.membersOnly : false);
+      var active = checkbox("dash.cp.active", editing ? editing.active : true);
+      var note = input("text", editing ? editing.note : "", { maxlength: "200" });
+      var g1 = el("div", "grid-2");
+      g1.appendChild(fieldBox("dash.cp.code", code, "dash.cp.codeHint"));
+      g1.appendChild(fieldBox("dash.cp.kind", kind));
+      g1.appendChild(fieldBox("dash.cp.value", value, "dash.cp.valueHint"));
+      g1.appendChild(fieldBox("dash.cp.cap", cap, "dash.cp.zeroNone"));
+      g1.appendChild(fieldBox("dash.cp.minSpend", min, "dash.cp.zeroNone"));
+      g1.appendChild(fieldBox("dash.cp.maxUses", maxUses, "dash.cp.maxUsesHint"));
+      g1.appendChild(fieldBox("dash.cp.start", start, "dash.cp.blankAny"));
+      g1.appendChild(fieldBox("dash.cp.end", end, "dash.cp.blankAny"));
+      g1.appendChild(fieldBox("dash.cp.perUserLabel", perUser));
+      g1.appendChild(fieldBox("dash.cp.noteLabel", note));
+      f.appendChild(g1);
+      var cbs = el("div", "dash-checks"); cbs.appendChild(members); cbs.appendChild(active); f.appendChild(cbs);
+      var st = el("div", "form-status"); st.hidden = true;
+      var save = button(t("acct.save"), "btn btn-primary");
+      save.addEventListener("click", function () {
+        var payload = { isNew: !editing, coupon: {
+          code: code.value.trim(), kind: kind.value, value: Number(value.value), maxDiscount: Number(cap.value || 0),
+          minSpend: Number(min.value || 0), start: start.value, end: end.value, maxUses: Number(maxUses.value || 0),
+          perUser: Number(perUser.value), membersOnly: members.input.checked, active: active.input.checked, note: note.value.trim() } };
+        busy(save, true);
+        api("adminSaveCoupon", payload).then(function () { show("a-coupons"); }, function (err) { status(st, "error", errText(err)); busy(save, false); });
+      });
+      var row = el("div", "actions"); row.appendChild(save);
+      if (editing) row.appendChild(button(t("acct.cancel"), "btn btn-outline", function () { show("a-coupons"); }));
+      f.appendChild(row); f.appendChild(st);
+      // list
+      var lc = card(holder, "dash.cp.list");
+      if (!list.length) { empty(lc, "dash.cp.empty"); return; }
+      var ul = el("ul", "dash-coupons");
+      list.forEach(function (c) {
+        var li = el("li", "dash-coupon");
+        var head = el("div", "dash-coupon-head");
+        head.appendChild(el("span", "dash-coupon-code", c.code));
+        var stt = couponState(c);
+        head.appendChild(el("span", "flag flag-" + stt[0], t(stt[1])));
+        li.appendChild(head);
+        li.appendChild(el("p", "dash-coupon-meta", couponSummary(c)));
+        if (c.note) li.appendChild(el("p", "note", c.note));
+        var acts = el("div", "acct-links");
+        acts.appendChild(button(t("dash.edit"), "btn btn-outline btn-sm", function () { show("a-coupons", c.code); }));
+        var tog = button(t(c.active ? "dash.cp.turnOff" : "dash.cp.turnOn"), "btn-link");
+        tog.addEventListener("click", function () {
+          busy(tog, true);
+          api("adminSaveCoupon", { coupon: Object.assign({}, c, { active: !c.active }) }).then(function () { show("a-coupons"); }, function (err) { alertBox(tog, errText(err)); busy(tog, false); });
+        });
+        acts.appendChild(tog);
+        var del = button(t("dash.remove"), "btn-link danger");
+        del.addEventListener("click", function () {
+          if (!window.confirm(t("dash.cp.confirmDelete", { code: c.code }))) return;
+          busy(del, true);
+          api("adminDeleteCoupon", { code: c.code }).then(function () { show("a-coupons"); }, function (err) { alertBox(del, errText(err)); busy(del, false); });
+        });
+        acts.appendChild(del);
+        li.appendChild(acts);
+        ul.appendChild(li);
+      });
+      lc.appendChild(ul);
+    });
+  };
+
+  // ----- posts (news + offers) -----
+  var CTA_TABS = ["", "services", "pricing", "calculator", "submit", "track", "account", "how", "faq", "contact", "news"];
+  function ctaSelect(value) {
+    var sel = el("select");
+    CTA_TABS.forEach(function (tab) { var o = el("option", null, tab ? t("nav." + tab) : t("dash.pst.noButton")); o.value = tab; sel.appendChild(o); });
+    sel.value = value || "";
+    return sel;
+  }
+  function readImage(file) {
+    return new Promise(function (resolve, reject) {
+      var r = new FileReader();
+      r.onload = function () { resolve(String(r.result).split(",")[1] || ""); };
+      r.onerror = function () { reject({ code: "bad_file" }); };
+      r.readAsDataURL(file);
+    });
+  }
+
+  VIEWS["a-posts"] = function (box, arg) {
+    var parts = String(arg || "news").split(":"), kind = parts[0] === "promo" ? "promo" : "news", editId = parts[1] || "";
+    heading(box, "dash.posts");
+    var tabs = el("div", "dash-tabs");
+    [["news", "dash.pst.news"], ["promo", "dash.pst.promo"]].forEach(function (tb) {
+      var b = button(t(tb[1]), "dash-tab", function () { show("a-posts", tb[0]); });
+      b.setAttribute("role", "tab"); b.setAttribute("aria-selected", String(tb[0] === kind));
+      tabs.appendChild(b);
+    });
+    box.appendChild(tabs);
+    var holder = el("div"); box.appendChild(holder);
+    load(holder, "adminPosts", { kind: kind }, function (res) {
+      var posts = res.posts;
+      var editing = posts.filter(function (p) { return p.id === editId; })[0];
+      var f = card(holder, editing ? "dash.pst.edit" : (kind === "news" ? "dash.pst.newNews" : "dash.pst.newPromo"));
+      var titleTh = input("text", editing ? editing.titleTh : "", { maxlength: "200" });
+      var titleEn = input("text", editing ? editing.titleEn : "", { maxlength: "200" });
+      var textTh = el("textarea"); textTh.rows = 5; textTh.maxLength = 4000; textTh.value = editing ? editing.textTh : "";
+      var textEn = el("textarea"); textEn.rows = 5; textEn.maxLength = 4000; textEn.value = editing ? editing.textEn : "";
+      var g = el("div", "grid-2");
+      g.appendChild(fieldBox("dash.pst.titleTh", titleTh)); g.appendChild(fieldBox("dash.pst.titleEn", titleEn, "dash.pst.enOptional"));
+      g.appendChild(fieldBox("dash.pst.textTh", textTh)); g.appendChild(fieldBox("dash.pst.textEn", textEn));
+      f.appendChild(g);
+      var g2 = el("div", "grid-2"), date, start, end, tagTh, tagEn, image, preview, imgStatus;
+      if (kind === "news") {
+        date = input("date", editing ? editing.date : isoDay(new Date()));
+        g2.appendChild(fieldBox("dash.pst.date", date, "dash.pst.dateHint"));
+      } else {
+        tagTh = input("text", editing ? editing.tagTh : "", { maxlength: "40" });
+        tagEn = input("text", editing ? editing.tagEn : "", { maxlength: "40" });
+        start = input("date", editing ? editing.start : ""); end = input("date", editing ? editing.end : "");
+        g2.appendChild(fieldBox("dash.pst.tagTh", tagTh)); g2.appendChild(fieldBox("dash.pst.tagEn", tagEn));
+        g2.appendChild(fieldBox("dash.cp.start", start, "dash.cp.blankAny")); g2.appendChild(fieldBox("dash.cp.end", end, "dash.cp.blankAny"));
+      }
+      var cta = ctaSelect(editing ? editing.cta : "");
+      g2.appendChild(fieldBox("dash.pst.cta", cta));
+      f.appendChild(g2);
+      if (kind === "news") {
+        // picture: upload or paste a link
+        var pic = el("div", "field dash-pic");
+        pic.appendChild(el("span", "label-like", t("dash.pst.image")));
+        var row0 = el("div", "dash-pic-row");
+        preview = el("div", "dash-pic-preview");
+        var img = el("img"); img.alt = ""; preview.appendChild(img);
+        function setPreview(url) { img.src = url || ""; preview.hidden = !url; }
+        setPreview(editing ? editing.imageUrl : "");
+        row0.appendChild(preview);
+        var side = el("div", "dash-pic-side");
+        var upId = "pic-" + Math.random().toString(36).slice(2, 7);
+        var fileIn = input("file", null, { accept: "image/png,image/jpeg,image/webp,image/gif" }); fileIn.id = upId; fileIn.className = "file-input";
+        var upl = el("label", "btn btn-outline btn-sm", t("dash.pst.upload")); upl.htmlFor = upId;
+        image = input("text", editing ? editing.image : "", { placeholder: "https://…", inputmode: "url" });
+        image.setAttribute("aria-label", t("dash.pst.imageLink"));
+        imgStatus = el("p", "hint", t("dash.pst.imageHint"));
+        side.appendChild(fileIn); side.appendChild(upl); side.appendChild(image); side.appendChild(imgStatus);
+        row0.appendChild(side);
+        pic.appendChild(row0);
+        f.appendChild(pic);
+        image.addEventListener("change", function () { setPreview(/^https:\/\//.test(image.value.trim()) && !/drive\.google\.com/.test(image.value) ? image.value.trim() : ""); });
+        fileIn.addEventListener("change", function () {
+          var file = fileIn.files && fileIn.files[0];
+          fileIn.value = "";
+          if (!file) return;
+          if (file.size > 5 * 1048576) { imgStatus.textContent = t("dash.err.too_large"); return; }
+          App.busy.open({ title: t("dash.pst.uploading"), text: t("busy.wait") });
+          readImage(file).then(function (data) { return api("adminUploadImage", { name: file.name, data: data }); }).then(function (r) {
+            image.value = r.image; setPreview(r.imageUrl); imgStatus.textContent = t("dash.pst.uploaded");
+            App.busy.done({ title: t("busy.uploadedTitle"), text: file.name });
+          }, function (err) { App.busy.close(); imgStatus.textContent = errText(err); });
+        });
+      }
+      var active = checkbox("dash.pst.show", editing ? editing.active : true);
+      var cbs = el("div", "dash-checks"); cbs.appendChild(active); f.appendChild(cbs);
+      var st = el("div", "form-status"); st.hidden = true;
+      var save = button(t(editing ? "acct.save" : "dash.pst.publish"), "btn btn-primary");
+      save.addEventListener("click", function () {
+        var post = { id: editing ? editing.id : "", active: active.input.checked, titleTh: titleTh.value.trim(), titleEn: titleEn.value.trim(),
+                     textTh: textTh.value, textEn: textEn.value, cta: cta.value };
+        if (kind === "news") { post.date = date.value; post.image = image.value.trim(); }
+        else { post.tagTh = tagTh.value.trim(); post.tagEn = tagEn.value.trim(); post.start = start.value; post.end = end.value; }
+        busy(save, true);
+        api("adminSavePost", { kind: kind, post: post }).then(function () { show("a-posts", kind); }, function (err) { status(st, "error", errText(err)); busy(save, false); });
+      });
+      var row = el("div", "actions"); row.appendChild(save);
+      if (editing) row.appendChild(button(t("acct.cancel"), "btn btn-outline", function () { show("a-posts", kind); }));
+      f.appendChild(row); f.appendChild(st);
+      // list
+      var lc = card(holder, "dash.pst.list");
+      lc.appendChild(el("p", "note", t("dash.pst.listHint")));
+      if (!posts.length) { empty(lc, "dash.pst.empty"); return; }
+      var ul = el("ul", "dash-posts");
+      posts.forEach(function (p) {
+        var li = el("li", "dash-post");
+        if (p.imageUrl) { var th = el("img", "dash-post-thumb"); th.src = p.imageUrl; th.alt = ""; th.loading = "lazy"; li.appendChild(th); }
+        else li.appendChild(el("span", "dash-post-thumb dash-post-cover", (p.titleTh || p.titleEn).slice(0, 1)));
+        var body = el("div", "dash-post-body");
+        var head = el("div", "dash-coupon-head");
+        head.appendChild(el("span", "dash-post-title", p.titleTh || p.titleEn));
+        head.appendChild(el("span", "flag " + (p.active ? "flag-ok" : ""), t(p.active ? "dash.pst.live" : "dash.pst.draft")));
+        body.appendChild(head);
+        var when = kind === "news" ? day(p.date) : ((p.start ? day(p.start) : "…") + " – " + (p.end ? day(p.end) : "…"));
+        body.appendChild(el("p", "dash-coupon-meta", when + (p.tagTh ? " · " + p.tagTh : "")));
+        var acts = el("div", "acct-links");
+        acts.appendChild(button(t("dash.edit"), "btn btn-outline btn-sm", function () { show("a-posts", kind + ":" + p.id); }));
+        var tog = button(t(p.active ? "dash.pst.hide" : "dash.pst.showNow"), "btn-link");
+        tog.addEventListener("click", function () {
+          busy(tog, true);
+          api("adminSavePost", { kind: kind, post: Object.assign({}, p, { active: !p.active }) }).then(function () { show("a-posts", kind); }, function (err) { alertBox(tog, errText(err)); busy(tog, false); });
+        });
+        acts.appendChild(tog);
+        var del = button(t("dash.remove"), "btn-link danger");
+        del.addEventListener("click", function () {
+          if (!window.confirm(t("dash.pst.confirmDelete"))) return;
+          busy(del, true);
+          api("adminDeletePost", { kind: kind, id: p.id }).then(function () { show("a-posts", kind); }, function (err) { alertBox(del, errText(err)); busy(del, false); });
+        });
+        acts.appendChild(del);
+        body.appendChild(acts);
+        li.appendChild(body);
+        ul.appendChild(li);
+      });
+      lc.appendChild(ul);
     });
   };
 
