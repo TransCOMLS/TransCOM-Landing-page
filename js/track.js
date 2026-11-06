@@ -11,7 +11,7 @@
   var App = window.App;
   var CFG = App.config;
   var t = App.t;
-  var STEPS = ["received", "quoted", "paid", "inProgress", "delivered"];
+  var STEPS = ["received", "quoted", "paid", "inProgress", "review", "delivered"];
   var last = null;      // last job shown, redrawn when the language changes
   var lastErr = null;   // last error code, re-worded when the language changes
 

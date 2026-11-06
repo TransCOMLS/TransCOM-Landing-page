@@ -83,7 +83,7 @@ provider manages all jobs from one Google Sheet, with no paid server.
   button), fills the track form, fires `jobsubmitted` (account history reloads). Honeypot
   field `#f-website`. Inactive while `appsScriptUrl` is empty (app.js "not open yet" notice).
 - `js/track.js` — Phase 4: hooks `tracksubmit`, calls action `trackJob`, shows `#track-card`
-  (job no., status chip, 5-step timeline received → quoted → paid → inProgress → delivered —
+  (job no., status chip, 6-step timeline received → quoted → paid → inProgress → review → delivered —
   vertical on phone, a row ≥640px; cancelled = note only; unknown status = `other`), next-step
   note, dates, contact link. Redraws on `langchange`; editing an input hides the old card;
   signed-in customers get their email filled in.
@@ -120,11 +120,18 @@ provider manages all jobs from one Google Sheet, with no paid server.
   file type/size, max 10 files, 5 jobs/email/hour; upload state in CacheService (6 h).
   Emails: all use `mailLayout_()` — table-based, inline styles, header picture
   `img/email/header.jpg` served from the live site (`CONFIG.siteUrl`; must be on `main`), status
-  badge, 5-step progress (`mailSteps_`), details table, one button, navy footer with contacts
+  badge, 6-step progress (`mailSteps_`), details table, one button, navy footer with contacts
   (`CONFIG.contactPhone/lineId/contactEmail` — keep in step with js/config.js). Language pairs and
   categories show as names (`LANG_PAIR_NAMES`, `CATEGORY_NAMES`). Customer receipt + provider notice (`PROVIDER_EMAIL` or the script owner);
   installable `onJobEdit` emails the customer on each status change (delivered → sets
-  deliveredAt, deleteBy +90 d, and adds the confirm link); confirming a civil job moves
+  deliveredAt, deleteBy +90 d). Status `review` "รอลูกค้าตรวจ" (owner's request 2026-11-06): the
+  email links to the job page (`jobUrl_` = `/?job=TR-…#account`; portal.js opens it after sign-in,
+  then clears the query); the customer downloads the files and either confirms
+  (`confirmTranslation` → confirm_ → delivered + confirmedAt) or asks for corrections
+  (`requestRevision` → back to inProgress, `revisionRequest` column, admin + assignee emailed).
+  Emails never carry a one-click confirm any more; old `?confirm=` links still work.
+  No cancelling once paid: customers may request it only at received/quoted; reaching paid or later
+  closes a pending request (afterStatus_), and approving is refused at review/delivered (owner: anti-fraud). Confirming a civil job moves
   deleteBy to +15 d; daily `purgeDueJobs` trashes the folder and clears personal columns.
   `setup()` creates sheets, the jobs folder and both triggers (idempotent), rebuilds the
   formula-only "Dashboard" (columns found by header with MATCH) and seeds "Glossary" once. Sheets: "Users", "Jobs",
