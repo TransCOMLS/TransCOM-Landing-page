@@ -9,7 +9,7 @@
   var CFG = window.APP_CONFIG;
   var I18N = window.I18N;
   var LANG_KEY = "tr_lang";
-  var TAB_IDS = ["home", "services", "pricing", "calculator", "submit", "track", "how", "faq", "contact", "privacy", "terms", "account"];
+  var TAB_IDS = ["home", "services", "pricing", "calculator", "submit", "track", "how", "faq", "contact", "privacy", "terms", "account", "news"];
 
   var state = { lang: "th", tab: "home" };
 
@@ -37,13 +37,35 @@
       serviceName: CFG.serviceName[state.lang] || CFG.serviceName.th,
       retentionDays: CFG.retentionDays,
       idRetentionDays: CFG.idRetentionDays,
+      civilFrom: formatNumber(minPrice(function (c) { return c.requiresId; })),
+      minPrice: formatNumber(minPrice()),
       revisionDays: CFG.revisionDays,
       maxFileMB: CFG.maxFileMB,
+      maxFiles: CFG.maxFiles,
       normalDays: CFG.turnaround.normal,
       expressDays: CFG.turnaround.express,
       certFee: formatNumber(CFG.certificationFee),
+      shipFee: formatNumber(CFG.shippingFee || 0),
       year: state.lang === "th" ? year + 543 : year   // พ.ศ. for Thai
     };
+  }
+
+  // Per-page price of a category as { min, max } — config holds [min, max] or one number
+  function priceRange(cat, urgency) {
+    var v = cat ? cat[urgency || "normal"] : 0;
+    if (Array.isArray(v)) return { min: +v[0], max: +(v.length > 1 ? v[1] : v[0]) };
+    return { min: +v || 0, max: +v || 0 };
+  }
+
+  // "150–250" or "300" when both ends are the same
+  function formatRange(min, max) {
+    return min === max ? formatNumber(min) : t("calc.range", { min: formatNumber(min), max: formatNumber(max) });
+  }
+
+  // Lowest normal per-page price, optionally among categories matching a test
+  function minPrice(test) {
+    var prices = CFG.categories.filter(function (c) { return !test || test(c); }).map(function (c) { return priceRange(c, "normal").min; });
+    return prices.length ? Math.min.apply(null, prices) : 0;
   }
 
   function fill(str, vars) {
@@ -118,10 +140,11 @@
         th.appendChild(badge);
       }
       tr.appendChild(th);
-      [cat.normal, cat.express].forEach(function (price) {
+      ["normal", "express"].forEach(function (urgency) {
+        var r = priceRange(cat, urgency);
         var td = document.createElement("td");
         td.className = "num";
-        td.textContent = formatNumber(price);
+        td.textContent = formatRange(r.min, r.max);
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
@@ -295,9 +318,29 @@
     $all("[data-contact]").forEach(function (a) {
       a.setAttribute("href", hrefs[a.getAttribute("data-contact")]);
     });
+    // LINE can be switched off in config.js (contact.showLine)
+    if (c.showLine === false) {
+      $all('[data-contact="line"]').forEach(function (a) {
+        var li = a.parentElement && a.parentElement.tagName === "LI" ? a.parentElement : null;
+        (li || a).hidden = true;
+      });
+      // Drop a button row left empty (e.g. the Contact page)
+      $all(".actions").forEach(function (row) {
+        var visible = Array.prototype.some.call(row.children, function (ch) { return !ch.hidden; });
+        if (!visible) row.hidden = true;
+      });
+    }
     $all("[data-contact-text]").forEach(function (el) {
       var key = el.getAttribute("data-contact-text");
-      if (texts[key] !== undefined) el.textContent = texts[key];
+      if (texts[key] === undefined) return;
+      el.textContent = texts[key];
+      // Long email addresses wrap after "@", not in the middle of a word
+      if (key === "email" && texts[key].indexOf("@") > 0) {
+        var at = texts[key].indexOf("@") + 1;
+        el.textContent = texts[key].slice(0, at);
+        el.appendChild(document.createElement("wbr"));
+        el.appendChild(document.createTextNode(texts[key].slice(at)));
+      }
     });
   }
 
@@ -305,6 +348,7 @@
   function showTab(id, opts) {
     opts = opts || {};
     if (TAB_IDS.indexOf(id) === -1) id = "home";
+    var changed = state.tab !== id;
     state.tab = id;
 
     // Highlight the current page in the menu, and the dropdown that holds it
@@ -316,7 +360,14 @@
       g.classList.toggle("is-current", !!$('[data-tab="' + id + '"]', g));
     });
     $all("main > .panel").forEach(function (panel) {
-      panel.hidden = panel.id !== id;
+      var show = panel.id === id;
+      panel.hidden = !show;
+      // Gentle fade-in for the page that appears (not on first load)
+      if (show && changed && !opts.initial) {
+        panel.classList.remove("panel-enter");
+        void panel.offsetWidth;            // restart the animation
+        panel.classList.add("panel-enter");
+      }
     });
     closeMenus();
 
@@ -344,8 +395,10 @@
     if (!header || !btn) return;
     header.classList.toggle("menu-open", open);
     btn.setAttribute("aria-expanded", String(open));
-    // In the panel every group starts open, so all pages are one tap away
-    if (open) $all(".nav-toggle").forEach(function (t) { setGroup(t, true); });
+    // In the panel only the group holding the current page starts open (one group at a time)
+    if (open) $all(".nav-group").forEach(function (g) {
+      setGroup($(".nav-toggle", g), g.classList.contains("is-current"));
+    });
   }
 
   function closeMenus() {
@@ -361,7 +414,8 @@
     $all(".nav-toggle").forEach(function (toggle) {
       toggle.addEventListener("click", function () {
         var open = toggle.getAttribute("aria-expanded") !== "true";
-        if (isWide()) $all(".nav-toggle").forEach(function (t) { if (t !== toggle) setGroup(t, false); });
+        // One group open at a time (dropdowns on PC, accordion in the phone/tablet panel)
+        $all(".nav-toggle").forEach(function (t) { if (t !== toggle) setGroup(t, false); });
         setGroup(toggle, open);
       });
       // PC: Down arrow opens the dropdown and moves into it
@@ -503,6 +557,100 @@
   }
 
   /* ---------- small UI bits ---------- */
+  /* ---------- theme: Auto (follows the device) · Light · Dark ---------- */
+  var THEME_KEY = "tr_theme";
+  var darkMQ = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+
+  function themePref() {
+    var v = storageGet(THEME_KEY);
+    return v === "light" || v === "dark" ? v : "auto";
+  }
+
+  function applyTheme(pref) {
+    var root = document.documentElement;
+    var dark = pref === "dark" || (pref === "auto" && !!(darkMQ && darkMQ.matches));
+    root.setAttribute("data-theme", dark ? "dark" : "light");
+    root.setAttribute("data-theme-pref", pref);
+    var meta = $('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", dark ? "#0b1220" : "#01417b");
+    var mode = t(pref === "auto" ? "theme.autoNow" : "theme." + pref);
+    $all("[data-theme-cycle]").forEach(function (b) {
+      b.setAttribute("aria-label", t("theme.btn", { mode: mode }));
+      b.setAttribute("title", t("theme.btn", { mode: mode }));
+    });
+    $all("[data-theme-set]").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-theme-set") === pref));
+    });
+  }
+
+  function resolvedDark(pref) {
+    return pref === "dark" || (pref === "auto" && !!(darkMQ && darkMQ.matches));
+  }
+
+  function reducedMotion() {
+    return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }
+
+  // Soft colour fade (used when the device switches theme, or as the fallback)
+  function fadeTheme(change) {
+    var root = document.documentElement;
+    if (reducedMotion()) { change(); return; }
+    root.classList.add("theme-anim");
+    change();
+    clearTimeout(fadeTheme.timer);
+    fadeTheme.timer = setTimeout(function () { root.classList.remove("theme-anim"); }, 500);
+  }
+
+  // The new theme spreads out in a circle from the button that was pressed
+  function revealTheme(change, origin) {
+    var root = document.documentElement;
+    if (reducedMotion() || typeof document.startViewTransition !== "function" || !root.animate) {
+      fadeTheme(change);
+      return;
+    }
+    var box = origin && origin.getBoundingClientRect ? origin.getBoundingClientRect() : null;
+    var x = box ? box.left + box.width / 2 : window.innerWidth / 2;
+    var y = box ? box.top + box.height / 2 : 0;
+    var r = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
+    var vt;
+    try { vt = document.startViewTransition(change); } catch (e) { fadeTheme(change); return; }
+    vt.ready.then(function () {
+      root.animate(
+        { clipPath: ["circle(0px at " + x + "px " + y + "px)", "circle(" + r + "px at " + x + "px " + y + "px)"] },
+        { duration: 550, easing: "cubic-bezier(.4, 0, .2, 1)", pseudoElement: "::view-transition-new(root)" }
+      );
+    }, function () { /* transition skipped: the theme is already applied */ });
+  }
+
+  function setThemePref(pref, origin) {
+    var before = resolvedDark(themePref());
+    if (pref === "auto") storageRemove(THEME_KEY);
+    else storageSet(THEME_KEY, pref);
+    // Only animate when the colours actually change (e.g. not Auto -> Light on a light device)
+    if (before === resolvedDark(pref)) applyTheme(pref);
+    else revealTheme(function () { applyTheme(pref); }, origin);
+  }
+
+  function initTheme() {
+    var order = ["auto", "light", "dark"];
+    $all("[data-theme-cycle]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        setThemePref(order[(order.indexOf(themePref()) + 1) % order.length], b);
+      });
+    });
+    $all("[data-theme-set]").forEach(function (b) {
+      b.addEventListener("click", function () { setThemePref(b.getAttribute("data-theme-set"), b); });
+    });
+    // Auto: follow the device when it switches between light and dark
+    if (darkMQ) {
+      var follow = function () { if (themePref() === "auto") fadeTheme(function () { applyTheme("auto"); }); };
+      if (darkMQ.addEventListener) darkMQ.addEventListener("change", follow);
+      else if (darkMQ.addListener) darkMQ.addListener(follow);
+    }
+    document.addEventListener("langchange", function () { applyTheme(themePref()); });
+    applyTheme(themePref());
+  }
+
   function initLanguageToggle() {
     $all(".lang-toggle [data-lang]").forEach(function (btn) {
       btn.addEventListener("click", function () { applyLanguage(btn.getAttribute("data-lang")); });
@@ -530,7 +678,8 @@
       pagesRaw: $("#c-pages").value,
       pages: parsePages($("#c-pages").value),
       urgency: urgencyEl ? urgencyEl.value : "normal",
-      certified: $("#c-cert").checked
+      certified: $("#c-cert").checked,
+      shipping: !!($("#c-ship") && $("#c-ship").checked)
     };
   }
 
@@ -555,15 +704,17 @@
       turnaround.textContent = "";
       return null;
     }
-    var perPage = cat[v.urgency];
-    var total = perPage * v.pages + (v.certified ? CFG.certificationFee : 0);
+    var per = priceRange(cat, v.urgency);
+    var extra = (v.certified ? CFG.certificationFee : 0) + (v.shipping ? (CFG.shippingFee || 0) : 0);
+    var min = per.min * v.pages + extra, max = per.max * v.pages + extra;
     result.classList.remove("is-empty");
-    result.textContent = formatNumber(total) + " " + t("common.baht");
-    breakdown.textContent = t(v.certified ? "calc.breakdownCert" : "calc.breakdown", {
-      perPage: formatNumber(perPage), pages: v.pages
-    });
+    result.textContent = formatRange(min, max) + " " + t("common.baht");
+    var parts = [t("calc.breakdown", { perPage: formatRange(per.min, per.max), pages: v.pages })];
+    if (v.certified) parts.push(t("calc.plusCert"));
+    if (v.shipping) parts.push(t("calc.plusShip"));
+    breakdown.textContent = parts.join(" ");
     turnaround.textContent = t("calc.turnaround", { days: CFG.turnaround[v.urgency] });
-    return total;
+    return { min: min, max: max };
   }
 
   function initCalculator() {
@@ -582,6 +733,8 @@
       if (v.pages !== null) { $("#f-pages").value = v.pages; clearFieldError($("#f-pages")); used = true; }
       var cert = $('#job-form input[name="certified"][value="' + (v.certified ? "yes" : "no") + '"]');
       if (cert && used) cert.checked = true;
+      var ship = $('#job-form input[name="shipping"][value="' + (v.shipping ? "yes" : "no") + '"]');
+      if (ship && used) { ship.checked = true; updateAddressField(); }
       var note = $("#form-prefilled");
       if (note) note.hidden = !used;
     });
@@ -664,6 +817,9 @@
       if (!pk.files.length) return [t(pk.required)];
       var out = [];
       pk.files.forEach(function (f) { out = out.concat(fileProblems(f)); });
+      // Total per job (documents + ID files), checked on the documents list
+      var total = pickers["f-files"].files.length + (needsId() ? pickers["f-idFiles"].files.length : 0);
+      if (id === "f-files" && CFG.maxFiles && total > CFG.maxFiles) out.push(t("err.tooManyFiles"));
       return out;
     };
   }
@@ -699,6 +855,10 @@
     },
     "f-files": filesRule("f-files"),
     "f-idFiles": filesRule("f-idFiles"),
+    "f-address": function (el) {
+      if (!wantsShipping()) return [];
+      return el.value.trim().length >= 15 ? [] : [t("err.address")];
+    },
     "f-idConsent": function (el) { return !needsId() || el.checked ? [] : [t("err.idConsent")]; },
     "f-consent": function (el) { return el.checked ? [] : [t("err.consent")]; }
   };
@@ -828,6 +988,23 @@
     renderFileList();
   }
 
+  function wantsShipping() {
+    var r = $('#job-form input[name="shipping"]:checked');
+    return !!(r && r.value === "yes");
+  }
+
+  // Delivery address only when the paper copy is posted
+  function updateAddressField() {
+    var box = $("#address-field");
+    if (!box) return;
+    var on = wantsShipping();
+    box.hidden = !on;
+    var el = $("#f-address");
+    if (el) el.required = on;
+    if (!on) { setFieldError(el, null); refreshErrorSummary(); }
+    else if (touched["f-address"]) validateField("f-address");
+  }
+
   // Show the ID section only for civil registration documents
   function updateIdSection() {
     var section = $("#id-section");
@@ -848,6 +1025,8 @@
     var category = $("#f-category");
     if (category) category.addEventListener("change", updateIdSection);
     updateIdSection();
+    $all('#job-form input[name="shipping"]').forEach(function (r) { r.addEventListener("change", updateAddressField); });
+    updateAddressField();
 
     function refreshMinDate() { if (date) date.min = todayISO(); }
     refreshMinDate();
@@ -897,10 +1076,27 @@
     });
   }
 
+  // After a job is sent: empty the form for the next one
+  function resetJobForm() {
+    var form = $("#job-form");
+    if (!form) return;
+    form.reset();
+    Object.keys(pickers).forEach(function (id) { pickers[id].files.length = 0; });
+    Object.keys(touched).forEach(function (id) { delete touched[id]; });
+    $all("#job-form [aria-invalid]").forEach(function (el) { setFieldError(el, null); });
+    renderFileList();
+    updateIdSection();
+    updateAddressField();
+    showStatus($("#form-status"), "", "");
+    var pre = $("#form-prefilled");
+    if (pre) pre.hidden = true;
+  }
+
   function getJobData() {
     var cert = $('#job-form input[name="certified"]:checked');
     function val(id) { var el = document.getElementById(id); return el ? el.value.trim() : ""; }
     return {
+      hp: val("f-website"),
       name: val("f-name"),
       email: val("f-email"),
       line: val("f-line"),
@@ -912,6 +1108,8 @@
       certified: cert ? cert.value === "yes" : false,
       nameSpelling: val("f-nameSpelling"),
       notes: val("f-notes"),
+      shipping: wantsShipping(),
+      address: wantsShipping() ? val("f-address") : "",
       consent: $("#f-consent").checked,
       lang: state.lang,
       files: selectedFiles.slice(),
@@ -921,7 +1119,7 @@
     };
   }
 
-  /* ---------- Phase 2: track form (lookup itself: Phase 4) ---------- */
+  /* ---------- Track form: checks the fields; js/track.js does the lookup (Phase 4) ---------- */
   function initTrackForm() {
     var form = $("#track-form");
     if (!form) return;
@@ -938,7 +1136,7 @@
         return EMAIL_RE.test(v) ? [] : [t("err.email")];
       }
     };
-    var checked = false;
+    var checked = false, notReady = false;
     function run() {
       var first = null;
       [jobNo, email].forEach(function (el) {
@@ -958,11 +1156,12 @@
       var first = run();
       if (first) { showStatus(out, "", ""); first.focus(); return; }
       var ev = new CustomEvent("tracksubmit", { detail: { jobNo: jobNo.value, email: email.value.trim() }, cancelable: true });
-      if (document.dispatchEvent(ev)) showStatus(out, "", t("track.notReady"));
+      notReady = document.dispatchEvent(ev);   // nobody looked it up (Apps Script not connected yet)
+      if (notReady) showStatus(out, "", t("track.notReady"));
     });
     document.addEventListener("langchange", function () {
       if (checked) run();
-      if (out && !out.hidden && !out.classList.contains("success")) showStatus(out, "", t("track.notReady"));
+      if (notReady && out && !out.hidden) showStatus(out, "", t("track.notReady"));
     });
   }
 
@@ -979,6 +1178,7 @@
     renderContactLinks();
     applyLanguage(saved === "en" ? "en" : "th");
     initLanguageToggle();
+    initTheme();
     initTabs();
     initPolicyDialog();
     initTocs();
@@ -996,8 +1196,13 @@
     getLang: function () { return state.lang; },
     showTab: showTab,
     formatNumber: formatNumber,
+    fill: function (str, extra) { var v = tokens(); if (extra) for (var k in extra) v[k] = extra[k]; return fill(str, v); },
+    findCategory: findCategory,
+    priceRange: priceRange,
+    formatRange: formatRange,
     // Phase 2 → used by Phase 3/4
     getJobData: getJobData,
+    resetJobForm: resetJobForm,
     validateJobForm: validateJobForm,
     showStatus: showStatus,
     setFieldError: setFieldError,

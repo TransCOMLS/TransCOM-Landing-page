@@ -10,6 +10,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap">
   <link rel="stylesheet" href="css/style.css">
+  <script>
+    /* Theme before first paint (no white flash in dark mode). Logic lives in js/app.js. */
+    (function () {
+      var pref = "auto";
+      try { pref = localStorage.getItem("tr_theme") || "auto"; } catch (e) { /* storage blocked */ }
+      var dark = pref === "dark" || (pref !== "light" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+    })();
+  </script>
 </head>
 <body>
   <a class="skip-link" href="#main" data-i18n="a11y.skip"></a>
@@ -18,7 +27,8 @@
   <header class="site-header">
     <div class="header-bar">
       <button type="button" class="brand" data-goto="home">
-        <img class="brand-logo" src="img/logo.svg" width="1309" height="473" alt="">
+        <img class="brand-logo logo-on-light" src="img/logo.svg" width="1309" height="473" alt="">
+        <img class="brand-logo logo-on-dark" src="img/logo-white.svg" width="1309" height="473" alt="">
         <span class="sr-only" data-service-name></span>
       </button>
       <!-- Menu: top bar with dropdowns (PC), panel behind the menu button (phone/tablet) -->
@@ -31,6 +41,7 @@
             <li><button type="button" class="nav-sublink" data-tab="services" data-i18n="nav.services"></button></li>
             <li><button type="button" class="nav-sublink" data-tab="pricing" data-i18n="nav.pricing"></button></li>
             <li><button type="button" class="nav-sublink" data-tab="calculator" data-i18n="nav.calculator"></button></li>
+            <li><button type="button" class="nav-sublink" data-tab="news" data-i18n="nav.news"></button></li>
           </ul>
         </li>
         <li class="nav-group">
@@ -51,6 +62,14 @@
         </li>
         <li><button type="button" class="nav-link" data-tab="contact" data-i18n="nav.contact"></button></li>
         <li class="nav-account"><button type="button" class="nav-link" data-tab="account"><span data-i18n="nav.account"></span></button></li>
+        <li class="nav-theme">
+          <span class="nav-theme-label" id="nav-theme-label" data-i18n="theme.label"></span>
+          <div class="theme-seg" role="group" aria-labelledby="nav-theme-label">
+            <button type="button" data-theme-set="auto"><svg class="i-auto" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/></svg><span data-i18n="theme.auto"></span></button>
+            <button type="button" data-theme-set="light"><svg class="i-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg><span data-i18n="theme.light"></span></button>
+            <button type="button" data-theme-set="dark"><svg class="i-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg><span data-i18n="theme.dark"></span></button>
+          </div>
+        </li>
         </ul>
       </nav>
       <div class="header-actions">
@@ -58,6 +77,9 @@
       <button type="button" class="account-btn" data-goto="account">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M4.5 20c1.2-3.6 4-5.5 7.5-5.5s6.3 1.9 7.5 5.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
         <span class="account-label" data-account-label data-i18n="acct.signIn"></span>
+      </button>
+      <button type="button" class="theme-btn" data-theme-cycle>
+        <svg class="i-auto" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/></svg><svg class="i-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg><svg class="i-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>
       </button>
       <div class="lang-toggle" role="group" data-i18n-aria="a11y.lang">
         <button type="button" data-lang="th" aria-pressed="true" lang="th">TH</button>
@@ -75,14 +97,47 @@
     <!-- ===== 1. Home ===== -->
     <section id="home" class="panel">
       <div class="hero">
-        <p class="eyebrow" data-i18n="home.eyebrow"></p>
-        <h1 data-i18n="home.title"></h1>
-        <p class="lead" data-i18n="home.lead"></p>
-        <div class="actions">
-          <button type="button" class="btn btn-primary btn-lg" data-goto="submit" data-i18n="home.cta"></button>
-          <button type="button" class="btn btn-outline-light btn-lg" data-goto="calculator" data-i18n="home.secondary"></button>
+        <div class="hero-text">
+          <p class="eyebrow" data-i18n="home.eyebrow"></p>
+          <h1 data-i18n="home.title"></h1>
+          <p class="lead" data-i18n="home.lead"></p>
+          <div class="actions">
+            <button type="button" class="btn btn-primary btn-lg" data-goto="submit" data-i18n="home.cta"></button>
+            <button type="button" class="btn btn-outline-light btn-lg" data-goto="calculator" data-i18n="home.secondary"></button>
+          </div>
+          <ul class="hero-trust">
+            <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="home.trust1"></span></li>
+            <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="home.trust2"></span></li>
+            <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="home.trust3"></span></li>
+          </ul>
         </div>
+
+        <!-- Instant estimate: carries the choice into the calculator -->
+        <form class="quick-quote" id="quick-quote" novalidate aria-labelledby="qq-title">
+          <h2 class="h4" id="qq-title" data-i18n="home.quick.title"></h2>
+          <div class="grid-qq">
+            <div class="field">
+              <label for="q-category" data-i18n="calc.category"></label>
+              <select id="q-category" name="category" data-options="categories"></select>
+            </div>
+            <div class="field">
+              <label for="q-pages" data-i18n="calc.pages"></label>
+              <input id="q-pages" name="pages" type="number" inputmode="numeric" min="1" max="999" step="1" value="1">
+            </div>
+          </div>
+          <div class="qq-result" aria-live="polite">
+            <p class="qq-empty" id="qq-empty" data-i18n="home.quick.empty"></p>
+            <dl class="qq-prices" id="qq-prices" hidden>
+              <div><dt id="qq-normal-label"></dt><dd id="qq-normal"></dd></div>
+              <div><dt id="qq-express-label"></dt><dd id="qq-express"></dd></div>
+            </dl>
+            <p class="qq-civil" id="qq-civil" data-i18n="home.quick.civil" hidden></p>
+          </div>
+          <button type="submit" class="btn btn-outline btn-block" data-i18n="home.quick.more"></button>
+          <p class="qq-note" data-i18n="calc.disclaimer"></p>
+        </form>
       </div>
+
       <ul class="features">
         <li>
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -97,6 +152,56 @@
           <div><h2 class="h4" data-i18n="home.f3.title"></h2><p data-i18n="home.f3.text"></p></div>
         </li>
       </ul>
+
+      <!-- Offers & highlights (config.promotions, or the "Promotions" sheet via Apps Script) -->
+      <section class="home-block" id="home-promos" aria-labelledby="promo-h">
+        <h2 class="block-title" id="promo-h" data-i18n="home.promo.title"></h2>
+        <ul class="promo-list" id="promo-list"></ul>
+      </section>
+
+      <section class="home-block" aria-labelledby="pop-h">
+        <h2 class="block-title" id="pop-h" data-i18n="home.popular.title"></h2>
+        <p class="block-lead" data-i18n="home.popular.lead"></p>
+        <ul class="doc-chips" id="popular-docs"></ul>
+      </section>
+
+      <section class="home-block" aria-labelledby="hhow-h">
+        <div class="block-head">
+          <h2 class="block-title" id="hhow-h" data-i18n="home.how.title"></h2>
+          <button type="button" class="btn-link" data-goto="how" data-i18n="home.how.more"></button>
+        </div>
+        <ol class="mini-flow">
+          <li data-i18n="how.s1.title"></li>
+          <li data-i18n="how.s2.title"></li>
+          <li data-i18n="how.s3.title"></li>
+          <li data-i18n="how.s4.title"></li>
+          <li data-i18n="how.s5.title"></li>
+        </ol>
+      </section>
+
+      <section class="home-block" aria-labelledby="hfaq-h">
+        <div class="block-head">
+          <h2 class="block-title" id="hfaq-h" data-i18n="home.faq.title"></h2>
+          <button type="button" class="btn-link" data-goto="faq" data-i18n="home.faq.more"></button>
+        </div>
+        <div class="accordion">
+          <details><summary data-i18n="faq.q10"></summary><p data-i18n="faq.a10"></p></details>
+          <details><summary data-i18n="faq.q9"></summary><p data-i18n="faq.a9"></p></details>
+          <details><summary data-i18n="faq.q1"></summary><p data-i18n="faq.a1"></p></details>
+        </div>
+      </section>
+
+      <section class="cta-band" aria-labelledby="cta-h">
+        <div>
+          <h2 id="cta-h" data-i18n="home.cta.title"></h2>
+          <p data-i18n="home.cta.text"></p>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn btn-primary btn-lg" data-goto="submit" data-i18n="nav.submit"></button>
+          <a class="btn btn-outline-light btn-lg" data-contact="phone" target="_blank" rel="noopener"><span data-i18n="home.cta.call"></span>&nbsp;<span data-contact-text="phone"></span></a>
+          <a class="btn btn-outline-light btn-lg" data-contact="line" target="_blank" rel="noopener noreferrer"><span data-i18n="contact.line"></span><span class="sr-only" data-i18n="a11y.newTab"></span></a>
+        </div>
+      </section>
     </section>
 
     <!-- ===== 2. Services ===== -->
@@ -120,7 +225,7 @@
         <li class="card"><span class="icon-circle" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3.5h7l4 4V20.5H7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3.5v4h4M10 12h5M10 15.5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><h2 class="h3" data-i18n="cat.official"></h2><p data-i18n="services.official"></p></li>
         <li class="card"><span class="icon-circle" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.5 9.5L12 5l9.5 4.5L12 14z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M6.5 11.5v4.5c1.5 1.5 3.5 2.2 5.5 2.2s4-.7 5.5-2.2v-4.5M21.5 9.5v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><h2 class="h3" data-i18n="cat.academic"></h2><p data-i18n="services.academic"></p></li>
         <li class="card"><span class="icon-circle" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.5" y="7.5" width="17" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 7.5V5.5h6v2M3.5 12.5h17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span><h2 class="h3" data-i18n="cat.business"></h2><p data-i18n="services.business"></p></li>
-        <li class="card"><span class="icon-circle" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="14.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 10L6 3.5h4l2 4.5 2-4.5h4L15.5 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 12.5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><h2 class="h3" data-i18n="cat.sports"></h2><p data-i18n="services.sports"></p></li>
+        <li class="card"><span class="icon-circle" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 6.5V4.5h8l4 4V17.5h-2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 8.5h8l4 4v8H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 15h6M7 18h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><h2 class="h3" data-i18n="cat.other"></h2><p data-i18n="services.other"></p></li>
       </ul>
       <div class="actions">
         <button type="button" class="btn btn-primary" data-goto="pricing" data-i18n="services.cta"></button>
@@ -144,11 +249,20 @@
         </table>
       </div>
       <p class="price-extra"><span data-i18n="pricing.cert"></span> <strong data-i18n="pricing.certValue"></strong></p>
+      <p class="price-extra"><span data-i18n="pricing.ship"></span> <strong data-i18n="pricing.shipValue"></strong></p>
       <p class="note" data-i18n="pricing.note"></p>
       <p class="note" data-i18n="pricing.civilNote"></p>
       <div class="actions">
         <button type="button" class="btn btn-primary" data-goto="calculator" data-i18n="pricing.cta"></button>
       </div>
+    </section>
+
+    <!-- ===== News & announcements: square posts, details in a pop-up (js/home.js) ===== -->
+    <section id="news" class="panel" hidden>
+      <h1 data-i18n="news.title"></h1>
+      <p class="lead" data-i18n="news.lead"></p>
+      <ul class="post-grid" id="post-grid"></ul>
+      <p class="muted" id="post-empty" data-i18n="news.empty" hidden></p>
     </section>
 
     <!-- ===== 4. Price calculator (logic: Phase 2) ===== -->
@@ -175,6 +289,9 @@
         </fieldset>
         <div class="field">
           <label class="choice"><input type="checkbox" id="c-cert" name="certified"><span data-i18n="calc.cert"></span></label>
+        </div>
+        <div class="field">
+          <label class="choice"><input type="checkbox" id="c-ship" name="shipping"><span data-i18n="calc.ship"></span></label>
         </div>
         <div class="estimate" aria-live="polite">
           <p class="estimate-label" data-i18n="calc.resultLabel"></p>
@@ -209,11 +326,17 @@
           <li data-i18n="how.s5.title"></li>
         </ol>
         <p class="note" data-i18n="form.aside.help"></p>
+        <a class="btn btn-outline btn-block" data-contact="email" target="_blank" rel="noopener"><span data-i18n="form.aside.email"></span></a>
         <a class="btn btn-outline btn-block" data-contact="line" target="_blank" rel="noopener noreferrer">
           <span data-i18n="contact.line"></span><span class="sr-only" data-i18n="a11y.newTab"></span>
         </a>
       </aside>
       <form id="job-form" class="form" novalidate>
+        <!-- Honeypot: people never see or fill this; bots that do are turned away -->
+        <div class="hp-field" aria-hidden="true">
+          <label for="f-website" data-i18n="form.honeypot"></label>
+          <input id="f-website" name="website" type="text" tabindex="-1" autocomplete="off">
+        </div>
 
         <fieldset class="group">
           <legend class="group-title" data-i18n="form.sec.contact"></legend>
@@ -272,6 +395,19 @@
               <label class="choice"><input type="radio" name="certified" value="no" checked><span data-i18n="form.no"></span></label>
             </div>
           </fieldset>
+          <fieldset class="field">
+            <legend data-i18n="form.shipping"></legend>
+            <div class="choice-row">
+              <label class="choice"><input type="radio" name="shipping" value="yes"><span data-i18n="form.yes"></span></label>
+              <label class="choice"><input type="radio" name="shipping" value="no" checked><span data-i18n="form.no"></span></label>
+            </div>
+          </fieldset>
+          <div class="field" id="address-field" hidden>
+            <label for="f-address"><span data-i18n="form.address"></span> <span class="req" aria-hidden="true">*</span><span class="sr-only" data-i18n="a11y.required"></span></label>
+            <textarea id="f-address" name="address" rows="3" maxlength="400" autocomplete="street-address" aria-describedby="f-address-hint f-address-err"></textarea>
+            <p class="hint" id="f-address-hint" data-i18n="form.addressHint"></p>
+            <p class="field-error" id="f-address-err" hidden></p>
+          </div>
           <div class="field">
             <label for="f-nameSpelling" data-i18n="form.nameSpelling"></label>
             <input id="f-nameSpelling" name="nameSpelling" type="text" autocomplete="off" autocapitalize="characters" maxlength="200" aria-describedby="f-nameSpelling-hint">
@@ -343,10 +479,25 @@
           <button type="submit" class="btn btn-primary btn-lg btn-block" data-i18n="form.submit"></button>
         </div>
         <div id="form-status" class="form-status" role="status" aria-live="polite" hidden></div>
+        <progress id="submit-progress" class="submit-progress" max="1" value="0" hidden></progress>
       </form>
+
+      <!-- After a successful send (js/submit.js) -->
+      <div class="submit-done" id="submit-done" tabindex="-1" hidden>
+        <span class="submit-done-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor" opacity=".14"/><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <h2 class="h3" data-i18n="submit.doneTitle"></h2>
+        <p class="submit-done-label" data-i18n="submit.doneJob"></p>
+        <p class="submit-done-no" id="submit-done-no"></p>
+        <button type="button" class="btn-link" id="submit-copy" data-i18n="submit.copy"></button>
+        <p class="submit-done-text" id="submit-done-text"></p>
+        <div class="actions">
+          <button type="button" class="btn btn-primary" data-goto="track" data-i18n="submit.track"></button>
+          <button type="button" class="btn btn-outline" id="submit-another" data-i18n="submit.another"></button>
+        </div>
+      </div>
     </section>
 
-    <!-- ===== 6. Track job (lookup: Phase 4) ===== -->
+    <!-- ===== 6. Track job (lookup: js/track.js) ===== -->
     <section id="track" class="panel" hidden>
       <h1 data-i18n="track.title"></h1>
       <p class="lead" data-i18n="track.lead"></p>
@@ -366,6 +517,8 @@
         </div>
         <div id="track-result" class="form-status" role="status" aria-live="polite" hidden></div>
       </form>
+      <!-- Result card, filled by js/track.js -->
+      <div id="track-card" class="track-card" tabindex="-1" aria-live="polite" hidden></div>
     </section>
 
     <!-- ===== 11. My account (sign in with an emailed code; backend: apps-script/Code.gs) ===== -->
@@ -504,12 +657,14 @@
       <aside class="side-card" aria-labelledby="faq-side">
         <h2 class="h4" id="faq-side" data-i18n="faq.aside.title"></h2>
         <p class="note" data-i18n="faq.aside.text"></p>
-        <a class="btn btn-outline btn-block" data-contact="line" target="_blank" rel="noopener noreferrer">
-          <span data-i18n="contact.line"></span><span class="sr-only" data-i18n="a11y.newTab"></span>
-        </a>
+        <ul class="side-contact">
+          <li><a data-contact="phone" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 3.5l2.6.4 1.3 4-2 1.6a12 12 0 0 0 6 6l1.6-2 4 1.3.4 2.6c.1.9-.6 1.6-1.5 1.6C10.3 19 5 13.7 5 5c0-.9.7-1.6 1.6-1.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span data-contact-text="phone"></span></a></li>
+          <li><a data-contact="email" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 7l8.5 6 8.5-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span data-contact-text="email"></span></a></li>
+          <li class="side-hours"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span data-contact-text="hours"></span></li>
+          <li><a data-contact="line" target="_blank" rel="noopener noreferrer"><span data-i18n="contact.line"></span><span class="sr-only" data-i18n="a11y.newTab"></span></a></li>
+        </ul>
         <ul class="side-links">
-          <li><button type="button" class="btn-link" data-goto="contact" data-i18n="faq.aside.contact"></button></li>
-          <li><button type="button" class="btn-link" data-goto="terms" data-i18n="faq.more"></button></li>
+          <li><button type="button" class="btn-link" data-goto="terms" data-i18n="footer.terms"></button></li>
           <li><button type="button" class="btn-link" data-goto="privacy" data-i18n="footer.privacy"></button></li>
         </ul>
       </aside>
@@ -628,6 +783,24 @@
     </div>
   </dialog>
 
+  <!-- One news post, opened from the News page -->
+  <dialog class="modal modal-post" id="post-dialog" aria-labelledby="post-dialog-title">
+    <div class="modal-head">
+      <p class="post-dialog-date" id="post-dialog-date"></p>
+      <button type="button" class="modal-close" data-close-modal data-i18n-aria="a11y.close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="modal-body post-dialog-body">
+      <div class="post-dialog-media" id="post-dialog-media" hidden></div>
+      <div class="post-dialog-copy">
+        <h2 class="h3" id="post-dialog-title"></h2>
+        <div class="post-dialog-text" id="post-dialog-text"></div>
+      </div>
+    </div>
+    <div class="modal-foot" id="post-dialog-foot"></div>
+  </dialog>
+
   <footer class="site-footer">
     <div class="footer-inner">
       <div class="footer-brand">
@@ -672,5 +845,8 @@
   <script src="js/terms.js"></script>
   <script src="js/app.js"></script>
   <script src="js/account.js"></script>
+  <script src="js/submit.js"></script>
+  <script src="js/track.js"></script>
+  <script src="js/home.js"></script>
 </body>
 </html>

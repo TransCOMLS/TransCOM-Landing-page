@@ -485,6 +485,8 @@
     document.addEventListener("tabchange", function (e) {
       if (e.detail.tab === "submit") prefillJobForm();
     });
+    // A job was just sent: refresh the history
+    document.addEventListener("jobsubmitted", function () { loadAccount(); });
   }
 
   App.api = api;
