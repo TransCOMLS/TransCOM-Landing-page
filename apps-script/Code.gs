@@ -15,6 +15,12 @@
 
 var CONFIG = {
   serviceName: 'TransCOM',
+  // Shown in every email (header picture, buttons and footer)
+  siteUrl: 'https://www.prathaitranslation.com',
+  contactEmail: 'contact@prathaitranslation.com',
+  contactPhone: '080-629-7450',
+  lineId: '@transcomls',
+  lineUrl: 'https://line.me/R/ti/p/@transcomls',
   codeTtlMin: 10,        // sign-in code valid for (minutes)
   codeMaxAttempts: 5,    // wrong codes allowed before a new code is needed
   codeResendSec: 60,     // wait before another code can be sent to the same email
@@ -134,13 +140,23 @@ var SESSION_COLS = [
 
 // Status dropdown in "Jobs" (Thai label in the sheet → code sent to the website)
 var STATUSES = [
-  { code: 'received',   th: 'ได้รับงานแล้ว',      color: '#e8f0fe' },
-  { code: 'quoted',     th: 'ส่งใบเสนอราคาแล้ว', color: '#fef7e0' },
-  { code: 'paid',       th: 'ชำระเงินแล้ว',       color: '#e6f4ea' },
-  { code: 'inProgress', th: 'กำลังแปล',          color: '#e3f2fd' },
-  { code: 'delivered',  th: 'ส่งมอบแล้ว',         color: '#d2f0dc' },
-  { code: 'cancelled',  th: 'ยกเลิก',            color: '#f1f3f4' }
+  { code: 'received',   th: 'ได้รับงานแล้ว',      en: 'Received',   color: '#e8f0fe', text: '#1a4fa0' },
+  { code: 'quoted',     th: 'ส่งใบเสนอราคาแล้ว', en: 'Quote sent', color: '#fef7e0', text: '#8a5a00' },
+  { code: 'paid',       th: 'ชำระเงินแล้ว',       en: 'Paid',       color: '#e6f4ea', text: '#137333' },
+  { code: 'inProgress', th: 'กำลังแปล',          en: 'Translating', color: '#e3f2fd', text: '#01417b' },
+  { code: 'delivered',  th: 'ส่งมอบแล้ว',         en: 'Delivered',  color: '#d2f0dc', text: '#0b6b2d' },
+  { code: 'cancelled',  th: 'ยกเลิก',            en: 'Cancelled',  color: '#f1f3f4', text: '#566072' }
 ];
+
+// Language pair codes sent by the website → names for emails
+var LANG_PAIR_NAMES = {
+  'th-en': ['ไทย → อังกฤษ', 'Thai → English'],
+  'en-th': ['อังกฤษ → ไทย', 'English → Thai']
+};
+function langPairName_(code, th) {
+  var n = LANG_PAIR_NAMES[String(code || '')];
+  return n ? n[th ? 0 : 1] : String(code || '-');
+}
 
 var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@.]{2,}$/;
 var LINE_RE = /^[A-Za-z0-9._\-@]{0,60}$/;
@@ -642,27 +658,97 @@ function esc_(s) {
   });
 }
 
-function mailHtml_(title, rows, paragraphs) {
-  var table = rows.map(function (r) {
-    return '<tr><td style="padding:4px 12px 4px 0;color:#566072;vertical-align:top">' + esc_(r[0]) +
-      '</td><td style="padding:4px 0;vertical-align:top">' + esc_(r[1]) + '</td></tr>';
-  }).join('');
-  return '<div style="font-family:Sarabun,Tahoma,Arial,sans-serif;font-size:15px;color:#1d2433;line-height:1.6">' +
-    '<p style="font-size:18px;font-weight:700;color:#01417b;margin:0 0 12px">' + esc_(title) + '</p>' +
-    (paragraphs || []).map(function (p) { return '<p style="margin:0 0 10px">' + p + '</p>'; }).join('') +
-    (rows.length ? '<table style="border-collapse:collapse;margin:8px 0 12px">' + table + '</table>' : '') +
-    '<p style="color:#566072;margin:16px 0 0">— ' + esc_(CONFIG.serviceName) + '</p></div>';
+/* ---------- Branded email layout ----------
+   Table-based HTML with inline styles (works in Gmail, Outlook, Apple Mail and phones).
+   o = { th, preheader, title, status (code), steps (code), intro: [html], rows: [[label, text]],
+         button: { label, url }, after: [html], small: html }                                   */
+var MAIL_STEPS = ['received', 'quoted', 'paid', 'inProgress', 'delivered'];
+
+function mailLayout_(o) {
+  var th = o.th !== false, F = 'Sarabun,Tahoma,Arial,sans-serif';
+  var st = o.status ? STATUSES.filter(function (x) { return x.code === o.status; })[0] : null;
+  var h = '';
+  // hidden preview text (the line shown next to the subject in the inbox)
+  if (o.preheader) h += '<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">' + esc_(o.preheader) + '</div>';
+  h += '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#eef3f9;padding:24px 12px">' +
+    '<tr><td align="center"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;border-collapse:separate">';
+  // header picture (navy fallback colour when images are off)
+  h += '<tr><td style="background:#01417b;border-radius:16px 16px 0 0;overflow:hidden;line-height:0">' +
+    '<a href="' + esc_(CONFIG.siteUrl) + '"><img src="' + esc_(CONFIG.siteUrl) + '/img/email/header.jpg" width="600" alt="' +
+    esc_(CONFIG.serviceName) + ' — ' + (th ? 'บริการแปลเอกสาร' : 'Document translation') +
+    '" style="display:block;width:100%;max-width:600px;height:auto;border:0;border-radius:16px 16px 0 0;color:#ffffff;font:700 22px ' + F + '"></a></td></tr>';
+  // card
+  h += '<tr><td style="background:#ffffff;padding:28px 28px 8px;font-family:' + F + ';font-size:15px;line-height:1.65;color:#1d2433">';
+  if (st) h += '<span style="display:inline-block;padding:4px 14px;border-radius:999px;background:' + st.color + ';color:' + st.text +
+    ';font-size:13px;font-weight:700;margin-bottom:10px">' + esc_(th ? st.th : st.en) + '</span>';
+  h += '<h1 style="margin:0 0 14px;font-size:22px;line-height:1.35;color:#01417b;font-family:' + F + '">' + esc_(o.title) + '</h1>';
+  (o.intro || []).forEach(function (p) { h += '<p style="margin:0 0 12px">' + p + '</p>'; });
+  if (o.steps) h += mailSteps_(o.steps, th);
+  if (o.rows && o.rows.length) {
+    h += '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0;border:1px solid #d9dee7;border-radius:12px;border-collapse:separate;overflow:hidden">';
+    o.rows.forEach(function (r, i) {
+      var bg = i % 2 ? '#ffffff' : '#f6f8fb';
+      h += '<tr><td style="background:' + bg + ';padding:9px 14px;width:42%;color:#566072;font-size:14px;vertical-align:top;font-family:' + F + '">' + esc_(r[0]) +
+        '</td><td style="background:' + bg + ';padding:9px 14px;font-weight:600;font-size:14px;vertical-align:top;word-break:break-word;font-family:' + F + '">' +
+        (r[2] ? r[1] : esc_(r[1])) + '</td></tr>';
+    });
+    h += '</table>';
+  }
+  if (o.button && o.button.url) {
+    h += '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 8px"><tr>' +
+      '<td style="background:#01417b;border-radius:999px"><a href="' + esc_(o.button.url) + '" style="display:inline-block;padding:13px 30px;' +
+      'color:#ffffff;font-weight:700;font-size:15px;text-decoration:none;font-family:' + F + '">' + esc_(o.button.label) + ' →</a></td></tr></table>';
+  }
+  (o.after || []).forEach(function (p) { h += '<p style="margin:12px 0 0">' + p + '</p>'; });
+  if (o.small) h += '<p style="margin:16px 0 0;font-size:13px;color:#566072">' + o.small + '</p>';
+  h += '<p style="margin:22px 0 20px;color:#566072">' + (th ? 'ขอบคุณที่ใช้บริการ<br>ทีมงาน ' : 'Thank you,<br>The ') + esc_(CONFIG.serviceName) + (th ? '' : ' team') + '</p></td></tr>';
+  // footer
+  var link = 'color:#ffffff;text-decoration:none;font-weight:600';
+  h += '<tr><td style="background:#0f1b2e;border-radius:0 0 16px 16px;padding:20px 28px;font-family:' + F + ';font-size:13px;line-height:1.8;color:#b8c4d6">' +
+    '<span style="color:#ffffff;font-weight:700;font-size:15px">' + esc_(CONFIG.serviceName) + '</span> · ' + (th ? 'บริการแปลเอกสาร ไทย ⇄ อังกฤษ' : 'Thai ⇄ English document translation') + '<br>' +
+    '☎ <a href="tel:' + esc_(CONFIG.contactPhone.replace(/-/g, '')) + '" style="' + link + '">' + esc_(CONFIG.contactPhone) + '</a> &nbsp;·&nbsp; ' +
+    'LINE <a href="' + esc_(CONFIG.lineUrl) + '" style="' + link + '">' + esc_(CONFIG.lineId) + '</a> &nbsp;·&nbsp; ' +
+    '<a href="mailto:' + esc_(CONFIG.contactEmail) + '" style="' + link + '">' + esc_(CONFIG.contactEmail) + '</a><br>' +
+    '<a href="' + esc_(CONFIG.siteUrl) + '" style="' + link + '">' + esc_(CONFIG.siteUrl.replace(/^https:\/\//, '')) + '</a> &nbsp;·&nbsp; ' +
+    (th ? 'ทุกวัน 09:00–17:00 น.' : 'Daily 9:00–17:00 (GMT+7)') + '<br>' +
+    '<span style="color:#7f8ba0;font-size:12px">' + (th ? 'อีเมลฉบับนี้ส่งจากระบบอัตโนมัติ หากมีคำถาม ตอบกลับอีเมลนี้ได้เลย'
+      : 'This email was sent automatically. Just reply if you have any questions.') + '</span></td></tr>';
+  h += '</table></td></tr></table>';
+  return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>' +
+    '<body style="margin:0;padding:0;background:#eef3f9">' + h + '</body></html>';
 }
+
+// Five-step progress row: done ✓ · current (highlighted) · still to come
+function mailSteps_(code, th) {
+  var at = MAIL_STEPS.indexOf(code);
+  if (at < 0) return '';
+  var F = 'Sarabun,Tahoma,Arial,sans-serif';
+  var cells = MAIL_STEPS.map(function (c, i) {
+    var st = STATUSES.filter(function (x) { return x.code === c; })[0];
+    var done = i < at || (i === at && c === 'delivered'), cur = i === at;
+    var dot = done ? '#0b6b2d' : cur ? '#006192' : '#ffffff';
+    var ring = done ? '#0b6b2d' : cur ? '#006192' : '#b9c1ce';
+    var mark = done ? '✓' : String(i + 1);
+    return '<td align="center" valign="top" style="width:20%;padding:0 2px;font-family:' + F + '">' +
+      '<div style="width:30px;height:30px;line-height:30px;border-radius:50%;margin:0 auto;background:' + dot + ';border:2px solid ' + ring +
+      ';color:' + (done || cur ? '#ffffff' : '#7f8ba0') + ';font-weight:700;font-size:14px">' + mark + '</div>' +
+      '<div style="margin-top:6px;font-size:12px;line-height:1.3;color:' + (cur ? '#01417b' : done ? '#1d2433' : '#7f8ba0') + ';font-weight:' + (cur ? 700 : 400) + '">' +
+      esc_(th ? st.th : st.en) + '</div></td>';
+  }).join('');
+  return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:18px 0 6px;background:#f6f8fb;border-radius:12px;padding:14px 6px"><tr>' + cells + '</tr></table>';
+}
+
+function trackUrl_() { return CONFIG.siteUrl + '/#track'; }
 
 function sendNewJobMails_(r) {
   var th = r.lang !== 'en';
   var summaryTh = [
-    ['เลขที่งาน', r.jobNo], ['ประเภทเอกสาร', categoryName_(r.category, true)], ['คู่ภาษา', r.langPair],
+    ['เลขที่งาน', r.jobNo], ['ประเภทเอกสาร', categoryName_(r.category, true)], ['คู่ภาษา', langPairName_(r.langPair, true)],
     ['จำนวนหน้า (โดยประมาณ)', r.pages || '-'], ['วันที่ต้องการรับงาน', dateText_(r.neededBy, true)],
     ['รับรองคำแปล', yesNo_(r.certified, true)], ['รับฉบับจริงทางไปรษณีย์', yesNo_(r.shipping, true)]
   ];
   var summaryEn = [
-    ['Job number', r.jobNo], ['Document category', categoryName_(r.category, false)], ['Language pair', r.langPair],
+    ['Job number', r.jobNo], ['Document category', categoryName_(r.category, false)], ['Language pair', langPairName_(r.langPair, false)],
     ['Pages (approx.)', r.pages || '-'], ['Needed by', dateText_(r.neededBy, false)],
     ['Certified translation', yesNo_(r.certified, false)], ['Paper copy by post', yesNo_(r.shipping, false)]
   ];
@@ -672,15 +758,25 @@ function sendNewJobMails_(r) {
     to: String(r.email),
     subject: th ? 'ได้รับงานแปลแล้ว เลขที่งาน ' + r.jobNo + ' — ' + CONFIG.serviceName
                 : 'We have received your job ' + r.jobNo + ' — ' + CONFIG.serviceName,
-    htmlBody: th
-      ? mailHtml_('ได้รับงานแปลของท่านแล้ว', summaryTh, [
-          'เรียนคุณ' + esc_(r.name),
-          'ขอบคุณที่ใช้บริการ เราได้รับเอกสารของท่านเรียบร้อยแล้ว ผู้ให้บริการจะตรวจสอบเอกสารและส่งใบเสนอราคาให้ทางอีเมลนี้',
-          'ติดตามสถานะได้ที่หน้า <b>ติดตามงาน</b> บนเว็บไซต์ ด้วยเลขที่งาน <b>' + esc_(r.jobNo) + '</b> และอีเมลนี้'])
-      : mailHtml_('Your job has been received', summaryEn, [
-          'Dear ' + esc_(r.name) + ',',
-          'Thank you. We have received your documents and will email you a quote after checking them.',
-          'You can follow your job on the <b>Track a job</b> page with job number <b>' + esc_(r.jobNo) + '</b> and this email.']),
+    htmlBody: mailLayout_(th ? {
+      th: true, status: 'received', steps: 'received',
+      preheader: 'เลขที่งาน ' + r.jobNo + ' — เราจะตรวจสอบเอกสารและส่งใบเสนอราคาให้ทางอีเมลนี้',
+      title: 'ได้รับงานแปลของท่านแล้ว',
+      intro: ['เรียนคุณ' + esc_(r.name),
+        'ขอบคุณที่ใช้บริการ เราได้รับเอกสารของท่านเรียบร้อยแล้ว ทีมงานจะตรวจสอบเอกสารและส่ง<b>ใบเสนอราคา</b>ให้ทางอีเมลนี้'],
+      rows: summaryTh,
+      button: { label: 'ติดตามสถานะงาน', url: trackUrl_() },
+      small: 'ใช้เลขที่งาน <b>' + esc_(r.jobNo) + '</b> และอีเมลนี้ในหน้าติดตามงาน'
+    } : {
+      th: false, status: 'received', steps: 'received',
+      preheader: 'Job ' + r.jobNo + ' — we will check your documents and email you a quote.',
+      title: 'Your job has been received',
+      intro: ['Dear ' + esc_(r.name) + ',',
+        'Thank you. We have received your documents and will email you a <b>quote</b> after checking them.'],
+      rows: summaryEn,
+      button: { label: 'Track your job', url: trackUrl_() },
+      small: 'Use job number <b>' + esc_(r.jobNo) + '</b> and this email on the tracking page.'
+    }),
     name: CONFIG.serviceName,
     replyTo: providerEmail_()
   });
@@ -689,14 +785,20 @@ function sendNewJobMails_(r) {
   var all = summaryTh.concat([
     ['ชื่อ', r.name], ['อีเมล', r.email], ['LINE ID', r.line || '-'], ['โทรศัพท์', r.phone || '-'],
     ['การสะกดชื่อ', r.nameSpelling || '-'], ['ที่อยู่จัดส่ง', r.address || '-'], ['หมายเหตุ', r.notes || '-'],
-    ['แนบบัตร (ทะเบียนราษฎร)', yesNo_(r.requiresId, true)], ['โฟลเดอร์ไฟล์', r.folder]
+    ['แนบบัตร (ทะเบียนราษฎร)', yesNo_(r.requiresId, true)],
+    ['ชีต Jobs', '<a href="' + esc_(ss_().getUrl()) + '" style="color:#006192">เปิดชีต Jobs</a>', true]
   ]);
   MailApp.sendEmail({
     to: providerEmail_(),
     subject: 'งานใหม่ ' + r.jobNo + ' — ' + r.name,
-    htmlBody: mailHtml_('มีงานแปลใหม่ ' + r.jobNo, all, [
-      'เปิดโฟลเดอร์ไฟล์: <a href="' + esc_(r.folder) + '">' + esc_(r.folder) + '</a>',
-      'จัดการงานได้ในชีต <a href="' + esc_(ss_().getUrl()) + '">Jobs</a>']),
+    htmlBody: mailLayout_({
+      th: true, status: 'received',
+      preheader: r.name + ' · ' + categoryName_(r.category, true) + ' · ต้องการ ' + dateText_(r.neededBy, true),
+      title: 'มีงานแปลใหม่ ' + r.jobNo,
+      intro: ['ลูกค้าส่งงานใหม่จากเว็บไซต์ ตรวจไฟล์แล้วส่งใบเสนอราคา และเปลี่ยนสถานะในชีต Jobs'],
+      rows: all,
+      button: { label: 'เปิดโฟลเดอร์ไฟล์', url: r.folder }
+    }),
     name: CONFIG.serviceName,
     replyTo: String(r.email)
   });
@@ -737,20 +839,28 @@ function sendStatusMail_(r, code) {
     cancelled:  ['งานนี้ถูกยกเลิกแล้ว หากมีข้อสงสัย กรุณาตอบกลับอีเมลนี้', 'This job has been cancelled. Reply to this email if you have any questions.']
   }[code];
   if (!text || !r.email) return;
-  var paras = [th ? 'เรียนคุณ' + esc_(r.name) : 'Dear ' + esc_(r.name) + ',', esc_(th ? text[0] : text[1])];
+  var st = STATUSES.filter(function (x) { return x.code === code; })[0];
+  var o = {
+    th: th, status: code, steps: code === 'cancelled' ? '' : code,
+    preheader: (th ? 'เลขที่งาน ' : 'Job ') + r.jobNo + ' — ' + (th ? text[0] : text[1]),
+    title: (th ? 'งาน ' : 'Job ') + r.jobNo + (th ? ': ' + st.th : ': ' + st.en),
+    intro: [th ? 'เรียนคุณ' + esc_(r.name) : 'Dear ' + esc_(r.name) + ',', esc_(th ? text[0] : text[1])],
+    button: { label: th ? 'ติดตามสถานะงาน' : 'Track your job', url: trackUrl_() }
+  };
   if (code === 'delivered') {
     var url = confirmUrl_(r.jobNo);
-    var idNote = String(r.requiresId).toUpperCase() === 'TRUE'
-      ? (th ? ' เมื่อยืนยันแล้ว ข้อมูลและไฟล์ทั้งหมดของงานนี้ รวมถึงสำเนาบัตร จะถูกลบภายใน ' + CONFIG.idRetentionDays + ' วัน'
-            : ' Once you confirm, all data and files for this job, including the ID copy, are deleted within ' + CONFIG.idRetentionDays + ' days.')
-      : '';
-    if (url) paras.push((th ? 'หากงานแปลถูกต้องแล้ว กรุณากดยืนยัน: ' : 'If the translation is correct, please confirm: ') +
-      '<a href="' + esc_(url) + '">' + (th ? 'ยืนยันว่างานแปลถูกต้อง' : 'Confirm the translation is correct') + '</a>' + esc_(idNote));
+    var civil = String(r.requiresId).toUpperCase() === 'TRUE';
+    if (url) {
+      o.button = { label: th ? 'ยืนยันว่างานแปลถูกต้อง' : 'Confirm the translation is correct', url: url };
+      o.small = th ? 'กดปุ่มเมื่อตรวจงานแปลแล้วว่าถูกต้อง' + (civil ? ' เมื่อยืนยันแล้ว ข้อมูลและไฟล์ทั้งหมดของงานนี้ รวมถึงสำเนาบัตร จะถูกลบภายใน ' + CONFIG.idRetentionDays + ' วัน' : '')
+                   : 'Press the button once you have checked the translation.' + (civil ? ' Once you confirm, all data and files for this job, including the ID copy, are deleted within ' + CONFIG.idRetentionDays + ' days.' : '');
+    }
   }
+  if (code === 'cancelled') o.button = { label: th ? 'ติดต่อเรา' : 'Contact us', url: CONFIG.siteUrl + '/#contact' };
   MailApp.sendEmail({
     to: String(r.email),
-    subject: (th ? 'สถานะงาน ' : 'Job ') + r.jobNo + ': ' + (th ? statusLabel_(code) : code),
-    htmlBody: mailHtml_((th ? 'งาน ' : 'Job ') + r.jobNo, [], paras),
+    subject: (th ? 'สถานะงาน ' : 'Job ') + r.jobNo + ': ' + (th ? st.th : st.en) + ' — ' + CONFIG.serviceName,
+    htmlBody: mailLayout_(o),
     name: CONFIG.serviceName,
     replyTo: providerEmail_()
   });
@@ -788,12 +898,16 @@ function confirmPage_(jobNo, token) {
     });
   }
   if (!msg) msg = 'ลิงก์ไม่ถูกต้องหรือหมดอายุ<br>This link is not valid.';
+  var good = msg.indexOf('ขอบคุณ') === 0;
   return HtmlService.createHtmlOutput(
-    '<div style="font-family:Sarabun,Tahoma,Arial,sans-serif;max-width:520px;margin:48px auto;padding:24px;' +
-    'border:1px solid #d9dee7;border-radius:16px;text-align:center;color:#1d2433;font-size:17px;line-height:1.7">' +
-    '<p style="font-size:20px;font-weight:700;color:#01417b;margin:0 0 8px">' + esc_(CONFIG.serviceName) + '</p>' +
-    msg.split('<br>').map(esc_).join('<br>') + '</div>'
-  ).setTitle(CONFIG.serviceName);
+    '<div style="font-family:Sarabun,Tahoma,Arial,sans-serif;max-width:520px;margin:40px auto;border-radius:16px;overflow:hidden;' +
+    'box-shadow:0 12px 28px rgba(16,24,40,.12);border:1px solid #d9dee7;text-align:center;color:#1d2433;font-size:17px;line-height:1.7">' +
+    '<img src="' + esc_(CONFIG.siteUrl) + '/img/email/header.jpg" alt="' + esc_(CONFIG.serviceName) + '" style="display:block;width:100%;height:auto;background:#01417b">' +
+    '<div style="padding:28px 24px 30px"><div style="font-size:44px;line-height:1;color:' + (good ? '#0b6b2d' : '#b42318') + '">' + (good ? '✓' : '!') + '</div>' +
+    '<p style="margin:12px 0 18px">' + msg.split('<br>').map(esc_).join('<br>') + '</p>' +
+    '<a href="' + esc_(CONFIG.siteUrl) + '" target="_top" style="display:inline-block;padding:12px 28px;border-radius:999px;background:#01417b;color:#fff;' +
+    'text-decoration:none;font-weight:700">' + esc_(CONFIG.siteUrl.replace(/^https:\/\//, '')) + '</a></div></div>'
+  ).setTitle(CONFIG.serviceName).addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
 /* ======================================================================
@@ -871,12 +985,16 @@ function sendCodeMail_(email, code, lang) {
        'หากท่านไม่ได้ขอรหัสนี้ โปรดเพิกเฉยต่ออีเมลฉบับนี้']
     : ['Your sign-in code is', code, 'It is valid for ' + CONFIG.codeTtlMin + ' minutes and can be used once.',
        'If you did not ask for this code, you can ignore this email.'];
-  var html =
-    '<div style="font-family:Sarabun,Tahoma,Arial,sans-serif;font-size:16px;color:#1d2433">' +
-    '<p>' + lines[0] + '</p>' +
-    '<p style="font-size:32px;font-weight:700;letter-spacing:6px;color:#01417b;margin:8px 0">' + code + '</p>' +
-    '<p>' + lines[2] + '</p><p style="color:#566072">' + lines[3] + '</p>' +
-    '<p style="color:#566072">— ' + CONFIG.serviceName + '</p></div>';
+  var html = mailLayout_({
+    th: th,
+    preheader: lines[0] + ' ' + code,
+    title: th ? 'รหัสเข้าสู่ระบบของท่าน' : 'Your sign-in code',
+    intro: [esc_(lines[0]) + ':',
+      '<span style="display:inline-block;margin:4px 0;padding:14px 26px;border-radius:12px;background:#eef2f8;border:1px dashed #b9c1ce;' +
+      'font-size:34px;font-weight:700;letter-spacing:8px;color:#01417b;font-family:Consolas,Menlo,monospace">' + code + '</span>',
+      esc_(lines[2])],
+    small: esc_(lines[3])
+  });
   MailApp.sendEmail({
     to: email,
     subject: subject,
