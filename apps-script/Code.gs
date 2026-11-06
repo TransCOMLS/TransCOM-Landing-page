@@ -61,7 +61,8 @@ function categoryName_(code, th) {
 }
 
 var SHEETS = { users: 'Users', jobs: 'Jobs', sessions: '_sessions', promotions: 'Promotions', news: 'News',
-              dashboard: 'Dashboard', glossary: 'Glossary', discounts: 'Discounts' };
+              dashboard: 'Dashboard', glossary: 'Glossary', discounts: 'Discounts',
+              coupons: 'Coupons', couponUses: 'CouponUses' };
 
 // Column headers (Thai, for the owner) and the keys the code uses.
 // Columns are found by header text, so the owner may reorder them.
@@ -149,7 +150,8 @@ var PROMO_COLS = [
   ['titleEn', 'หัวข้อ (EN)'],
   ['textTh', 'รายละเอียด (ไทย)'],
   ['textEn', 'รายละเอียด (EN)'],
-  ['cta', 'ปุ่มไปหน้า']
+  ['cta', 'ปุ่มไปหน้า'],
+  ['id', 'รหัสโพสต์']          // set by the system; edits from the dashboard find the row by it
 ];
 var NEWS_COLS = [
   ['active', 'แสดง'],
@@ -159,7 +161,33 @@ var NEWS_COLS = [
   ['textTh', 'รายละเอียด (ไทย)'],
   ['textEn', 'รายละเอียด (EN)'],
   ['image', 'รูปภาพ (ลิงก์)'],     // square picture; a Google Drive share link works too
-  ['cta', 'ปุ่มไปหน้า']
+  ['cta', 'ปุ่มไปหน้า'],
+  ['id', 'รหัสโพสต์']
+];
+
+// Discount codes (Admin manages them on the website). Applied on quotes from Phase 6;
+// checkCoupon_ already validates them. Uses are logged in "CouponUses".
+var COUPON_COLS = [
+  ['code', 'โค้ด'],
+  ['active', 'ใช้งาน'],
+  ['kind', 'ชนิดส่วนลด'],          // percent | amount
+  ['value', 'มูลค่า'],               // % or THB
+  ['maxDiscount', 'ลดสูงสุด (บาท)'], // cap for % codes; 0 = no cap
+  ['minSpend', 'ยอดขั้นต่ำ (บาท)'],
+  ['start', 'เริ่ม'],
+  ['end', 'สิ้นสุด'],
+  ['maxUses', 'จำนวนสิทธิ์ทั้งหมด'], // 0 = unlimited (e.g. 100 = first 100 people)
+  ['perUser', 'ใช้ได้ต่อบัญชี'],     // 0 = unlimited, 1 = once per account
+  ['membersOnly', 'เฉพาะสมาชิก'],
+  ['note', 'หมายเหตุ'],
+  ['createdAt', 'สร้างเมื่อ']
+];
+var COUPON_USE_COLS = [
+  ['code', 'โค้ด'],
+  ['email', 'อีเมล'],
+  ['jobNo', 'เลขที่งาน'],
+  ['discount', 'ส่วนลด (บาท)'],
+  ['at', 'ใช้เมื่อ']
 ];
 var CTA_PAGES = ['services', 'pricing', 'calculator', 'submit', 'track', 'account', 'how', 'faq', 'contact', 'news', 'privacy', 'terms'];
 
@@ -249,7 +277,17 @@ var ACTIONS = {
   adminUsers: adminUsers_,
   adminSetUser: adminSetUser_,
   adminDiscounts: adminDiscounts_,
-  adminSaveDiscounts: adminSaveDiscounts_
+  adminSaveDiscounts: adminSaveDiscounts_,
+  // visitors, discount codes, posts
+  visit: visit_,
+  checkCoupon: checkCoupon_,
+  adminCoupons: adminCoupons_,
+  adminSaveCoupon: adminSaveCoupon_,
+  adminDeleteCoupon: adminDeleteCoupon_,
+  adminPosts: adminPosts_,
+  adminSavePost: adminSavePost_,
+  adminDeletePost: adminDeletePost_,
+  adminUploadImage: adminUploadImage_
 };
 
 /* ======================================================================
@@ -785,7 +823,8 @@ function adminOverview_(req) {
     if (!String(r.assignee || '').trim()) unassigned++;
   });
   return { ok: true, counts: counts, open: open, dueSoon: dueSoon, overdue: overdue,
-           cancelRequests: cancelRequests, ready: ready, unassigned: unassigned, months: months };
+           cancelRequests: cancelRequests, ready: ready, unassigned: unassigned, months: months,
+           visits: visitStats_() };
 }
 
 function adminJobs_(req) {
@@ -944,6 +983,257 @@ function adminSaveDiscounts_(req) {
     if (items.length) sh.getRange(2, 1, items.length, DISCOUNT_COLS.length).setValues(items.map(function (r) { return r.map(safe_); }));
   });
   return adminDiscounts_(req);
+}
+
+/* ======================================================================
+   Visitor counter (public): one count per browser per day (the website remembers the
+   day in tr_visit). Totals live in Script Properties: VISITS_TOTAL and VISITS_<yyyy-MM-dd>.
+   ====================================================================== */
+
+function visit_(req) {
+  var props = PropertiesService.getScriptProperties();
+  var tz = ss_().getSpreadsheetTimeZone();
+  var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  var cache = CacheService.getScriptCache();
+  if (req.isNew === true) {
+    var lock = LockService.getScriptLock();
+    if (lock.tryLock(3000)) {
+      try {
+        props.setProperty('VISITS_TOTAL', String((parseInt(props.getProperty('VISITS_TOTAL') || '0', 10) || 0) + 1));
+        props.setProperty('VISITS_' + today, String((parseInt(props.getProperty('VISITS_' + today) || '0', 10) || 0) + 1));
+      } finally { lock.releaseLock(); }
+      cache.remove('visits');
+    }
+  }
+  var hit = cache.get('visits');
+  var total = hit ? parseInt(hit, 10) : (parseInt(props.getProperty('VISITS_TOTAL') || '0', 10) || 0);
+  if (!hit) cache.put('visits', String(total), 60);
+  return { ok: true, total: total };
+}
+
+function visitStats_() {
+  var props = PropertiesService.getScriptProperties();
+  var tz = ss_().getSpreadsheetTimeZone();
+  var days = [];
+  for (var i = 6; i >= 0; i--) {
+    var d = Utilities.formatDate(addDays_(new Date(), -i), tz, 'yyyy-MM-dd');
+    days.push({ day: d, count: parseInt(props.getProperty('VISITS_' + d) || '0', 10) || 0 });
+  }
+  return { total: parseInt(props.getProperty('VISITS_TOTAL') || '0', 10) || 0, days: days };
+}
+
+/* ======================================================================
+   Discount codes
+   ====================================================================== */
+
+function couponRow_(r, tz, uses) {
+  return {
+    code: String(r.code || '').toUpperCase(),
+    active: active_(r),
+    kind: r.kind === 'amount' ? 'amount' : 'percent',
+    value: Number(r.value) || 0,
+    maxDiscount: Number(r.maxDiscount) || 0,
+    minSpend: Number(r.minSpend) || 0,
+    start: day_(r.start, tz),
+    end: day_(r.end, tz),
+    maxUses: Number(r.maxUses) || 0,
+    perUser: r.perUser === '' || r.perUser == null ? 1 : Number(r.perUser) || 0,
+    membersOnly: active_({ active: r.membersOnly }),
+    note: String(r.note || ''),
+    used: uses ? (uses[String(r.code || '').toUpperCase()] || 0) : 0
+  };
+}
+function couponUses_() {
+  var out = {};
+  rowsIfSheet_(SHEETS.couponUses, COUPON_USE_COLS).forEach(function (u) {
+    var c = String(u.code || '').toUpperCase();
+    if (!c) return;
+    out[c] = (out[c] || 0) + 1;
+    var k = c + '|' + email_(u.email, true);
+    out[k] = (out[k] || 0) + 1;
+  });
+  return out;
+}
+
+// Is this code usable now by this person for this amount? → { ok, discount } or fail_(reason)
+function evalCoupon_(code, email, amount) {
+  code = String(code || '').trim().toUpperCase();
+  if (!/^[A-Z0-9_-]{3,30}$/.test(code)) fail_('coupon_invalid');
+  var tz = ss_().getSpreadsheetTimeZone();
+  var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  var uses = couponUses_();
+  var row = rowsIfSheet_(SHEETS.coupons, COUPON_COLS).filter(function (r) { return String(r.code || '').toUpperCase() === code; })[0];
+  if (!row) fail_('coupon_invalid');
+  var c = couponRow_(row, tz, uses);
+  if (!c.active) fail_('coupon_invalid');
+  if (c.start && today < c.start) fail_('coupon_not_started');
+  if (c.end && today > c.end) fail_('coupon_expired');
+  if (c.maxUses && c.used >= c.maxUses) fail_('coupon_used_up');
+  if ((c.membersOnly || c.perUser) && !email) fail_('coupon_sign_in');
+  if (c.perUser && email && (uses[code + '|' + email] || 0) >= c.perUser) fail_('coupon_already_used');
+  amount = Number(amount) || 0;
+  if (c.minSpend && amount && amount < c.minSpend) fail_('coupon_min_spend');
+  var discount = c.kind === 'percent' ? amount * c.value / 100 : c.value;
+  if (c.kind === 'percent' && c.maxDiscount) discount = Math.min(discount, c.maxDiscount);
+  if (amount) discount = Math.min(discount, amount);
+  return { code: code, kind: c.kind, value: c.value, minSpend: c.minSpend, discount: Math.round(discount * 100) / 100 };
+}
+
+// Customers (and the quote screen in Phase 6) can check a code
+function checkCoupon_(req) {
+  var email = '';
+  if (req.token) { try { email = auth_(req.token); } catch (e) { email = ''; } }
+  var cache = CacheService.getScriptCache(), key = 'cc:' + (email || 'guest');
+  var n = parseInt(cache.get(key) || '0', 10);
+  if (n >= 30) fail_('rate_limited');                // stops guessing codes
+  cache.put(key, String(n + 1), 3600);
+  return { ok: true, coupon: evalCoupon_(req.code, email, req.amount) };
+}
+
+function adminCoupons_(req) {
+  need_(req, ['admin']);
+  var tz = ss_().getSpreadsheetTimeZone(), uses = couponUses_();
+  var list = rowsIfSheet_(SHEETS.coupons, COUPON_COLS).filter(function (r) { return r.code; })
+    .map(function (r) { return couponRow_(r, tz, uses); });
+  return { ok: true, coupons: list };
+}
+
+function adminSaveCoupon_(req) {
+  need_(req, ['admin']);
+  var c = req.coupon || {};
+  var code = String(c.code || '').trim().toUpperCase();
+  if (!/^[A-Z0-9_-]{3,30}$/.test(code)) fail_('coupon_code');
+  var kind = c.kind === 'amount' ? 'amount' : 'percent';
+  var value = Number(c.value), maxDiscount = Number(c.maxDiscount || 0), minSpend = Number(c.minSpend || 0);
+  var maxUses = parseInt(c.maxUses || 0, 10), perUser = parseInt(c.perUser == null ? 1 : c.perUser, 10);
+  if (!(value > 0) || (kind === 'percent' && value > 100) || !(maxDiscount >= 0) || !(minSpend >= 0) || !(maxUses >= 0) || !(perUser >= 0)) fail_('invalid_number');
+  var dateOk = function (d) { return !d || /^\d{4}-\d{2}-\d{2}$/.test(d); };
+  if (!dateOk(c.start) || !dateOk(c.end) || (c.start && c.end && c.end < c.start)) fail_('invalid_date');
+  withLock_(function () {
+    var t = table_(SHEETS.coupons, COUPON_COLS);
+    var row = t.rows.filter(function (r) { return String(r.code || '').toUpperCase() === code; })[0];
+    if (req.isNew && row) fail_('coupon_exists');
+    var obj = { code: code, active: c.active !== false, kind: kind, value: value, maxDiscount: maxDiscount, minSpend: minSpend,
+                start: c.start || '', end: c.end || '', maxUses: maxUses, perUser: perUser, membersOnly: c.membersOnly === true,
+                note: text_(c.note, 200) };
+    if (row) updateRow_(t, row, obj);
+    else { obj.createdAt = new Date(); appendRow_(t, obj); }
+  });
+  return adminCoupons_(req);
+}
+
+function adminDeleteCoupon_(req) {
+  need_(req, ['admin']);
+  var code = String(req.code || '').trim().toUpperCase();
+  withLock_(function () {
+    var t = table_(SHEETS.coupons, COUPON_COLS);
+    deleteRows_(t, function (r) { return String(r.code || '').toUpperCase() === code; });
+  });
+  return adminCoupons_(req);
+}
+
+/* ======================================================================
+   News & offers from the dashboard (same "News" / "Promotions" sheets the owner can edit)
+   ====================================================================== */
+
+function postSheet_(kind) {
+  return kind === 'promo' ? { name: SHEETS.promotions, cols: PROMO_COLS } : { name: SHEETS.news, cols: NEWS_COLS };
+}
+
+function adminPosts_(req) {
+  need_(req, ['admin']);
+  var ps = postSheet_(req.kind), tz = ss_().getSpreadsheetTimeZone();
+  var t = table_(ps.name, ps.cols);
+  var out = [];
+  withLock_(function () {
+    t = table_(ps.name, ps.cols);
+    t.rows.forEach(function (r) {
+      if (!r.titleTh && !r.titleEn) return;
+      if (!r.id) updateRow_(t, r, { id: Utilities.getUuid().slice(0, 8) });   // give older rows an id
+      out.push({
+        id: String(r.id), active: active_(r),
+        date: day_(r.date, tz), start: day_(r.start, tz), end: day_(r.end, tz),
+        tagTh: String(r.tagTh || ''), tagEn: String(r.tagEn || ''),
+        titleTh: String(r.titleTh || ''), titleEn: String(r.titleEn || ''),
+        textTh: String(r.textTh || ''), textEn: String(r.textEn || ''),
+        image: String(r.image || ''), imageUrl: imageUrl_(r.image), cta: String(r.cta || '')
+      });
+    });
+  });
+  out.sort(function (a, b) { return (b.date || b.start || '').localeCompare(a.date || a.start || ''); });
+  return { ok: true, kind: req.kind === 'promo' ? 'promo' : 'news', posts: out };
+}
+
+function adminSavePost_(req) {
+  need_(req, ['admin']);
+  var ps = postSheet_(req.kind), p = req.post || {};
+  var obj = {
+    active: p.active === true,
+    titleTh: text_(p.titleTh, 200), titleEn: text_(p.titleEn, 200),
+    textTh: String(p.textTh || '').replace(/\r/g, '').slice(0, 4000), textEn: String(p.textEn || '').replace(/\r/g, '').slice(0, 4000),
+    cta: CTA_PAGES.indexOf(String(p.cta || '')) > -1 ? String(p.cta) : ''
+  };
+  if (!obj.titleTh && !obj.titleEn) fail_('post_title');
+  var dateOk = function (d) { return !d || /^\d{4}-\d{2}-\d{2}$/.test(d); };
+  if (req.kind === 'promo') {
+    if (!dateOk(p.start) || !dateOk(p.end)) fail_('invalid_date');
+    obj.start = p.start || ''; obj.end = p.end || '';
+    obj.tagTh = text_(p.tagTh, 40); obj.tagEn = text_(p.tagEn, 40);
+  } else {
+    if (!dateOk(p.date)) fail_('invalid_date');
+    obj.date = p.date || Utilities.formatDate(new Date(), ss_().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+    var img = String(p.image || '').trim();
+    if (img && !/^https:\/\/[^\s"'<>]+$/.test(img)) fail_('post_image');
+    obj.image = img;
+  }
+  withLock_(function () {
+    var t = table_(ps.name, ps.cols);
+    var row = p.id ? t.rows.filter(function (r) { return String(r.id) === String(p.id); })[0] : null;
+    if (p.id && !row) fail_('not_found');
+    if (row) updateRow_(t, row, obj);
+    else { obj.id = Utilities.getUuid().slice(0, 8); appendRow_(t, obj); }
+  });
+  CacheService.getScriptCache().remove('content');    // the website shows it at once
+  return adminPosts_(req);
+}
+
+function adminDeletePost_(req) {
+  need_(req, ['admin']);
+  var ps = postSheet_(req.kind);
+  withLock_(function () {
+    var t = table_(ps.name, ps.cols);
+    deleteRows_(t, function (r) { return String(r.id) === String(req.id || '-'); });
+  });
+  CacheService.getScriptCache().remove('content');
+  return adminPosts_(req);
+}
+
+// Post pictures go to a public folder ("anyone with the link can view")
+function imagesFolder_() {
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty('IMAGES_FOLDER_ID');
+  if (id) { try { return DriveApp.getFolderById(id); } catch (e) { /* deleted: make a new one */ } }
+  var folder = DriveApp.createFolder('TransCOM – รูปข่าวสาร (สาธารณะ)');
+  try { folder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) { /* org policy: file sharing below */ }
+  props.setProperty('IMAGES_FOLDER_ID', folder.getId());
+  return folder;
+}
+
+function adminUploadImage_(req) {
+  need_(req, ['admin']);
+  var name = safeFileName_(req.name || 'image.jpg');
+  var ext = ((name.match(/\.([a-z0-9]+)$/i) || [])[1] || '').toLowerCase();
+  if (['jpg', 'jpeg', 'png', 'webp', 'gif'].indexOf(ext) === -1) fail_('bad_file');
+  var bytes;
+  try { bytes = Utilities.base64Decode(String(req.data || '')); } catch (e) { fail_('bad_file'); }
+  if (!bytes.length) fail_('bad_file');
+  if (bytes.length > 5 * 1048576) fail_('too_large');
+  var mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'gif' ? 'image/gif' : 'image/jpeg';
+  var file = imagesFolder_().createFile(Utilities.newBlob(bytes, mime, name));
+  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); }
+  catch (e) { file.setTrashed(true); fail_('sharing_blocked'); }
+  var link = 'https://drive.google.com/file/d/' + file.getId() + '/view';
+  return { ok: true, image: link, imageUrl: imageUrl_(link) };
 }
 
 /* ======================================================================
@@ -1637,6 +1927,8 @@ function setup() {
     if (c) users.getRange(2, c, users.getMaxRows() - 1, 1).setDataValidation(SpreadsheetApp.newDataValidation()
       .requireValueInList(d[1], true).setAllowInvalid(false).build());
   });
+  ensureSheet_(SHEETS.coupons, COUPON_COLS);
+  ensureSheet_(SHEETS.couponUses, COUPON_USE_COLS);
   // Phase 5: discount settings, one row per customer type (0 % until the owner sets them)
   if (!ss_().getSheetByName(SHEETS.discounts)) {
     var disc = ensureSheet_(SHEETS.discounts, DISCOUNT_COLS);
@@ -1673,6 +1965,7 @@ function setup() {
     .forEach(function (def) {
       var isNew = !ss_().getSheetByName(def[0]);
       var sh = ensureSheet_(def[0], def[1]);
+      addMissingColumns_(sh, def[1]);
       if (isNew) sh.appendRow(def[2]);
       var col = colIndex_(sh, 'แสดง');
       if (col) sh.getRange(2, col, sh.getMaxRows() - 1, 1).insertCheckboxes();
