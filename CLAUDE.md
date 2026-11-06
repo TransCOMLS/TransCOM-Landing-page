@@ -100,7 +100,11 @@ provider manages all jobs from one Google Sheet, with no paid server.
   Jobs: number `TR-<BE year>-0001` from Script Property `SEQ_<year>`; files in a Drive folder
   per job under `JOBS_FOLDER_ID` (ID files in a subfolder); server re-checks every field,
   file type/size, max 10 files, 5 jobs/email/hour; upload state in CacheService (6 h).
-  Emails: customer receipt + provider notice (`PROVIDER_EMAIL` or the script owner);
+  Emails: all use `mailLayout_()` — table-based, inline styles, header picture
+  `img/email/header.jpg` served from the live site (`CONFIG.siteUrl`; must be on `main`), status
+  badge, 5-step progress (`mailSteps_`), details table, one button, navy footer with contacts
+  (`CONFIG.contactPhone/lineId/contactEmail` — keep in step with js/config.js). Language pairs and
+  categories show as names (`LANG_PAIR_NAMES`, `CATEGORY_NAMES`). Customer receipt + provider notice (`PROVIDER_EMAIL` or the script owner);
   installable `onJobEdit` emails the customer on each status change (delivered → sets
   deliveredAt, deleteBy +90 d, and adds the confirm link); confirming a civil job moves
   deleteBy to +15 d; daily `purgeDueJobs` trashes the folder and clears personal columns.
