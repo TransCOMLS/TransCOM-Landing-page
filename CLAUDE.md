@@ -115,7 +115,12 @@ provider manages all jobs from one Google Sheet, with no paid server.
   uploadTranslation, deleteTranslation, staffUpdate (start / ready / note), adminOverview,
   adminJobs, adminJob, adminUpdateJob (assignee, status via setStatus_ → afterStatus_ = same
   emails as onJobEdit, cancel approve/reject, note), adminUsers, adminSetUser, adminDiscounts,
-  adminSaveDiscounts. Roles: Users "บทบาท" (ROLES), bootstrap admins = provider email, script
+  adminSaveDiscounts; visit (counter: Script Properties `VISITS_TOTAL` + `VISITS_<yyyy-MM-dd>`, shown in
+  adminOverview `visits`), checkCoupon (for Phase 6 quotes), adminCoupons / adminSaveCoupon / adminDeleteCoupon
+  ("Coupons" sheet: code, % or THB, max discount, min spend, start/end, maxUses, perUser, membersOnly;
+  "CouponUses" log counts uses), adminPosts / adminSavePost / adminDeletePost (News/Promotions rows get a
+  "รหัสโพสต์" id; clear the content cache), adminUploadImage (≤5 MB image into the public Drive folder
+  `IMAGES_FOLDER_ID`, shared anyone-with-link; `sharing_blocked` if Workspace forbids it). Roles: Users "บทบาท" (ROLES), bootstrap admins = provider email, script
   owner, Script Property ADMIN_EMAILS (`need_(req, roles)` checks every call). Customer types in
   "ประเภทลูกค้า" (CUSTOMER_TYPES); "Discounts" sheet (type % + tiers by spend) for Phase 6 quotes.
   Jobs gain assignee, readyAt, cancelRequest, internalNotes (log). Translations go to subfolder
@@ -145,6 +150,12 @@ provider manages all jobs from one Google Sheet, with no paid server.
   (columns defined in `JOB_COLS`, written by Phase 3), hidden "_sessions". Codes live in
   CacheService (10 min, 5 tries, 1/min, 5/hour); codes and tokens are stored only as
   salted SHA-256; customer text is escaped against Sheets formulas. Run `setup()` once.
+- SEO: `<head>` has title/description, canonical, icons (`img/favicon-32.png`, `icon-192.png`, `icon-512.png`,
+  `apple-touch-icon.png`), Open Graph/Twitter (`img/og-image.jpg` 1200×630) and JSON-LD `ProfessionalService`
+  (keep it in step with contact details in config.js); `robots.txt` + `sitemap.xml` at the root.
+  Footer visitor pill `#visit-count` (home.js `loadVisits`, once per device per day via `tr_visit`;
+  `config.showVisitorCount`). Admin dashboard also has "โค้ดส่วนลด" (`a-coupons`) and "ประชาสัมพันธ์"
+  (`a-posts`, news/promo tabs, picture upload) views in portal.js.
 - `img/logo.svg` (header, on white) and `img/logo-white.svg` (footer, on `--footer-bg`):
   the owner's logo, cropped to its content. Colours `#01417b` / `#006192` set `--accent`
   and `--accent-bright`.
@@ -164,7 +175,7 @@ provider manages all jobs from one Google Sheet, with no paid server.
   Tap targets ≥44px. One primary button per section. Light page = soft logo-blue gradient
   with white cards; navy accent (`--accent`). Check both themes when changing styles.
 - `localStorage` only via the try/catch helpers in `app.js` (`App.storage`; keys `tr_lang`,
-  `tr_session`, `tr_theme`) — plus the try/catch theme read in the `<head>` script.
+  `tr_session`, `tr_theme`, `tr_visit`) — plus the try/catch theme read in the `<head>` script.
 - Thai copy: formal but concise; years in Thai text use พ.ศ. (job no. `TR-2569-0001`).
 - Placeholders in `[brackets]` in config.js are filled in by the owner — keep them.
 
