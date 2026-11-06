@@ -6,7 +6,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
 
 ## Tech stack (strict)
 - Plain HTML + CSS + vanilla JavaScript. No frameworks, no build step, no npm deps.
-- Hosted on GitHub Pages, embedded in Google Sites via "Embed → By URL" (runs in an iframe).
+- Hosted on GitHub Pages (public repo, `main` / root) at https://www.prathaitranslation.com
+  (DNS at Cloudflare, "DNS only"). Google Sites embedding was dropped on 2026-11-06 so the
+  address bar follows the `#hash` page; the code still works inside an iframe.
 - Backend: Google Apps Script Web App (doPost/doGet) + Google Sheet + Google Drive.
 - Font: Google Fonts "Sarabun" — the web version of TH Sarabun New, the owner's chosen Thai
   font — with a sans-serif fallback stack. Do not switch to other display fonts.
@@ -112,13 +114,13 @@ provider manages all jobs from one Google Sheet, with no paid server.
   the owner's logo, cropped to its content. Colours `#01417b` / `#006192` set `--accent`
   and `--accent-bright`.
 - `README.md` — Thai setup guide for the owner: Drive folders, Sheet + Apps Script setup, Web App
-  deployment, daily use of the News/Promotions sheets, updating, GitHub Pages, Google Sites. Keep
+  deployment, daily use of the News/Promotions sheets, updating, GitHub Pages + Cloudflare domain, leaving Google Sites. Keep
   it in step when sheets, columns or config keys change (Phase 4 adds the status-lookup parts).
 
 ## Conventions
 - Text goes in `i18n.js` and is bound with `data-i18n`, `data-i18n-placeholder`,
   `data-i18n-aria`. No hard-coded UI text in HTML or JS.
-- Inside the Google Sites iframe: external links (incl. `tel:`, `mailto:`, LINE)
+- External links (the site may still be framed): (incl. `tel:`, `mailto:`, LINE)
   use `target="_blank"`; navigation is in-page only; forms always `preventDefault`.
 - Device priority (owner's choice): 1. PC  2. phone  3. tablet. Design and review PC
   first, then phone, then tablet. CSS stays mobile-first in code (base = phone, PC in
