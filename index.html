@@ -80,7 +80,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20261107c">
+  <link rel="stylesheet" href="css/style.css?v=20261107d">
   <script>
     /* Theme before first paint (no white flash in dark mode). Logic lives in js/app.js. */
     (function () {
@@ -629,6 +629,7 @@
             </div>
             <button type="submit" class="btn btn-primary btn-block" id="a-submit" data-i18n="acct.sendCode"></button>
             <div class="acct-links acct-mode">
+              <button type="button" class="btn-link" id="a-forgot" data-i18n="acct.forgot" hidden></button>
               <button type="button" class="btn-link" id="a-mode" data-i18n="acct.usePassword"></button>
             </div>
           </form>
@@ -639,10 +640,40 @@
               <input id="a-code" class="code-input" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" aria-describedby="a-code-err">
               <p class="field-error" id="a-code-err" hidden></p>
             </div>
-            <button type="submit" class="btn btn-primary btn-block" data-i18n="acct.verify"></button>
+            <button type="submit" class="btn btn-primary btn-block" id="a-verify" data-i18n="acct.verify"></button>
             <div class="acct-links">
               <button type="button" class="btn-link" id="a-resend"></button>
               <button type="button" class="btn-link" id="a-change" data-i18n="acct.changeEmail"></button>
+            </div>
+          </form>
+          <!-- Forgot password: after the emailed code, a new password must be set before signing in -->
+          <form id="acct-reset-form" class="form" novalidate hidden>
+            <p class="notice" id="acct-reset-note"></p>
+            <input type="email" id="a-reset-user" autocomplete="username" hidden tabindex="-1" aria-hidden="true">
+            <div class="field">
+              <label for="a-new" data-i18n="sec.new"></label>
+              <div class="pw-wrap">
+                <input id="a-new" type="password" autocomplete="new-password" maxlength="100" aria-describedby="a-new-hint a-new-err">
+                <button type="button" class="pw-toggle" data-pw-toggle="a-new" aria-pressed="false" data-i18n-aria="sec.showPw">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+                </button>
+              </div>
+              <p class="hint" id="a-new-hint" data-i18n="sec.rule"></p>
+              <p class="field-error" id="a-new-err" hidden></p>
+            </div>
+            <div class="field">
+              <label for="a-new2" data-i18n="sec.confirmPw"></label>
+              <div class="pw-wrap">
+                <input id="a-new2" type="password" autocomplete="new-password" maxlength="100" aria-describedby="a-new2-err">
+                <button type="button" class="pw-toggle" data-pw-toggle="a-new2" aria-pressed="false" data-i18n-aria="sec.showPw">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+                </button>
+              </div>
+              <p class="field-error" id="a-new2-err" hidden></p>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block" id="a-reset-save" data-i18n="acct.resetSave"></button>
+            <div class="acct-links">
+              <button type="button" class="btn-link" id="a-reset-cancel" data-i18n="acct.cancel"></button>
             </div>
           </form>
           <div id="acct-signin-status" class="form-status" role="status" aria-live="polite" hidden></div>
@@ -1029,14 +1060,14 @@
 
   <noscript><p class="noscript">Please enable JavaScript. / กรุณาเปิดใช้งาน JavaScript</p></noscript>
 
-  <script src="js/config.js?v=20261107c"></script>
-  <script src="js/i18n.js?v=20261107c"></script>
-  <script src="js/terms.js?v=20261107c"></script>
-  <script src="js/app.js?v=20261107c"></script>
-  <script src="js/account.js?v=20261107c"></script>
-  <script src="js/submit.js?v=20261107c"></script>
-  <script src="js/track.js?v=20261107c"></script>
-  <script src="js/portal.js?v=20261107c"></script>
-  <script src="js/home.js?v=20261107c"></script>
+  <script src="js/config.js?v=20261107d"></script>
+  <script src="js/i18n.js?v=20261107d"></script>
+  <script src="js/terms.js?v=20261107d"></script>
+  <script src="js/app.js?v=20261107d"></script>
+  <script src="js/account.js?v=20261107d"></script>
+  <script src="js/submit.js?v=20261107d"></script>
+  <script src="js/track.js?v=20261107d"></script>
+  <script src="js/portal.js?v=20261107d"></script>
+  <script src="js/home.js?v=20261107d"></script>
 </body>
 </html>

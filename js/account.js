@@ -24,7 +24,9 @@
     isNew: false,
     fresh: false,       // signed in with an emailed code a few minutes ago (new password without the old one)
     mode: "code",       // sign-in form: "code" (emailed code) or "password"
-    bkPending: ""       // backup email waiting for its confirmation code
+    bkPending: "",      // backup email waiting for its confirmation code
+    purpose: "login",   // emailed code for "login" or "reset" (forgot password)
+    resetToken: ""      // forgot password: permission to set a new one (no session until then)
   };
 
   function $(sel) { return document.querySelector(sel); }
@@ -274,11 +276,20 @@
     updateResend();
   }
 
+  function codeStepText() {
+    var reset = state.purpose === "reset";
+    $("#acct-code-sent").textContent = t(reset ? "acct.resetSent" : "acct.codeSent", { email: state.pendingEmail });
+    var v = $("#a-verify");
+    v.setAttribute("data-i18n", reset ? "acct.resetVerify" : "acct.verify");
+    if (!v.disabled) v.textContent = t(reset ? "acct.resetVerify" : "acct.verify");
+  }
+
   function showCodeStep(email) {
     state.pendingEmail = email;
     show($("#acct-email-form"), false);
+    show($("#acct-reset-form"), false);
     show($("#acct-code-form"), true);
-    $("#acct-code-sent").textContent = t("acct.codeSent", { email: email });
+    codeStepText();
     App.showStatus($("#acct-signin-status"), "", "");
     var code = $("#a-code");
     code.value = "";
@@ -287,15 +298,18 @@
   }
 
   function showEmailStep() {
+    state.resetToken = "";
     show($("#acct-code-form"), false);
+    show($("#acct-reset-form"), false);
     show($("#acct-email-form"), true);
     App.showStatus($("#acct-signin-status"), "", "");
     $("#a-email").focus();
   }
 
-  function requestCode(email, btn) {
+  function requestCode(email, btn, purpose) {
+    state.purpose = purpose === "reset" ? "reset" : "login";
     busy(btn, true);
-    return api("requestCode", { email: email })
+    return api("requestCode", { email: email, purpose: state.purpose })
       .then(function (res) {
         showCodeStep(email);
         startResendTimer(res.resendSec);
@@ -318,6 +332,7 @@
     state.jobs = [];
     clearInterval(resendTimer);
     show($("#acct-code-form"), false);
+    show($("#acct-reset-form"), false);
     show($("#acct-email-form"), true);
     $("#a-password").value = "";
     render();
@@ -333,10 +348,27 @@
     var submit = $("#a-submit"), toggle = $("#a-mode");
     submit.setAttribute("data-i18n", pw ? "acct.signInPw" : "acct.sendCode");
     submit.textContent = t(pw ? "acct.signInPw" : "acct.sendCode");
+    show($("#a-forgot"), pw);
     toggle.setAttribute("data-i18n", pw ? "acct.useCode" : "acct.usePassword");
     toggle.textContent = t(pw ? "acct.useCode" : "acct.usePassword");
     App.setFieldError($("#a-password"), null);
     App.showStatus($("#acct-signin-status"), "", "");
+  }
+
+  // Forgot password: after the code, a new password must be set before the account opens
+  function showResetStep() {
+    show($("#acct-code-form"), false);
+    show($("#acct-email-form"), false);
+    show($("#acct-reset-form"), true);
+    $("#acct-reset-note").textContent = t("acct.resetNote", { email: state.pendingEmail });
+    $("#a-reset-user").value = state.pendingEmail;
+    ["#a-new", "#a-new2"].forEach(function (sel) { var i = $(sel); i.value = ""; App.setFieldError(i, null); });
+    App.showStatus($("#acct-signin-status"), "", "");
+    $("#a-new").focus();
+  }
+
+  function weakPassword(pw, email) {
+    return pw.length < 8 || pw.length > 100 || !/\d/.test(pw) || !/[^\d\s]/.test(pw) || pw.toLowerCase() === String(email || "").toLowerCase();
   }
 
   function passwordLogin(email, btn) {
@@ -380,6 +412,43 @@
     });
     setMode(App.storage.get(MODE_KEY) === "password" ? "password" : "code");
 
+    $("#a-forgot").addEventListener("click", function () {
+      var input = $("#a-email");
+      var email = input.value.trim().toLowerCase();
+      if (!email) { App.setFieldError(input, [t("err.required")]); input.focus(); return; }
+      if (!App.rules.email.test(email)) { App.setFieldError(input, [t("err.email")]); input.focus(); return; }
+      App.setFieldError(input, null);
+      requestCode(email, this, "reset");
+    });
+
+    var resetForm = $("#acct-reset-form");
+    ["#a-new", "#a-new2"].forEach(function (sel) {
+      $(sel).addEventListener("input", function () { App.setFieldError(this, null); });
+    });
+    resetForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var nw = $("#a-new"), nw2 = $("#a-new2");
+      if (weakPassword(nw.value, state.pendingEmail)) { App.setFieldError(nw, [t("acct.err.password_weak")]); nw.focus(); return; }
+      if (nw.value !== nw2.value) { App.setFieldError(nw2, [t("sec.mismatch")]); nw2.focus(); return; }
+      var btn = $("#a-reset-save");
+      busy(btn, true);
+      api("resetPassword", { resetToken: state.resetToken, password: nw.value })
+        .then(function (res) {
+          App.storage.set(MODE_KEY, "password");
+          state.resetToken = "";
+          nw.value = nw2.value = "";
+          show(resetForm, false);
+          setMode("password");
+          signedIn(res);
+        }, function (err) {
+          if (err.code === "password_weak") { App.setFieldError(nw, [errorText(err)]); nw.focus(); }
+          else if (err.code === "reset_expired") { showEmailStep(); App.showStatus($("#acct-signin-status"), "error", errorText(err)); }
+          else App.showStatus($("#acct-signin-status"), "error", errorText(err));
+        })
+        .then(function () { busy(btn, false); });
+    });
+    $("#a-reset-cancel").addEventListener("click", showEmailStep);
+
     var codeInput = $("#a-code");
     codeInput.addEventListener("input", function () {
       var digits = codeInput.value.replace(/\D/g, "").slice(0, 6);
@@ -393,8 +462,14 @@
       if (code.length !== 6) { App.setFieldError(codeInput, [t("acct.err.code_format")]); codeInput.focus(); return; }
       var btn = codeForm.querySelector('button[type="submit"]');
       busy(btn, true);
-      api("verifyCode", { email: state.pendingEmail, code: code })
-        .then(signedIn, function (err) {
+      var reset = state.purpose === "reset";
+      api(reset ? "verifyResetCode" : "verifyCode", { email: state.pendingEmail, code: code })
+        .then(function (res) {
+          if (!reset) { signedIn(res); return; }
+          clearInterval(resendTimer);
+          state.resetToken = res.resetToken;
+          showResetStep();
+        }, function (err) {
           if (err.code === "code_invalid") App.setFieldError(codeInput, [errorText(err)]);
           else App.showStatus($("#acct-signin-status"), "error", errorText(err));
           codeInput.select();
@@ -403,7 +478,7 @@
     });
 
     $("#a-resend").addEventListener("click", function () {
-      requestCode(state.pendingEmail, this);
+      requestCode(state.pendingEmail, this, state.purpose);
     });
     $("#a-change").addEventListener("click", showEmailStep);
   }
@@ -547,10 +622,7 @@
       i.addEventListener("input", function () { App.setFieldError(i, null); App.showStatus(pwStatus, "", ""); });
     });
 
-    function weak(pw) {
-      var email = state.profile ? state.profile.email : "";
-      return pw.length < 8 || !/\d/.test(pw) || !/[^\d\s]/.test(pw) || pw.toLowerCase() === email;
-    }
+    function weak(pw) { return weakPassword(pw, state.profile ? state.profile.email : ""); }
 
     pwForm.addEventListener("submit", function (e) {
       e.preventDefault();
@@ -719,9 +791,8 @@
     document.addEventListener("langchange", function () {
       render();
       setMode(state.mode);
-      if (state.pendingEmail && !$("#acct-code-form").hidden) {
-        $("#acct-code-sent").textContent = t("acct.codeSent", { email: state.pendingEmail });
-      }
+      if (state.pendingEmail && !$("#acct-code-form").hidden) codeStepText();
+      if (!$("#acct-reset-form").hidden) $("#acct-reset-note").textContent = t("acct.resetNote", { email: state.pendingEmail });
       updateResend();
     });
     document.addEventListener("tabchange", function (e) {

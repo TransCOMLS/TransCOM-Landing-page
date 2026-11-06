@@ -127,7 +127,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
   2026-11-06). Passwords: Users "รหัสผ่าน (เข้ารหัส — ห้ามแก้)" = `v1$rounds$salt$hex` iterated HMAC-SHA256 with
   the PEPPER; one generic `login_invalid`; 5 misses/email/15 min → `password_locked`. Changing needs the
   current password unless the session came from an emailed code in the last 15 min (`fresh`, cache) —
-  that is the "forgot password" path. Setting a password signs out other sessions. A verified
+  Forgot password is its own flow: requestCode `purpose: 'reset'` (own email wording) →
+  verifyResetCode (no session; a 15-min reset token) → resetPassword (new password required, ends every
+  session, then signs in). Reset and sign-in codes can't be swapped. Setting a password signs out other sessions. A verified
   `backupEmail` can receive sign-in codes and log in (`userByLogin_`). adminChangeEmail moves Users,
   Jobs (+ note) and CouponUses to the new email, ends sessions, emails both. Security notices:
   `securityMail_`. Roles: Users "บทบาท" (ROLES), bootstrap admins = provider email, script

@@ -258,6 +258,8 @@ var ACTIONS = {
   verifyCode: verifyCode_,
   getAccount: getAccount_,
   login: login_,
+  verifyResetCode: verifyResetCode_,
+  resetPassword: resetPassword_,
   setPassword: setPassword_,
   removePassword: removePassword_,
   requestBackupCode: requestBackupCode_,
@@ -312,6 +314,7 @@ var ACTIONS = {
 function requestCode_(req) {
   var email = email_(req.email);
   var lang = req.lang === 'en' ? 'en' : 'th';
+  var reset = req.purpose === 'reset';       // "forgot password": the code only lets them set a new one
   var cache = CacheService.getScriptCache();
   var now = Date.now();
 
@@ -323,36 +326,41 @@ function requestCode_(req) {
     if (sent >= CONFIG.codeMaxPerHour) fail_('rate_limited');
 
     var code = randomCode_();
-    var entry = { h: hash_(code + '|' + email), a: 0, sentAt: now, exp: now + CONFIG.codeTtlMin * 60000 };
+    var entry = { h: hash_(code + '|' + email), a: 0, sentAt: now, exp: now + CONFIG.codeTtlMin * 60000, p: reset ? 'reset' : 'login' };
     cache.put('code:' + email, JSON.stringify(entry), CONFIG.codeTtlMin * 60);
     cache.put('sent:' + email, String(sent + 1), 3600);
 
-    sendCodeMail_(email, code, lang);
+    sendCodeMail_(email, code, lang, reset ? 'reset' : '');
     // Same reply whether or not the email has an account (no account discovery)
     return { ok: true, resendSec: CONFIG.codeResendSec };
   });
 }
 
-function verifyCode_(req) {
-  var email = email_(req.email);
-  var code = String(req.code || '').replace(/\s/g, '');
+// Check an emailed code (used once). Throws on a wrong / expired code.
+function takeCode_(email, code, purpose) {
+  code = String(code || '').replace(/\s/g, '');
   if (!/^\d{6}$/.test(code)) fail_('code_invalid');
   var cache = CacheService.getScriptCache();
   var key = 'code:' + email;
+  var entry = parse_(cache.get(key));
+  var now = Date.now();
+  if (!entry || now > entry.exp) fail_('code_expired');
+  if ((entry.p || 'login') !== purpose) fail_('code_invalid');   // a "forgot password" code can't sign in directly
+  if (entry.a >= CONFIG.codeMaxAttempts) fail_('too_many_attempts');
+  if (hash_(code + '|' + email) !== entry.h) {
+    entry.a += 1;
+    var left = Math.max(1, Math.floor((entry.exp - now) / 1000));
+    cache.put(key, JSON.stringify(entry), left);
+    fail_(entry.a >= CONFIG.codeMaxAttempts ? 'too_many_attempts' : 'code_invalid');
+  }
+  cache.remove(key);
+}
+
+function verifyCode_(req) {
+  var email = email_(req.email);
 
   return withLock_(function () {
-    var entry = parse_(cache.get(key));
-    var now = Date.now();
-    if (!entry || now > entry.exp) fail_('code_expired');
-    if (entry.a >= CONFIG.codeMaxAttempts) fail_('too_many_attempts');
-
-    if (hash_(code + '|' + email) !== entry.h) {
-      entry.a += 1;
-      var left = Math.max(1, Math.floor((entry.exp - now) / 1000));
-      cache.put(key, JSON.stringify(entry), left);
-      fail_(entry.a >= CONFIG.codeMaxAttempts ? 'too_many_attempts' : 'code_invalid');
-    }
-    cache.remove(key);
+    takeCode_(email, req.code, 'login');
 
     var users = table_(SHEETS.users, USER_COLS);
     var user = userByLogin_(users, email);   // the account's email, or its verified backup email
@@ -521,6 +529,48 @@ function login_(req) {
     if (!u) fail_('login_invalid');
     updateRow_(t2, u, { lastLoginAt: new Date() });
     return { ok: true, token: createSession_(email_(u.email, true)), isNew: false, fresh: false, profile: profile_(u) };
+  });
+}
+
+// Forgot password, step 2: the emailed code gives a one-time permission (15 min) to set a new
+// password. No session yet, so the person can't get in without choosing a new password first.
+function verifyResetCode_(req) {
+  var email = email_(req.email);
+  return withLock_(function () {
+    takeCode_(email, req.code, 'reset');
+    var resetToken = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
+    CacheService.getScriptCache().put('reset:' + hash_(resetToken), email, CONFIG.freshMin * 60);
+    return { ok: true, resetToken: resetToken };
+  });
+}
+
+// Forgot password, step 3: new password → signed in. Every other sign-in of the account ends.
+function resetPassword_(req) {
+  var resetToken = String(req.resetToken || '');
+  var cache = CacheService.getScriptCache();
+  var key = 'reset:' + hash_(resetToken);
+  var email = /^[0-9a-f]{64}$/.test(resetToken) ? cache.get(key) : null;
+  if (!email) fail_('reset_expired');
+  var pw = checkNewPassword_(req.password, email);
+  return withLock_(function () {
+    var users = table_(SHEETS.users, USER_COLS);
+    var user = userByLogin_(users, email);     // the code may have gone to the backup email
+    var stamp = new Date();
+    var isNew = !user, had = !!(user && user.passwordHash);
+    if (isNew) {
+      appendRow_(users, { email: email, lang: req.lang === 'en' ? 'en' : 'th', createdAt: stamp, lastLoginAt: stamp, passwordHash: pwHash_(pw), passwordSetAt: stamp });
+    } else {
+      checkNewPassword_(pw, user.email);
+      updateRow_(users, user, { passwordHash: pwHash_(pw), passwordSetAt: stamp, lastLoginAt: stamp });
+    }
+    var main = isNew ? email : email_(user.email, true);
+    cache.remove(key);
+    cache.remove('pwfail:' + main);
+    cache.remove('pwfail:' + email);
+    deleteRows_(table_(SHEETS.sessions, SESSION_COLS), function (r) { return r.email === main; });
+    var u = find_(table_(SHEETS.users, USER_COLS), 'email', main);
+    securityMail_(u, had ? 'pwChanged' : 'pwSet');
+    return { ok: true, token: createSession_(main), isNew: isNew, fresh: false, profile: profile_(u) };
   });
 }
 
@@ -2178,19 +2228,22 @@ function auth_(token) {
 
 function sendCodeMail_(email, code, lang, kind) {
   var th = lang !== 'en';
-  var backup = kind === 'backup';
-  var subject = backup
-    ? (th ? 'รหัสยืนยันอีเมลสำรอง ' + CONFIG.serviceName + ': ' + code : CONFIG.serviceName + ' backup email code: ' + code)
-    : (th ? 'รหัสเข้าสู่ระบบ ' + CONFIG.serviceName + ': ' + code : CONFIG.serviceName + ' sign-in code: ' + code);
+  var W = {   // [subject TH, subject EN, line TH, line EN, title TH, title EN]
+    backup: ['รหัสยืนยันอีเมลสำรอง', 'backup email code', 'รหัสยืนยันอีเมลสำรองของท่านคือ', 'Your code to confirm this backup email is', 'ยืนยันอีเมลสำรอง', 'Confirm your backup email'],
+    reset:  ['รหัสตั้งรหัสผ่านใหม่', 'password reset code', 'รหัสสำหรับตั้งรหัสผ่านใหม่ของท่านคือ', 'Your code to set a new password is', 'ตั้งรหัสผ่านใหม่', 'Set a new password'],
+    login:  ['รหัสเข้าสู่ระบบ', 'sign-in code', 'รหัสเข้าสู่ระบบของท่านคือ', 'Your sign-in code is', 'รหัสเข้าสู่ระบบของท่าน', 'Your sign-in code']
+  }[kind || 'login'] || null;
+  W = W || ['รหัสเข้าสู่ระบบ', 'sign-in code', 'รหัสเข้าสู่ระบบของท่านคือ', 'Your sign-in code is', 'รหัสเข้าสู่ระบบของท่าน', 'Your sign-in code'];
+  var subject = th ? W[0] + ' ' + CONFIG.serviceName + ': ' + code : CONFIG.serviceName + ' ' + W[1] + ': ' + code;
   var lines = th
-    ? [backup ? 'รหัสยืนยันอีเมลสำรองของท่านคือ' : 'รหัสเข้าสู่ระบบของท่านคือ', code, 'รหัสนี้ใช้ได้ ' + CONFIG.codeTtlMin + ' นาที และใช้ได้ครั้งเดียว',
-       'หากท่านไม่ได้ขอรหัสนี้ โปรดเพิกเฉยต่ออีเมลฉบับนี้']
-    : [backup ? 'Your code to confirm this backup email is' : 'Your sign-in code is', code, 'It is valid for ' + CONFIG.codeTtlMin + ' minutes and can be used once.',
-       'If you did not ask for this code, you can ignore this email.'];
+    ? [W[2], code, 'รหัสนี้ใช้ได้ ' + CONFIG.codeTtlMin + ' นาที และใช้ได้ครั้งเดียว',
+       'หากท่านไม่ได้ขอรหัสนี้ โปรดเพิกเฉยต่ออีเมลฉบับนี้' + (kind === 'reset' ? ' รหัสผ่านเดิมยังใช้ได้ตามปกติ' : '')]
+    : [W[3], code, 'It is valid for ' + CONFIG.codeTtlMin + ' minutes and can be used once.',
+       'If you did not ask for this code, you can ignore this email.' + (kind === 'reset' ? ' Your current password still works.' : '')];
   var html = mailLayout_({
     th: th,
     preheader: lines[0] + ' ' + code,
-    title: backup ? (th ? 'ยืนยันอีเมลสำรอง' : 'Confirm your backup email') : (th ? 'รหัสเข้าสู่ระบบของท่าน' : 'Your sign-in code'),
+    title: th ? W[4] : W[5],
     intro: [esc_(lines[0]) + ':',
       '<span style="display:inline-block;margin:4px 0;padding:14px 26px;border-radius:12px;background:#eef2f8;border:1px dashed #b9c1ce;' +
       'font-size:34px;font-weight:700;letter-spacing:8px;color:#01417b;font-family:Consolas,Menlo,monospace">' + code + '</span>',
