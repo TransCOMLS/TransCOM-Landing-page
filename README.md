@@ -6,7 +6,7 @@
 | ส่วน | ใช้อะไร | หน้าที่ |
 |---|---|---|
 | หน้าเว็บ | GitHub Pages | ไฟล์ HTML/CSS/JS ในโฟลเดอร์นี้ |
-| หน้าเว็บบน Google Sites | Embed → By URL | ฝังหน้าเว็บจาก GitHub Pages |
+| โดเมน | `www.prathaitranslation.com` (DNS ที่ Cloudflare) | ชี้มาที่ GitHub Pages (ข้อ 7) |
 | ระบบหลังบ้าน | Google Apps Script (`apps-script/Code.gs`) | รับงาน, ติดตามสถานะออนไลน์, อีเมลแจ้งสถานะ, บัญชีลูกค้า, ข่าว/โปรโมชั่น, ลบข้อมูลตามกำหนด |
 | ฐานข้อมูล | Google Sheet | ชีต Users, Jobs, Promotions, News + ภาพรวม (Dashboard) และคลังคำศัพท์ (Glossary) |
 | ไฟล์ | Google Drive | ไฟล์งานแปล (โฟลเดอร์ละงาน), รูปโพสต์ข่าว |
@@ -21,7 +21,7 @@
 4. [ทดสอบระบบ](#4-ทดสอบระบบ)
 5. [การใช้งานประจำวัน (งานแปล ติดตามงาน ข่าว โปรโมชั่น บัญชีลูกค้า ภาพรวม คลังคำศัพท์)](#5-การใช้งานประจำวัน)
 6. [อัปเดตโค้ด Apps Script ภายหลัง](#6-อัปเดตโค้ด-apps-script-ภายหลัง)
-7. [เปิดเว็บด้วย GitHub Pages และฝังใน Google Sites](#7-เปิดเว็บด้วย-github-pages-และฝังใน-google-sites)
+7. [เปิดเว็บด้วย GitHub Pages และโดเมน www.prathaitranslation.com](#7-เปิดเว็บด้วย-github-pages-และโดเมน-wwwprathaitranslationcom)
 8. [ตั้งค่าที่แก้ได้ใน `js/config.js`](#8-ตั้งค่าที่แก้ได้ใน-jsconfigjs)
 9. [ความปลอดภัยและข้อจำกัด](#9-ความปลอดภัยและข้อจำกัด)
 10. [แก้ปัญหาที่พบบ่อย](#10-แก้ปัญหาที่พบบ่อย)
@@ -284,20 +284,48 @@
 
 ---
 
-## 7. เปิดเว็บด้วย GitHub Pages และฝังใน Google Sites
+## 7. เปิดเว็บด้วย GitHub Pages และโดเมน www.prathaitranslation.com
 
-### 7.1 GitHub Pages
-1. รวมงานล่าสุดเข้า branch `main` ก่อน (merge Pull Request)
-2. ที่ repository บน GitHub → **Settings** → **Pages**
-3. **Source:** `Deploy from a branch` → **Branch:** `main` / `/ (root)` → **Save**
-4. รอ 1–2 นาที เว็บจะอยู่ที่ <https://transcomls.github.io/TransCOM-Landing-page/>
+เว็บเปิดตรงจาก GitHub Pages (ฟรี) ผูกกับโดเมนของเรา โดเมนดูแลที่ **Cloudflare**
+แถบ URL จะเปลี่ยนตามหน้า เช่น `www.prathaitranslation.com/#pricing` — คัดลอกส่งให้ลูกค้าเปิดหน้านั้นตรง ๆ ได้
 
-### 7.2 Google Sites
-1. เปิดเว็บไซต์ใน Google Sites → แถบขวา **แทรก** → **ฝัง** (Embed)
-2. แท็บ **ตาม URL** → วาง `https://transcomls.github.io/TransCOM-Landing-page/` →
-   เลือก **ทั้งหน้า** (Whole page) → **แทรก**
-3. ลากมุมกรอบให้กว้างเต็มหน้าและสูงพอ (แนะนำความสูงอย่างน้อย 1,600 px บนคอมพิวเตอร์)
-4. กด **เผยแพร่**
+### 7.1 เปิด GitHub Pages (ทำครั้งเดียว — ทำแล้ว)
+1. repository ต้องเป็น **Public** (GitHub Pages ฟรีใช้ได้เฉพาะ repo สาธารณะ — ในโค้ดไม่มีข้อมูลลับ)
+2. รวมงานล่าสุดเข้า branch `main` (merge Pull Request)
+3. **Settings** → **Pages** → **Source:** `Deploy from a branch` → **Branch:** `main` / `/ (root)` → **Save**
+4. รอ 1–2 นาที เว็บเปิดได้ที่ <https://transcomls.github.io/TransCOM-Landing-page/>
+
+ทุกครั้งที่ `main` เปลี่ยน (เช่น แก้ `js/config.js` บน GitHub) เว็บอัปเดตเองภายใน 1–2 นาที
+
+### 7.2 ผูกโดเมนที่ Cloudflare
+1. เข้า <https://dash.cloudflare.com> → เลือกโดเมน `prathaitranslation.com` → **DNS** → **Records**
+2. **www:** ถ้ามีระเบียน `www` เดิม (เช่นของ Google Sites ที่ชี้ไป `ghs.googlehosted.com`) กด **Edit** ถ้าไม่มี กด **Add record** แล้วตั้งเป็น
+
+   | Type | Name | Target | Proxy status |
+   |---|---|---|---|
+   | `CNAME` | `www` | `transcomls.github.io` | **DNS only** (เมฆสีเทา) |
+
+3. **โดเมนเปล่า** (`prathaitranslation.com` ไม่มี www — ให้พาไปที่ www อัตโนมัติ): เพิ่มระเบียน `A` 4 รายการ
+   Name `@` · Proxy status **DNS only** · ค่า `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`
+   (ถ้ามีระเบียน `A`/`AAAA`/`CNAME` ของ `@` เดิมอยู่ ให้ลบหรือแก้แทน — ระเบียนชื่อเดียวกันซ้อนกันไม่ได้)
+4. ⚠️ **ห้ามแก้หรือลบระเบียน `MX` และ `TXT`** — เป็นของอีเมล `contact@prathaitranslation.com` และการยืนยันโดเมนกับ Google
+5. ⚠️ ต้องเป็น **DNS only** (เมฆสีเทา) — ถ้าเป็นเมฆสีส้ม GitHub ออกใบรับรอง HTTPS ไม่ได้ และเว็บอาจเปิดไม่ขึ้น
+
+### 7.3 ใส่โดเมนใน GitHub
+1. **Settings** → **Pages** → **Custom domain** → พิมพ์ `www.prathaitranslation.com` → **Save**
+2. รอให้ขึ้น ✅ **DNS check successful** (ปกติไม่กี่นาที บางครั้งถึง 24 ชั่วโมง)
+3. ติ๊ก **Enforce HTTPS** (ถ้ายังติ๊กไม่ได้ แปลว่ากำลังออกใบรับรอง — รอแล้วกลับมาติ๊กอีกครั้ง)
+4. GitHub จะเพิ่มไฟล์ `CNAME` ใน repo ให้เอง — **ห้ามลบไฟล์นี้** เพราะเป็นตัวบอกว่าเว็บใช้โดเมนอะไร
+5. (แนะนำ) กันคนอื่นแอบผูกโดเมนนี้: หน้าองค์กร TransCOMLS → **Settings** → **Pages** → **Add a domain** →
+   `prathaitranslation.com` → เพิ่มระเบียน `TXT` ที่ GitHub ให้มาใน Cloudflare → **Verify**
+
+ลิงก์เดิม `transcomls.github.io/TransCOM-Landing-page/` จะพาไปที่ `www.prathaitranslation.com` อัตโนมัติ
+
+### 7.4 เลิกใช้ Google Sites (หลังข้อ 7.3 เปิดได้แล้ว)
+1. เปิด `https://www.prathaitranslation.com` ให้แน่ใจว่าเห็นเว็บใหม่ (ลองทั้งคอมพิวเตอร์และมือถือ)
+2. ใน Google Sites → ไอคอนเฟือง **การตั้งค่า** → **โดเมนที่กำหนดเอง** → ลบ `www.prathaitranslation.com`
+   (เว็บ Google Sites ยังอยู่ที่ลิงก์ `sites.google.com/...` — จะเก็บไว้หรือลบทิ้งก็ได้)
+3. อัปเดตลิงก์ที่ใช้ภายนอก เช่น ข้อความต้อนรับใน LINE OA, Google Business Profile, นามบัตร → `https://www.prathaitranslation.com`
 
 ---
 

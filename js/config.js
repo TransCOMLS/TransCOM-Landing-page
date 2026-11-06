@@ -7,8 +7,8 @@ window.APP_CONFIG = {
   // ชื่อบริการ / Service name (shown in header, footer, page title)
   serviceName: { th: "TransCOM", en: "TransCOM" },
 
-  // URL ของ Google Apps Script Web App (ใส่ใน Phase 3)
-  appsScriptUrl: "",
+  // URL ของ Google Apps Script Web App (Deploy → Manage deployments — ใช้ URL เดิมเมื่ออัปเดตโค้ด)
+  appsScriptUrl: "https://script.google.com/macros/s/AKfycbwIY9ZDR8VmNISMM9Z6om3VG8RcFSuYA6giidzOjInc31JrVoVpdxVp4ne-5PKEhDfDFQ/exec",
 
   // ช่องทางติดต่อ / Contact
   contact: {
