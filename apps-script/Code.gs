@@ -419,8 +419,7 @@ function updateProfile_(req) {
 function logout_(req) {
   var hash = hash_(String(req.token || ''));
   withLock_(function () {
-    var sessions = table_(SHEETS.sessions, SESSION_COLS);
-    deleteRows_(sessions, function (r) { return r.tokenHash === hash; });
+    dropSessions_(function (r) { return r.tokenHash === hash; });
   });
   return { ok: true };
 }
@@ -433,8 +432,8 @@ function deleteAccount_(req) {
   withLock_(function () {
     var users = table_(SHEETS.users, USER_COLS);
     deleteRows_(users, function (r) { return email_(r.email, true) === email; });
-    var sessions = table_(SHEETS.sessions, SESSION_COLS);
-    deleteRows_(sessions, function (r) { return r.email === email; });
+    dropSessions_(function (r) { return r.email === email; });
+    forgetRole_(email);
   });
   return { ok: true };
 }
@@ -567,7 +566,7 @@ function resetPassword_(req) {
     cache.remove(key);
     cache.remove('pwfail:' + main);
     cache.remove('pwfail:' + email);
-    deleteRows_(table_(SHEETS.sessions, SESSION_COLS), function (r) { return r.email === main; });
+    dropSessions_(function (r) { return r.email === main; });
     var u = find_(table_(SHEETS.users, USER_COLS), 'email', main);
     securityMail_(u, had ? 'pwChanged' : 'pwSet');
     return { ok: true, token: createSession_(main), isNew: isNew, fresh: false, profile: profile_(u) };
@@ -615,7 +614,7 @@ function removePassword_(req) {
 
 function endOtherSessions_(email, keepToken) {
   var keep = hash_(String(keepToken || ''));
-  deleteRows_(table_(SHEETS.sessions, SESSION_COLS), function (r) { return r.email === email && r.tokenHash !== keep; });
+  dropSessions_(function (r) { return r.email === email && r.tokenHash !== keep; });
 }
 
 // An email that is not free to be someone's backup / new address
@@ -722,7 +721,8 @@ function adminChangeEmail_(req) {
       var uses = table_(SHEETS.couponUses, COUPON_USE_COLS);
       uses.rows.forEach(function (r) { if (email_(r.email, true) === from) updateRow_(uses, r, { email: to }); });
     }
-    deleteRows_(table_(SHEETS.sessions, SESSION_COLS), function (r) { return r.email === from; });
+    dropSessions_(function (r) { return r.email === from; });
+    forgetRole_(from); forgetRole_(to);
     after = find_(table_(SHEETS.users, USER_COLS), 'email', to);
   });
   // note_ takes the lock itself, so it runs after ours is released
@@ -816,11 +816,16 @@ function statusCode_(label) {
    Every action checks the role on the server.
    ====================================================================== */
 
+var bootstrapAdminsMemo_ = null;   // reused within a request (the users list asks for every row)
 function bootstrapAdmins_() {
-  var list = String(PropertiesService.getScriptProperties().getProperty('ADMIN_EMAILS') || '').split(/[,\s]+/);
+  var raw = String(PropertiesService.getScriptProperties().getProperty('ADMIN_EMAILS') || '');
+  if (bootstrapAdminsMemo_ && bootstrapAdminsMemo_.raw === raw) return bootstrapAdminsMemo_.list;
+  var list = raw.split(/[,\s]+/);
   list.push(providerEmail_());
   try { list.push(Session.getEffectiveUser().getEmail()); } catch (e) { /* not available */ }
-  return list.map(function (e) { return String(e || '').trim().toLowerCase(); }).filter(Boolean);
+  list = list.map(function (e) { return String(e || '').trim().toLowerCase(); }).filter(Boolean);
+  bootstrapAdminsMemo_ = { raw: raw, list: list };
+  return list;
 }
 
 function roleCode_(label) {
@@ -845,9 +850,17 @@ function typeLabel_(code) {
 function roleOf_(email, user) {
   email = String(email || '').toLowerCase();
   if (bootstrapAdmins_().indexOf(email) > -1) return 'admin';
-  if (user === undefined) user = find_(table_(SHEETS.users, USER_COLS), 'email', email);
-  return user ? roleCode_(user.role) : 'customer';
+  if (user !== undefined) return user ? roleCode_(user.role) : 'customer';
+  // Speed: remembered for 5 minutes; adminSetUser / adminChangeEmail / deleteAccount forget it
+  var cache = CacheService.getScriptCache();
+  var hit = cache.get('role:' + email);
+  if (hit) return hit;
+  user = find_(table_(SHEETS.users, USER_COLS), 'email', email);
+  var role = user ? roleCode_(user.role) : 'customer';
+  cache.put('role:' + email, role, 300);
+  return role;
 }
+function forgetRole_(email) { CacheService.getScriptCache().remove('role:' + String(email || '').toLowerCase()); }
 
 // Signed-in person with one of the given roles → { email, role }
 function need_(req, roles) {
@@ -1297,6 +1310,7 @@ function adminSetUser_(req) {
     if (u) updateRow_(users, u, changes);
     else appendRow_(users, Object.assign({ email: email, lang: 'th', createdAt: new Date() }, changes));
   });
+  forgetRole_(email);
   return adminUsers_(req);
 }
 
@@ -2213,13 +2227,31 @@ function createSession_(email) {
   return token;
 }
 
+// Speed: a checked sign-in is remembered in CacheService for 10 minutes, so most calls skip
+// reading the whole _sessions sheet. dropSessions_ forgets it when a sign-in ends.
 function auth_(token) {
   token = String(token || '');
   if (!/^[0-9a-f]{64}$/.test(token)) fail_('session_expired');
   var hash = hash_(token);
+  var cache = CacheService.getScriptCache();
+  var hit = parse_(cache.get('sess:' + hash));
+  if (hit && hit.email) {
+    if (hit.exp < Date.now()) fail_('session_expired');
+    return String(hit.email);
+  }
   var s = find_(table_(SHEETS.sessions, SESSION_COLS), 'tokenHash', hash);
-  if (!s || new Date(s.expiresAt).getTime() < Date.now()) fail_('session_expired');
+  var exp = s ? new Date(s.expiresAt).getTime() : 0;
+  if (!s || !(exp > Date.now())) fail_('session_expired');
+  cache.put('sess:' + hash, JSON.stringify({ email: String(s.email), exp: exp }), 600);
   return String(s.email);
+}
+
+// Delete sign-ins (rows of _sessions) and forget them in the cache
+function dropSessions_(test) {
+  var sessions = table_(SHEETS.sessions, SESSION_COLS);
+  var cache = CacheService.getScriptCache();
+  sessions.rows.forEach(function (r) { if (test(r)) cache.remove('sess:' + r.tokenHash); });
+  deleteRows_(sessions, test);
 }
 
 /* ======================================================================

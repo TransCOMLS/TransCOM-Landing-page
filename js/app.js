@@ -151,6 +151,31 @@
     });
   }
 
+  /* ---------- load some scripts only when they are needed (faster first page) ---------- */
+  var scriptLoads = {};
+  function assetVersion() {
+    var s = document.querySelector('script[src*="js/app.js"]');
+    var m = s && /\?(v=[^&"]+)/.exec(s.getAttribute("src"));
+    return m ? "?" + m[1] : "";
+  }
+  function loadScript(path) {
+    if (!scriptLoads[path]) {
+      scriptLoads[path] = new Promise(function (resolve, reject) {
+        var s = document.createElement("script");
+        s.src = path + assetVersion();
+        s.onload = resolve;
+        s.onerror = function () { delete scriptLoads[path]; reject(new Error("load " + path)); };
+        document.body.appendChild(s);
+      });
+    }
+    return scriptLoads[path];
+  }
+  // Terms text (js/terms.js, the biggest file) — loaded for the terms page / pop-up, or once the page is idle
+  function ensureTerms() {
+    if (window.TERMS) return Promise.resolve();
+    return loadScript("js/terms.js").then(function () { renderTerms(); buildTocs(); });
+  }
+
   /* Terms and conditions: legal text lives in js/terms.js (window.TERMS) */
   function richText(el, str) {
     // "**bold**" → <strong>; everything else stays plain text
@@ -346,6 +371,7 @@
 
   /* ---------- pages (in-page navigation, no page loads) ---------- */
   function showTab(id, opts) {
+    if (id === "terms") ensureTerms();
     opts = opts || {};
     if (TAB_IDS.indexOf(id) === -1) id = "home";
     var changed = state.tab !== id;
@@ -514,6 +540,10 @@
 
   // page = "privacy" or "terms": the pop-up shows a copy of that page
   function openPolicy(page, opener) {
+    if (page === "terms" && !window.TERMS) {
+      ensureTerms().then(function () { openPolicy(page, opener); }, function () { showTab(page, { focusHeading: true }); });
+      return;
+    }
     var dlg = $("#policy-dialog");
     var body = $("#policy-dialog-body");
     var title = $("#policy-dialog-title");
@@ -1188,6 +1218,9 @@
     initJobForm();
     initTrackForm();
     guardForms();
+    // The terms text isn't needed for the first view: fetch it once the page has loaded
+    var later = function () { setTimeout(function () { ensureTerms().catch(function () { /* retried when opened */ }); }, 1500); };
+    if (document.readyState === "complete") later(); else window.addEventListener("load", later);
   }
 
   // Shared with later phases
@@ -1279,6 +1312,7 @@
     busy: busy,
     setFieldError: setFieldError,
     storage: { get: storageGet, set: storageSet, remove: storageRemove },
+    loadScript: loadScript,
     rules: { email: EMAIL_RE, line: LINE_RE },
     todayISO: todayISO
   };

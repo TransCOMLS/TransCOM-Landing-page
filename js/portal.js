@@ -1304,6 +1304,10 @@
     // a link from an email: show the sign-in on My account straight away
     if (linkedJob() && (location.hash || "#account") === "#account" && App.showTab) App.showTab("account");
     document.addEventListener("accountchange", onAccount);
+    // Loaded on demand: the account may already be signed in by now
+    if (App.account && App.account.isSignedIn()) {
+      onAccount({ detail: { signedIn: true, profile: App.account.profile(), jobs: App.account.jobs() } });
+    }
     document.addEventListener("langchange", function () { if (state.role) draw(); });
     document.addEventListener("tabchange", function (e) {
       if (e.detail && e.detail.tab === "account" && state.role && state.view && state.view.indexOf("a-") !== 0 && state.view.indexOf("s-") !== 0) drawMenu();

@@ -187,7 +187,8 @@ provider manages all jobs from one Google Sheet, with no paid server.
   Tap targets ≥44px. One primary button per section. Light page = soft logo-blue gradient
   with white cards; navy accent (`--accent`). Check both themes when changing styles.
 - `localStorage` only via the try/catch helpers in `app.js` (`App.storage`; keys `tr_lang`,
-  `tr_session`, `tr_theme`, `tr_visit`, `tr_login`) — plus the try/catch theme read in the `<head>` script.
+  `tr_session`, `tr_theme`, `tr_visit`, `tr_login`; speed caches `tr_content` (last getContent),
+  `tr_visits` (last count), `tr_account` (last profile + jobs, tagged with the token, removed on sign-out)) — plus the try/catch theme read in the `<head>` script.
 - Thai copy: formal but concise; years in Thai text use พ.ศ. (job no. `TR-2569-0001`).
 - Placeholders in `[brackets]` in config.js are filled in by the owner — keep them.
 
@@ -231,6 +232,14 @@ provider manages all jobs from one Google Sheet, with no paid server.
         fill the dashboard's Quotes, Pay and Payment history views.
 
 The owner asked to stop after each phase and show the result before continuing.
+
+## Speed (rough pass 2026-11-07; a fuller pass is planned)
+- `terms.js` and `portal.js` are not in `index.html`: `App.loadScript()` fetches terms for the terms page / pop-up or
+  1.5 s after load, and the dashboard for signed-in people or the account page (portal.js catches up via
+  `App.account` if `accountchange` already fired). Logos are rounded to 1 decimal (same look, ~45% smaller).
+- Offers/news, the visitor count and the signed-in account show the last copy at once, then the fresh one.
+- Code.gs caches checked sign-ins (`sess:<hash>`, 10 min; `dropSessions_` forgets them) and roles (`role:<email>`,
+  5 min; `forgetRole_` on admin changes). A role typed straight into the sheet takes up to 5 min.
 
 ## Testing
 No build or test runner. Serve the folder (`python3 -m http.server`) and check every
