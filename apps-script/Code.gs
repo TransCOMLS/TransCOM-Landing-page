@@ -1547,6 +1547,7 @@ function setup() {
   var sessions = ensureSheet_(SHEETS.sessions, SESSION_COLS);
   sessions.hideSheet();
   // Columns added by later phases go on the right of existing sheets; data is untouched
+  console.log('setup: columns');
   addMissingColumns_(users, USER_COLS);
   addMissingColumns_(jobs, JOB_COLS);
   // Phase 5: dropdowns for role and customer type on "Users"
@@ -1581,6 +1582,7 @@ function setup() {
     jobs.setConditionalFormatRules(rules);
   }
   users.setColumnWidth(1, 240);
+  console.log('setup: Drive folder + triggers');
   jobsFolder_();       // private Drive folder for job files
   installTriggers_();  // status emails (on edit) + daily clean-up
 
@@ -1595,9 +1597,11 @@ function setup() {
       var col = colIndex_(sh, 'แสดง');
       if (col) sh.getRange(2, col, sh.getMaxRows() - 1, 1).insertCheckboxes();
     });
+  console.log('setup: Dashboard + Glossary');
   buildDashboard_();
   buildGlossary_();
   pepper_();
+  console.log('setup: done');
 }
 
 /* ======================================================================
@@ -1727,6 +1731,9 @@ function addMissingColumns_(sh, cols) {
   var add = cols.filter(function (c) { return head.indexOf(c[1]) === -1; }).map(function (c) { return c[1]; });
   if (!add.length) return;
   var start = head.filter(String).length ? last + 1 : 1;
+  // A new Google Sheet has only 26 columns (A–Z): make room before writing past the edge
+  var need = start + add.length - 1 - sh.getMaxColumns();
+  if (need > 0) sh.insertColumnsAfter(sh.getMaxColumns(), need);
   sh.getRange(1, start, 1, add.length).setValues([add]).setFontWeight('bold');
 }
 
@@ -1734,6 +1741,7 @@ function ensureSheet_(name, cols) {
   var ss = ss_();
   var sh = ss.getSheetByName(name) || ss.insertSheet(name);
   if (sh.getLastRow() === 0) {
+    if (cols.length > sh.getMaxColumns()) sh.insertColumnsAfter(sh.getMaxColumns(), cols.length - sh.getMaxColumns());
     sh.getRange(1, 1, 1, cols.length).setValues([cols.map(function (c) { return c[1]; })]);
   }
   sh.getRange(1, 1, 1, sh.getLastColumn()).setFontWeight('bold');
