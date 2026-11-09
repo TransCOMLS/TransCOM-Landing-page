@@ -138,7 +138,8 @@ provider manages all jobs from one Google Sheet, with no paid server.
   Jobs gain assignee, readyAt, cancelRequest, internalNotes (log). Translations go to subfolder
   `งานแปล (ส่งลูกค้า)`. setup() adds missing columns to existing sheets (`addMissingColumns_`).
   `CATEGORY_NAMES` maps category codes to TH/EN names (emails, Dashboard) — keep in step with config. `doGet?confirm=<jobNo>&t=<token>` = "translation is correct" page.
-  Jobs: number `TR-<BE year>-0001` from Script Property `SEQ_<year>`; files in a Drive folder
+  Jobs: number `TR-<BE year>-<6 random chars>` (e.g. `TR-2569-K7F3QD`; no 0/O/1/I/L; checked unique against
+  Jobs; owner 2026-11-09: running numbers were guessable; old `TR-2569-0001` still valid); files in a Drive folder
   per job under `JOBS_FOLDER_ID` (ID files in a subfolder); server re-checks every field,
   file type/size, max 10 files, 5 jobs/email/hour; upload state in CacheService (6 h).
   Emails: all use `mailLayout_()` — table-based, inline styles, header picture
@@ -189,7 +190,7 @@ provider manages all jobs from one Google Sheet, with no paid server.
 - `localStorage` only via the try/catch helpers in `app.js` (`App.storage`; keys `tr_lang`,
   `tr_session`, `tr_theme`, `tr_visit`, `tr_login`; speed caches `tr_content` (last getContent),
   `tr_visits` (last count), `tr_account` (last profile + jobs, tagged with the token, removed on sign-out)) — plus the try/catch theme read in the `<head>` script.
-- Thai copy: formal but concise; years in Thai text use พ.ศ. (job no. `TR-2569-0001`).
+- Thai copy: formal but concise; years in Thai text use พ.ศ. (job no. `TR-2569-K7F3QD`).
 - Placeholders in `[brackets]` in config.js are filled in by the owner — keep them.
 
 ## Status / phases

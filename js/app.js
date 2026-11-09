@@ -798,7 +798,7 @@
 
   var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@.]{2,}$/;
   var LINE_RE = /^[A-Za-z0-9._\-@]{1,60}$/;
-  var JOBNO_RE = /^TR-\d{4}-\d{4,}$/;
+  var JOBNO_RE = /^TR-\d{4}-[0-9A-Z]{4,8}$/;   // TR-2569-K7F3QD (older: TR-2569-0001)
 
   // Local date as YYYY-MM-DD (toISOString would use UTC and be a day off in Thailand)
   function todayISO() {

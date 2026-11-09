@@ -1293,7 +1293,7 @@
   }
 
   function linkedJob() {
-    var m = /[?&]job=([A-Za-z]{1,5}-\d{4}-\d{4,})/.exec(location.search || "");
+    var m = /[?&]job=([A-Za-z]{1,5}-\d{4}-[0-9A-Za-z]{4,8})/.exec(location.search || "");
     return m ? m[1].toUpperCase() : "";
   }
   function clearLinkedJob() {

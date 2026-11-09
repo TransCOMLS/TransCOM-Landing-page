@@ -38,7 +38,7 @@ var CONFIG = {
   revisionDays: 7,       // customers may ask for corrections within this many days
 
   // Job submission (Phase 3)
-  jobPrefix: 'TR',       // job numbers: TR-<Buddhist year>-0001
+  jobPrefix: 'TR',       // job numbers: TR-<Buddhist year>-<6 random characters>, e.g. TR-2569-K7F3QD
   maxFiles: 10,          // per job, documents + ID files together
   maxFileMB: 10,
   allowedExt: ['pdf', 'jpg', 'jpeg', 'png', 'docx'],
@@ -1605,7 +1605,8 @@ function adminUploadImage_(req) {
    and dates go back — never names, files or the address.
    ====================================================================== */
 
-var JOBNO_RE = /^[A-Z]{1,5}-\d{4}-\d{4,}$/;
+// New numbers: 6 random characters; older ones (TR-2569-0001) still work
+var JOBNO_RE = /^[A-Z]{1,5}-\d{4}-[0-9A-Z]{4,8}$/;
 
 function trackJob_(req) {
   var email = email_(req.email);
@@ -1818,7 +1819,7 @@ function finishJob_(req) {
 }
 
 function upload_(jobNo, token) {
-  if (!/^[A-Z]+-\d{4}-\d{4,}$/.test(jobNo)) fail_('upload_expired');
+  if (!JOBNO_RE.test(jobNo)) fail_('upload_expired');
   var up = parse_(CacheService.getScriptCache().get('up:' + jobNo));
   if (!up || up.h !== hash_(String(token || ''))) fail_('upload_expired');
   return up;
@@ -1842,14 +1843,24 @@ function mimeFor_(ext) {
   }[ext.toLowerCase()] || 'application/octet-stream';
 }
 
-// TR-2569-0001 — running number per Buddhist year, kept in Script Properties
+// TR-2569-K7F3QD — Buddhist year + 6 random characters (owner's request 2026-11-09: a running
+// number made other people's job numbers easy to guess and showed how many jobs we get).
+// No 0/O or 1/I/L, so they are easy to read out; checked against the Jobs sheet, so never repeated.
+var JOBNO_CHARS = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
 function nextJobNo_() {
-  var props = PropertiesService.getScriptProperties();
   var be = Number(Utilities.formatDate(new Date(), ss_().getSpreadsheetTimeZone(), 'yyyy')) + 543;
-  var key = 'SEQ_' + be;
-  var n = parseInt(props.getProperty(key) || '0', 10) + 1;
-  props.setProperty(key, String(n));
-  return CONFIG.jobPrefix + '-' + be + '-' + ('000' + n).slice(-Math.max(4, String(n).length));
+  var used = {};
+  if (ss_().getSheetByName(SHEETS.jobs)) {
+    table_(SHEETS.jobs, JOB_COLS).rows.forEach(function (r) { used[String(r.jobNo || '').trim().toUpperCase()] = 1; });
+  }
+  for (var tries = 0; tries < 20; tries++) {
+    var hex = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
+    var code = '';
+    for (var i = 0; i < 6; i++) code += JOBNO_CHARS.charAt(parseInt(hex.substr(i * 4, 4), 16) % JOBNO_CHARS.length);
+    var jobNo = CONFIG.jobPrefix + '-' + be + '-' + code;
+    if (!used[jobNo]) return jobNo;
+  }
+  fail_('busy');
 }
 
 // Private Drive folder for job files (created by setup(), or on first use)
