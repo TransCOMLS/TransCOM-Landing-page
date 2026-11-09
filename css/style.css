@@ -1529,3 +1529,8 @@ button.dash-bar-row:hover .dash-bar { background: var(--accent-line); }
 .dash-cert-label { margin: 0; color: var(--muted); font-size: 0.875rem; }
 .dash-cert-code { margin: 2px 0 8px; font-size: 1.375rem; font-weight: 700; letter-spacing: 0.06em; font-variant-numeric: tabular-nums; }
 .dash-cert .form { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+/* Online payment fees (pricing page) */
+.pay-fees { margin-top: 24px; max-width: 560px; }
+.pay-fees h2 { margin: 0 0 8px; }
+.fee-table th[scope="row"] { font-weight: 400; }

@@ -107,6 +107,7 @@
     $all('[data-contact-text="hours"]').forEach(function (el) { el.textContent = CFG.contact.hours[state.lang]; });
 
     renderPriceRows();
+    renderPayFees();
     renderSelectOptions();
     renderCivilDocs();
     renderTerms();
@@ -122,6 +123,27 @@
 
   /* ---------- content built from config ---------- */
   function categoryLabel(id) { return t("cat." + id); }
+
+  // Online payment fees (Beam Checkout), from config.paymentFees
+  function renderPayFees() {
+    var box = $("#pay-fees"), tbody = $("#pay-fee-rows");
+    if (!box || !tbody) return;
+    var list = CFG.paymentFees || [];
+    box.hidden = !(CFG.showPaymentFees && list.length);
+    tbody.textContent = "";
+    list.forEach(function (f) {
+      var tr = document.createElement("tr");
+      var th = document.createElement("th");
+      th.scope = "row";
+      th.textContent = t("fee." + f.key);
+      var td = document.createElement("td");
+      td.className = "num";
+      td.textContent = Number(f.rate).toFixed(2) + "%";
+      tr.appendChild(th);
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    });
+  }
 
   function renderPriceRows() {
     var tbody = $("#price-rows");
