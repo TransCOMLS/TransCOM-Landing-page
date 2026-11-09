@@ -244,6 +244,11 @@ provider manages all jobs from one Google Sheet, with no paid server.
         Merchant API key only in Script Properties — the repo is public). Terms 2.5/2.6/2.10/5.2/5.5/8.1 were
         updated for Beam at the owner's request; other methods (e.g. SWIFT transfer) only when the quote says so.
         `TransCOM-store-policy.pdf` (made from terms.js) is the store policy uploaded to Beam.
+      - Owner's Phase 6 decisions (2026-11-09): build 6A (quotes, payment records, receipts, points) and
+        6B (Beam charges) together once the Beam API docs + Playground keys arrive. The shop bears every
+        payment fee (no surcharge; terms 2.5 say so; fee table hidden). Receipt numbers run without gaps,
+        restart each year, 5 digits: `RC-<BE yy><CE yy>-00001`, e.g. `RC-6926-00001` for 2569/2026 (owner's
+        choice 2026-11-09; counter per year in Script Properties, never reused). Loyalty points are in scope.
       - Quotes per job (Quotes sheet), payment records, receipts with running numbers.
       - Members only: discount codes (Coupons sheet: code, % or THB, min spend, dates,
         uses) and loyalty points by amount spent (e.g. 1 point per 100 THB, redeem as a
