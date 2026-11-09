@@ -80,7 +80,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20261109f">
+  <link rel="stylesheet" href="css/style.css?v=20261110a">
   <script>
     /* Theme before first paint (no white flash in dark mode). Logic lives in js/app.js. */
     (function () {
@@ -624,6 +624,14 @@
       <p class="note verify-scope" data-i18n="verify.scope"></p>
     </section>
 
+    <!-- ===== Quote & payment / receipt (Phase 6; opened from the quote email or My account — not in the menu) ===== -->
+    <section id="pay" class="panel" hidden>
+      <h1 id="pay-title" data-i18n="pay.title"></h1>
+      <div id="pay-status" class="form-status" role="status" aria-live="polite" hidden></div>
+      <div id="pay-view" aria-live="polite"></div>
+      <div id="receipt-view" hidden></div>
+    </section>
+
     <!-- ===== 11. My account (sign in with an emailed code; backend: apps-script/Code.gs) ===== -->
     <section id="account" class="panel" hidden>
       <h1 data-i18n="acct.title"></h1>
@@ -1092,13 +1100,14 @@
 
   <noscript><p class="noscript">Please enable JavaScript. / กรุณาเปิดใช้งาน JavaScript</p></noscript>
 
-  <script src="js/config.js?v=20261109f"></script>
-  <script src="js/i18n.js?v=20261109f"></script>
-  <script src="js/app.js?v=20261109f"></script>
-  <script src="js/account.js?v=20261109f"></script>
-  <script src="js/submit.js?v=20261109f"></script>
-  <script src="js/track.js?v=20261109f"></script>
-  <script src="js/verify.js?v=20261109f"></script>
-  <script src="js/home.js?v=20261109f"></script>
+  <script src="js/config.js?v=20261110a"></script>
+  <script src="js/i18n.js?v=20261110a"></script>
+  <script src="js/app.js?v=20261110a"></script>
+  <script src="js/account.js?v=20261110a"></script>
+  <script src="js/submit.js?v=20261110a"></script>
+  <script src="js/track.js?v=20261110a"></script>
+  <script src="js/verify.js?v=20261110a"></script>
+  <script src="js/pay.js?v=20261110a"></script>
+  <script src="js/home.js?v=20261110a"></script>
 </body>
 </html>

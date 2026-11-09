@@ -1,7 +1,7 @@
 /*
  * portal.js — Phase 5: the signed-in dashboard, one per role.
  *   customer: overview · orders (open / closed / cancel requests) · job detail with timeline,
- *             translated-file downloads and a cancel request · quotes & payment (Phase 6) · settings
+ *             translated-file downloads and a cancel request · quotes, payment, receipts, points (Phase 6) · settings
  *   staff:    my assigned jobs · job detail (no customer contact details) · source files,
  *             upload translations, start / ready for checking, internal notes · settings
  *   admin:    overview · all jobs (search, filters) · job detail (assign, status, deliver,
@@ -21,6 +21,7 @@
   var TYPES = ["general", "corporate", "agency", "student"];
 
   var state = { role: null, view: null, arg: null, seq: 0 };
+  var memberMemo = null;   // membership card on the overview (refreshed on the points page)
 
   /* ---------- small helpers ---------- */
   function $(sel, root) { return (root || document).querySelector(sel); }
@@ -145,7 +146,8 @@
       { group: "dash.g.orders", items: [{ view: "c-orders", arg: "open", key: "dash.ordersOpen" },
                                         { view: "c-orders", arg: "closed", key: "dash.ordersClosed" },
                                         { view: "c-orders", arg: "cancel", key: "dash.ordersCancel" }] },
-      { group: "dash.g.payment", items: [{ view: "c-pay", key: "dash.pay" }, { view: "c-payHistory", key: "dash.payHistory" }] },
+      { group: "dash.g.payment", items: [{ view: "c-pay", key: "dash.pay" }, { view: "c-payHistory", key: "dash.payHistory" },
+                                         { view: "c-points", key: "mem.title" }] },
       { group: "dash.g.account", items: [{ view: "settings", key: "dash.profile" }] }
     ],
     staff: [
@@ -157,6 +159,7 @@
       { group: "dash.g.work", items: [{ view: "a-jobs", arg: "all", key: "dash.allJobs" }, { view: "s-jobs", key: "dash.myJobs" }] },
       { group: "dash.g.admin", items: [{ view: "a-users", key: "dash.users" }, { view: "a-discounts", key: "dash.discounts" },
                                        { view: "a-coupons", key: "dash.coupons" }, { view: "a-posts", arg: "news", key: "dash.posts" }] },
+      { group: "dash.g.money", items: [{ view: "a-payments", key: "dash.payments" }, { view: "a-rewards", key: "dash.rewards" }] },
       { group: "dash.g.account", items: [{ view: "settings", key: "dash.profile" }] }
     ]
   };
@@ -446,10 +449,15 @@
     }
     var grid = el("div", "dash-stats");
     stat(grid, jobs.filter(function (j) { return OPEN.indexOf(j.status) > -1; }).length, "dash.stat.open", "", function () { show("c-orders", "open"); });
-    stat(grid, jobs.filter(function (j) { return j.status === "quoted"; }).length, "dash.stat.toPay", "warn", function () { show("c-orders", "open"); });
+    stat(grid, jobs.filter(function (j) { return j.status === "quoted"; }).length, "dash.stat.toPay", "warn", function () { show("c-pay"); });
     stat(grid, jobs.filter(function (j) { return j.status === "delivered"; }).length, "dash.stat.delivered", "ok", function () { show("c-orders", "closed"); });
     stat(grid, jobs.length, "dash.stat.all");
     box.appendChild(grid);
+    // membership level + points (fetched once per visit)
+    var memBox = el("div"); box.appendChild(memBox);
+    var seq = state.seq;
+    (memberMemo ? Promise.resolve(memberMemo) : api("myMembership", {}).then(function (res) { memberMemo = res.membership; return memberMemo; }))
+      .then(function (mm) { if (seq === state.seq && mm) memberCard(memBox, mm, true); }, function () { /* the rest of the page still works */ });
     var c = card(box, "dash.recent");
     if (!jobs.length) empty(c, "acct.jobsEmpty");
     else c.appendChild(jobList(jobs.slice(0, 5), function (j) { show("c-job", j.jobNo); }));
@@ -502,6 +510,7 @@
         ["track.neededBy", day(j.neededBy)], ["track.deliveredAt", day(j.deliveredAt)],
         ["dash.certified", j.certified ? t("form.yes") : t("form.no")]
       ]));
+      quoteCard(box, j);
       // translated files (from "ready for your review")
       var f = card(box, "dash.translatedFiles");
       var canSee = j.status === "review" || j.status === "delivered";
@@ -578,16 +587,483 @@
     box.appendChild(n);
   }
 
-  function soon(box, titleKey, textKey) {
-    heading(box, titleKey);
-    var c = card(box);
-    c.classList.add("dash-soon");
-    c.appendChild(el("p", "dash-soon-badge", t("dash.soon")));
-    c.appendChild(el("p", null, t(textKey)));
+  /* ---------- Phase 6: money ---------- */
+  function baht(n) {
+    var s = Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return App.getLang() === "th" ? s + " บาท" : "THB " + s;
   }
-  VIEWS["c-quotes"] = function (box) { soon(box, "dash.quotes", "dash.soon.quotes"); };
-  VIEWS["c-pay"] = function (box) { soon(box, "dash.pay", "dash.soon.pay"); };
-  VIEWS["c-payHistory"] = function (box) { soon(box, "dash.payHistory", "dash.soon.payHistory"); };
+  function payMethod(code) { var k = "pay.m." + code, v = t(k); return v === k ? (code || "") : v; }
+  function payJs() { return window.Pay ? Promise.resolve() : App.loadScript("js/pay.js"); }
+  function openPay(jobNo, token) {
+    payJs().then(function () { window.Pay.open(jobNo, token); });
+  }
+  function openReceipt(p) {
+    var tk = (/[?&]t=([0-9a-f]+)/.exec(p.receiptUrl || "") || [])[1];
+    payJs().then(function () { window.Pay.receipt(p.receiptNo, tk); });
+  }
+  // One payment line: receipt no. · date · amount · method [status] [View receipt] (+ admin extras)
+  function paymentList(list, admin, onRefund) {
+    var ul = el("ul", "pay-list");
+    list.forEach(function (p) {
+      var li = el("li", "pay-item");
+      var top = el("div", "pay-item-top");
+      top.appendChild(el("span", "job-no", p.receiptNo));
+      top.appendChild(el("span", "pay-amount", baht(p.amount)));
+      li.appendChild(top);
+      var meta = [day(p.paidDay), payMethod(p.method)];
+      if (admin || state.role !== "customer") meta.splice(1, 0, p.jobNo);
+      else meta.push(t("track.jobNo") + " " + p.jobNo);
+      if (p.points) meta.push(t("mem.pointsN", { n: p.points }));
+      li.appendChild(el("p", "job-meta", meta.join(" · ")));
+      var flags = el("div", "job-flags");
+      if (p.mode === "test") flags.appendChild(el("span", "flag flag-warn", t("pay.testFlag")));
+      if (p.status !== "paid") flags.appendChild(el("span", "flag " + (p.status === "refunding" ? "flag-warn" : "flag-off"), t("pay.st." + p.status) + (p.refundAmount ? " " + baht(p.refundAmount) : "")));
+      if (p.refundStatus === "failed") flags.appendChild(el("span", "flag flag-bad", t("pay.refundFailed")));
+      if (admin) {
+        if (p.name || p.email) flags.appendChild(el("span", "flag", p.name || p.email));
+        if (p.net != null) flags.appendChild(el("span", "flag flag-ok", t("pay.netN", { fee: baht((p.fee || 0) + (p.feeVat || 0)), net: baht(p.net) })));
+      }
+      if (flags.childNodes.length) li.appendChild(flags);
+      var acts = el("div", "acct-links");
+      acts.appendChild(button(t("pay.viewReceipt"), "btn btn-outline btn-sm", function () { openReceipt(p); }));
+      if (onRefund && (p.status === "paid" || p.refundStatus === "failed")) {
+        acts.appendChild(button(t("pay.refund"), "btn-link danger", function () { onRefund(p, li); }));
+      }
+      li.appendChild(acts);
+      ul.appendChild(li);
+    });
+    return ul;
+  }
+  // Admin: refund form under a payment
+  function refundForm(p, li, done) {
+    if (li.querySelector(".refund-form")) return;
+    var f = el("div", "refund-form");
+    var amt = input("number", p.amount, { min: "1", max: String(p.amount), step: "0.01", inputmode: "decimal" });
+    if (p.method !== "CARD") amt.readOnly = true;
+    var why = input("text", "", { maxlength: "400" });
+    var g = el("div", "grid-2");
+    g.appendChild(fieldBox("pay.refundAmount", amt, p.method === "CARD" ? "pay.refundPartialHint" : "pay.refundFullHint"));
+    g.appendChild(fieldBox("pay.refundReason", why));
+    f.appendChild(g);
+    var st = el("div", "form-status"); st.hidden = true;
+    var go = button(t("pay.refundGo"), "btn btn-danger btn-sm");
+    go.addEventListener("click", function () {
+      if (!window.confirm(t("pay.refundConfirm", { amount: baht(amt.value), no: p.receiptNo }))) return;
+      busy(go, true);
+      api("adminRefund", { receiptNo: p.receiptNo, amount: Number(amt.value), reason: why.value.trim() }).then(done, function (err) { status(st, "error", errText(err)); busy(go, false); });
+    });
+    var row = el("div", "actions"); row.appendChild(go);
+    row.appendChild(button(t("acct.cancel"), "btn btn-outline btn-sm", function () { f.remove(); }));
+    f.appendChild(row); f.appendChild(st);
+    f.appendChild(el("p", "note", t("pay.refundNote")));
+    li.appendChild(f);
+  }
+
+  // Customer job page: the quote and its payment
+  function quoteCard(box, j) {
+    if (!j.quote && !(j.payments || []).length) return;
+    var c = card(box, "pay.cardTitle");
+    if (j.quote) {
+      var q = j.quote, open = q.status === "active" && j.status === "quoted" && (!q.validUntil || q.validUntil >= isoDay(new Date()));
+      c.appendChild(details([
+        ["pay.total", baht(q.total)],
+        ["pay.validLabel", day(q.validUntil)],
+        ["dash.status", t("pay.q." + (q.status === "active" && !open && q.validUntil < isoDay(new Date()) ? "expired" : q.status))]
+      ]));
+      var row = el("div", "actions");
+      row.appendChild(button(t(open ? "pay.viewAndPay" : "pay.viewQuote"), open ? "btn btn-primary" : "btn btn-outline", function () { openPay(j.jobNo, j.payToken); }));
+      c.appendChild(row);
+    }
+    if ((j.payments || []).length) c.appendChild(paymentList(j.payments));
+  }
+
+  var payCache = null;   // last myPayments result (quotes, payments, membership)
+  function loadMoney(box, draw) {
+    return load(box, "myPayments", {}, function (res) { payCache = res; draw(res); });
+  }
+
+  VIEWS["c-quotes"] = function (box, onlyOpen) {
+    heading(box, onlyOpen ? "dash.pay" : "dash.quotes");
+    loadMoney(box, function (res) {
+      var list = res.quotes.filter(function (q) { return !onlyOpen || q.canPay; });
+      var c = card(box);
+      if (!list.length) { empty(c, onlyOpen ? "pay.emptyToPay" : "pay.emptyQuotes"); return; }
+      var ul = el("ul", "job-list");
+      list.forEach(function (q) {
+        var li = el("li");
+        var b = el("button", "job-item job-item-btn"); b.type = "button";
+        b.addEventListener("click", function () { openPay(q.jobNo, q.t); });
+        var top = el("span", "job-top");
+        top.appendChild(el("span", "job-no", q.jobNo));
+        top.appendChild(el("span", "status-chip status-" + (q.canPay ? "quoted" : q.status === "paid" ? "paid" : "cancelled"), t("pay.q." + (q.canPay ? "toPay" : q.status))));
+        b.appendChild(top);
+        b.appendChild(el("span", "job-meta", t("pay.quoteN", { n: q.version }) + " · " + baht(q.total)));
+        b.appendChild(el("span", "job-dates", t("pay.validUntil", { date: day(q.validUntil) })));
+        if (q.canPay) { var fl = el("span", "job-flags"); fl.appendChild(el("span", "flag flag-warn", t("pay.payNow"))); b.appendChild(fl); }
+        li.appendChild(b); ul.appendChild(li);
+      });
+      c.appendChild(ul);
+    });
+  };
+  VIEWS["c-pay"] = function (box) { VIEWS["c-quotes"](box, true); };
+  VIEWS["c-payHistory"] = function (box) {
+    heading(box, "dash.payHistory");
+    loadMoney(box, function (res) {
+      var c = card(box);
+      if (!res.payments.length) { empty(c, "pay.emptyHistory"); return; }
+      c.appendChild(paymentList(res.payments));
+      c.appendChild(el("p", "note", t("pay.historyNote")));
+    });
+  };
+
+  // Membership: level, points, rewards
+  function tierName(code) { return code ? t("mem.tier." + code) : t("mem.tier.none"); }
+  function memberCard(box, m, compact) {
+    var c = card(box, null);
+    c.classList.add("mem-card", "tier-" + (m.tier ? m.tier.code : "none"));
+    var top = el("div", "mem-top");
+    var badge = el("div", "mem-badge");
+    badge.appendChild(el("span", "mem-badge-label", t("mem.level")));
+    badge.appendChild(el("span", "mem-badge-name", tierName(m.tier && m.tier.code)));
+    if (m.tier) badge.appendChild(el("span", "mem-badge-off", t("mem.offN", { n: m.tier.percent })));
+    top.appendChild(badge);
+    var pts = el("div", "mem-points");
+    pts.appendChild(el("span", "mem-points-n", App.formatNumber(m.points)));
+    pts.appendChild(el("span", "mem-points-label", t("mem.pointsLabel")));
+    if (m.cycleEnd) pts.appendChild(el("span", "mem-points-exp", t("mem.expires", { date: day(m.cycleEnd) })));
+    top.appendChild(pts);
+    c.appendChild(top);
+    // progress to the next level
+    var bar = el("div", "mem-progress");
+    var max = m.next ? m.next.points : (m.tiers[m.tiers.length - 1] || {}).points || 1;
+    var fill = el("span", "mem-progress-fill");
+    fill.style.width = Math.min(100, Math.round(m.tierPoints / max * 100)) + "%";
+    bar.appendChild(fill);
+    bar.setAttribute("role", "progressbar"); bar.setAttribute("aria-valuemin", "0"); bar.setAttribute("aria-valuemax", String(max)); bar.setAttribute("aria-valuenow", String(m.tierPoints));
+    bar.setAttribute("aria-label", t("mem.progressLabel"));
+    c.appendChild(bar);
+    c.appendChild(el("p", "note", m.next ? t("mem.toNext", { n: m.next.need, tier: tierName(m.next.code), pct: (m.tiers.filter(function (x) { return x.code === m.next.code; })[0] || {}).percent })
+                                          : t("mem.top")));
+    if (m.tierUntil) c.appendChild(el("p", "note", t("mem.until", { date: day(m.tierUntil) })));
+    if (compact) c.appendChild(button(t("mem.more"), "btn btn-outline btn-sm", function () { show("c-points"); }));
+    return c;
+  }
+
+  VIEWS["c-points"] = function (box) {
+    heading(box, "mem.title");
+    load(box, "myMembership", {}, function (res) { memberMemo = res.membership; drawPoints(box, res.membership); });
+  };
+  function drawPoints(box, m) {
+    memberCard(box, m);
+    // levels
+    var lv = card(box, "mem.levels");
+    var tb = el("table", "quote-table mem-table");
+    var hr = el("tr"); ["mem.level", "mem.need", "mem.discount"].forEach(function (k) { hr.appendChild(el("th", null, t(k))); });
+    var th = el("thead"); th.appendChild(hr); tb.appendChild(th);
+    var body = el("tbody");
+    m.tiers.forEach(function (x) {
+      var tr = el("tr", m.tier && m.tier.code === x.code ? "is-current" : "");
+      tr.appendChild(el("td", null, tierName(x.code)));
+      tr.appendChild(el("td", null, t("mem.needN", { n: x.points, baht: App.formatNumber(x.points * m.bahtPerPoint) })));
+      tr.appendChild(el("td", null, t("mem.offN", { n: x.percent })));
+      body.appendChild(tr);
+    });
+    tb.appendChild(body);
+    lv.appendChild(tb);
+    lv.appendChild(el("p", "note", t("mem.rules", { baht: App.formatNumber(m.bahtPerPoint) })));
+    // rewards
+    var rw = card(box, "mem.rewards");
+    if (!m.rewards.length) empty(rw, "mem.noRewards");
+    else {
+      var ul = el("ul", "mem-rewards");
+      m.rewards.forEach(function (r) {
+        var li = el("li", "mem-reward");
+        li.appendChild(el("span", "mem-reward-name", (App.getLang() === "en" ? r.nameEn || r.nameTh : r.nameTh || r.nameEn)));
+        li.appendChild(el("span", "mem-reward-cost", t("mem.pointsN", { n: r.points })));
+        var out = r.stock === 0, short = m.points < r.points;
+        var b = button(t(out ? "mem.outOfStock" : "mem.redeem"), "btn btn-outline btn-sm");
+        b.disabled = out || short || !m.member;
+        if (short && !out) b.title = t("mem.needMore", { n: r.points - m.points });
+        b.addEventListener("click", function () {
+          var note = window.prompt(t("mem.redeemPrompt", { name: li.firstChild.textContent }), "");
+          if (note === null) return;
+          busy(b, true);
+          api("redeemReward", { rewardId: r.id, note: note }).then(function (res) {
+            box.textContent = ""; heading(box, "mem.title"); drawPoints(box, res.membership);
+            alertBox(box.querySelector(".mem-card"), t("mem.redeemed"));
+          }, function (err) { alertBox(b, errText(err)); busy(b, false); });
+        });
+        li.appendChild(b);
+        ul.appendChild(li);
+      });
+      rw.appendChild(ul);
+    }
+    rw.appendChild(el("p", "note", t("mem.rewardsNote")));
+    if (m.redemptions.length) {
+      var h = card(box, "mem.history");
+      var hl = el("ul", "pay-list");
+      m.redemptions.forEach(function (x) {
+        var li = el("li", "pay-item");
+        var top = el("div", "pay-item-top");
+        top.appendChild(el("span", null, x.rewardName));
+        top.appendChild(el("span", "flag flag-" + (x.status === "sent" ? "ok" : x.status === "cancelled" ? "off" : "warn"), t("mem.rs." + x.status)));
+        li.appendChild(top);
+        li.appendChild(el("p", "job-meta", day(x.at) + " · " + t("mem.pointsN", { n: x.points }) + " · " + x.id));
+        hl.appendChild(li);
+      });
+      h.appendChild(hl);
+    }
+  }
+
+  // ===== admin: quote form + payments on the job page =====
+  function suggestItems(j) {
+    var cat = App.findCategory ? App.findCategory(j.category) : null;
+    var items = [];
+    if (cat) {
+      var pr = App.priceRange(cat, "normal");
+      items.push({ text: t("pay.itemTranslate", { cat: catName(j.category), pages: j.pages || 1 }), amount: (pr.min || 0) * (j.pages || 1) });
+    } else items.push({ text: t("pay.itemTranslateShort"), amount: "" });
+    if (j.certified) items.push({ text: t("pay.itemCert"), amount: CFG.certificationFee || 0 });
+    if (j.shipping) items.push({ text: t("pay.itemShip"), amount: CFG.shippingFee || 0 });
+    return items;
+  }
+
+  function adminMoneyCard(box, j, reopen) {
+    var m = j.money;
+    if (!m) return;
+    var c = card(box, "pay.adminTitle");
+    if (!m.payReady) c.appendChild(el("p", "notice notice-warn", t("pay.notReadyAdmin")));
+    else if (m.mode === "test") c.appendChild(el("p", "notice notice-warn", t("pay.testModeAdmin")));
+    var editable = j.status === "received" || j.status === "quoted";
+    var current = m.quotes.filter(function (q) { return q.status === "active"; })[0];
+    // existing quotes
+    if (m.quotes.length) {
+      var ul = el("ul", "pay-list");
+      m.quotes.forEach(function (q) {
+        var li = el("li", "pay-item");
+        var top = el("div", "pay-item-top");
+        top.appendChild(el("span", "job-no", t("pay.quoteN", { n: q.version })));
+        top.appendChild(el("span", "pay-amount", baht(q.total)));
+        li.appendChild(top);
+        var meta = [t("pay.q." + q.status), t("pay.validUntil", { date: day(q.validUntil) })];
+        if (q.discount) meta.push(t("pay.discount") + " " + q.discountPercent + "%");
+        if (q.couponCode) meta.push(t("pay.coupon") + " " + q.couponCode);
+        li.appendChild(el("p", "job-meta", meta.join(" · ")));
+        li.appendChild(el("p", "note", q.items.map(function (it) { return it.text + " " + baht(it.amount); }).join(" · ")));
+        ul.appendChild(li);
+      });
+      c.appendChild(ul);
+    }
+    if (current) {
+      var links = el("div", "acct-links");
+      links.appendChild(button(t("pay.copyLink"), "btn btn-outline btn-sm", function (e) {
+        var b = e.currentTarget;
+        try { navigator.clipboard.writeText(m.payUrl).then(function () { b.textContent = t("cert.copied"); }); } catch (err) { window.prompt("", m.payUrl); }
+      }));
+      links.appendChild(button(t("pay.openAsCustomer"), "btn-link", function () {
+        var tk = (/[?&]t=([0-9a-f]+)/.exec(m.payUrl) || [])[1];
+        openPay(j.jobNo, tk);
+      }));
+      var cq = button(t("pay.cancelQuote"), "btn-link danger");
+      cq.addEventListener("click", function () {
+        if (!window.confirm(t("pay.cancelQuoteConfirm"))) return;
+        busy(cq, true);
+        api("adminCancelQuote", { jobNo: j.jobNo }).then(reopen, function (err) { alertBox(cq, errText(err)); busy(cq, false); });
+      });
+      links.appendChild(cq);
+      c.appendChild(links);
+    }
+    // payments
+    if (m.payments.length) {
+      c.appendChild(el("h4", "h5 dash-sub", t("pay.payments")));
+      c.appendChild(paymentList(m.payments, true, function (p, li) { refundForm(p, li, reopen); }));
+    }
+    if (!editable) { if (!m.quotes.length) c.appendChild(el("p", "note", t("pay.noQuoteLocked"))); return; }
+    // new quote form
+    var det = el("details", "quote-form");
+    det.open = !m.quotes.length;
+    det.appendChild(el("summary", null, t(m.quotes.length ? "pay.newVersion" : "pay.newQuote")));
+    var rowsBox = el("div", "quote-items");
+    var start = current ? current.items : suggestItems(j);
+    function addRow(it) {
+      var r = el("div", "quote-item");
+      var tx = input("text", it.text || "", { maxlength: "160", "aria-label": t("pay.item") });
+      var am = input("number", it.amount === "" ? "" : it.amount, { min: "0", step: "0.01", inputmode: "decimal", "aria-label": t("pay.amount") });
+      var rm = button("×", "btn-link danger quote-item-rm", function () { r.remove(); calc(); });
+      rm.setAttribute("aria-label", t("dash.remove"));
+      tx.addEventListener("input", calc); am.addEventListener("input", calc);
+      r.appendChild(tx); r.appendChild(am); r.appendChild(rm);
+      rowsBox.appendChild(r);
+    }
+    start.forEach(addRow);
+    det.appendChild(rowsBox);
+    det.appendChild(button(t("pay.addItem"), "btn-link", function () { addRow({ text: "", amount: "" }); }));
+    var sug = m.suggested || { percent: 0, name: "" };
+    var pct = input("number", current ? current.discountPercent : sug.percent, { min: "0", max: "100", step: "0.5", inputmode: "decimal" });
+    var pname = input("text", current ? current.discountName : sug.name, { maxlength: "80" });
+    var days = input("number", m.quoteDays, { min: "1", max: "60", step: "1", inputmode: "numeric" });
+    var note = el("textarea"); note.rows = 2; note.maxLength = 600; note.value = current ? current.note : "";
+    var g = el("div", "grid-2");
+    g.appendChild(fieldBox("pay.discountPct", pct, sug.percent ? "pay.suggested" : "pay.noSuggested"));
+    g.appendChild(fieldBox("pay.discountName", pname));
+    g.appendChild(fieldBox("pay.days", days));
+    g.appendChild(fieldBox("pay.noteLabel", note));
+    det.appendChild(g);
+    var sugHint = det.querySelector(".hint");
+    if (sugHint && sug.percent) sugHint.textContent = t("pay.suggested", { name: sug.name, n: sug.percent });
+    var sum = el("p", "quote-sum");
+    det.appendChild(sum);
+    function items() {
+      return Array.prototype.map.call(rowsBox.querySelectorAll(".quote-item"), function (r) {
+        var i = r.querySelectorAll("input");
+        return { text: i[0].value.trim(), amount: i[1].value === "" ? NaN : Number(i[1].value) };
+      }).filter(function (x) { return x.text || !isNaN(x.amount); });
+    }
+    function calc() {
+      var sub = items().reduce(function (s, x) { return s + (isNaN(x.amount) ? 0 : x.amount); }, 0);
+      var d = Math.round(sub * (Number(pct.value) || 0)) / 100;
+      sum.textContent = t("pay.sumLine", { sub: baht(sub), disc: baht(d), total: baht(sub - d) });
+    }
+    pct.addEventListener("input", calc);
+    calc();
+    var st = el("div", "form-status"); st.hidden = true;
+    var save = button(t(current ? "pay.sendNew" : "pay.send"), "btn btn-primary");
+    save.addEventListener("click", function () {
+      var list = items();
+      if (!list.length || list.some(function (x) { return !x.text || isNaN(x.amount) || x.amount < 0; })) { status(st, "error", t("pay.err.items")); return; }
+      busy(save, true);
+      api("adminSaveQuote", { jobNo: j.jobNo, items: list, discountPercent: Number(pct.value) || 0, discountName: pname.value.trim(),
+                              days: Number(days.value) || m.quoteDays, note: note.value.trim() }).then(reopen, function (err) { status(st, "error", errText(err)); busy(save, false); });
+    });
+    var ar = el("div", "actions"); ar.appendChild(save);
+    det.appendChild(ar); det.appendChild(st);
+    det.appendChild(el("p", "note", t("pay.sendNote")));
+    c.appendChild(det);
+  }
+
+  VIEWS["a-payments"] = function (box, mode) {
+    heading(box, "dash.payments", button(t("acct.refresh"), "btn-link", function () { draw(); }));
+    load(box, "adminPayments", mode ? { mode: mode } : {}, function (res) {
+      var s = card(box);
+      s.appendChild(el("p", "notice" + (res.ready ? "" : " notice-warn"), t(res.ready ? (res.current === "live" ? "pay.modeLive" : "pay.modeTest") : "pay.notReadyAdmin")));
+      var tabs = el("div", "dash-tabs");
+      ["live", "test"].forEach(function (md) {
+        var b = button(t("pay.mode." + md), "dash-tab", function () { show("a-payments", md); });
+        if (res.mode === md) b.setAttribute("aria-selected", "true");
+        tabs.appendChild(b);
+      });
+      s.appendChild(tabs);
+      var grid = el("div", "dash-stats");
+      [["pay.sum.count", App.formatNumber(res.month.count)], ["pay.sum.gross", baht(res.month.gross)], ["pay.sum.fee", baht(res.month.fee)],
+       ["pay.sum.net", baht(res.month.net)]].forEach(function (x) {
+        var d = el("div", "dash-stat");
+        d.appendChild(el("span", "dash-stat-n dash-stat-money", x[1]));
+        d.appendChild(el("span", "dash-stat-label", t(x[0])));
+        grid.appendChild(d);
+      });
+      s.appendChild(grid);
+      var l = card(box, "pay.payments");
+      if (!res.payments.length) empty(l, "pay.emptyHistory");
+      else l.appendChild(paymentList(res.payments, true, function (p, li) { refundForm(p, li, function () { show("a-payments", res.mode); }); }));
+      if (res.hookUrl) {
+        var hk = card(box, "pay.hookTitle");
+        hk.appendChild(el("p", "note", t("pay.hookHint")));
+        var inp = input("text", res.hookUrl, { readonly: "readonly", "aria-label": t("pay.hookTitle") });
+        inp.className = "mono";
+        hk.appendChild(inp);
+        var cp = button(t("pay.copy"), "btn btn-outline btn-sm", function () {
+          try { navigator.clipboard.writeText(res.hookUrl).then(function () { cp.textContent = t("cert.copied"); }); } catch (e) { inp.select(); }
+        });
+        var r = el("div", "actions"); r.appendChild(cp); hk.appendChild(r);
+      }
+    });
+  };
+
+  VIEWS["a-rewards"] = function (box, editId) {
+    heading(box, "dash.rewards");
+    load(box, "adminRewards", {}, function (res) {
+      var editing = res.rewards.filter(function (r) { return r.id === editId; })[0];
+      var f = card(box, editing ? "mem.a.edit" : "mem.a.new");
+      var nTh = input("text", editing ? editing.nameTh : "", { maxlength: "120" });
+      var nEn = input("text", editing ? editing.nameEn : "", { maxlength: "120" });
+      var pts = input("number", editing ? editing.points : "", { min: "1", step: "1", inputmode: "numeric" });
+      var stock = input("number", editing && editing.stock != null ? editing.stock : "", { min: "0", step: "1", inputmode: "numeric" });
+      var note = input("text", editing ? editing.note : "", { maxlength: "300" });
+      var active = checkbox("mem.a.active", editing ? editing.active : true);
+      var g = el("div", "grid-2");
+      g.appendChild(fieldBox("mem.a.nameTh", nTh)); g.appendChild(fieldBox("mem.a.nameEn", nEn));
+      g.appendChild(fieldBox("mem.a.points", pts)); g.appendChild(fieldBox("mem.a.stock", stock, "mem.a.stockHint"));
+      g.appendChild(fieldBox("dash.cp.noteLabel", note));
+      f.appendChild(g);
+      var cbs = el("div", "dash-checks"); cbs.appendChild(active); f.appendChild(cbs);
+      var st = el("div", "form-status"); st.hidden = true;
+      var save = button(t("acct.save"), "btn btn-primary");
+      save.addEventListener("click", function () {
+        busy(save, true);
+        api("adminSaveReward", { reward: { id: editing ? editing.id : "", nameTh: nTh.value.trim(), nameEn: nEn.value.trim(), points: Number(pts.value),
+          stock: stock.value === "" ? "" : Number(stock.value), note: note.value.trim(), active: active.input.checked } })
+          .then(function () { show("a-rewards"); }, function (err) { status(st, "error", errText(err)); busy(save, false); });
+      });
+      var row = el("div", "actions"); row.appendChild(save);
+      if (editing) row.appendChild(button(t("acct.cancel"), "btn btn-outline", function () { show("a-rewards"); }));
+      f.appendChild(row); f.appendChild(st);
+      f.appendChild(el("p", "note", t("mem.a.note")));
+      // gifts
+      var lc = card(box, "mem.rewards");
+      if (!res.rewards.length) empty(lc, "mem.noRewards");
+      else {
+        var ul = el("ul", "pay-list");
+        res.rewards.forEach(function (r) {
+          var li = el("li", "pay-item");
+          var top = el("div", "pay-item-top");
+          top.appendChild(el("span", null, r.nameTh || r.nameEn));
+          top.appendChild(el("span", "pay-amount", t("mem.pointsN", { n: r.points })));
+          li.appendChild(top);
+          var meta = [r.stock == null ? t("mem.a.unlimited") : t("mem.a.left", { n: r.stock })];
+          if (!r.active) meta.push(t("dash.cp.state.off"));
+          li.appendChild(el("p", "job-meta", meta.join(" · ")));
+          var acts = el("div", "acct-links");
+          acts.appendChild(button(t("dash.edit"), "btn btn-outline btn-sm", function () { show("a-rewards", r.id); }));
+          var del = button(t("dash.remove"), "btn-link danger");
+          del.addEventListener("click", function () {
+            if (!window.confirm(t("mem.a.confirmDelete", { name: r.nameTh || r.nameEn }))) return;
+            busy(del, true);
+            api("adminDeleteReward", { id: r.id }).then(function () { show("a-rewards"); }, function (err) { alertBox(del, errText(err)); busy(del, false); });
+          });
+          acts.appendChild(del);
+          li.appendChild(acts);
+          ul.appendChild(li);
+        });
+        lc.appendChild(ul);
+      }
+      // requests
+      var rq = card(box, "mem.a.requests");
+      if (!res.redemptions.length) { empty(rq, "mem.a.noRequests"); return; }
+      var rl = el("ul", "pay-list");
+      res.redemptions.forEach(function (x) {
+        var li = el("li", "pay-item");
+        var top = el("div", "pay-item-top");
+        top.appendChild(el("span", null, x.rewardName));
+        top.appendChild(el("span", "flag flag-" + (x.status === "sent" ? "ok" : x.status === "cancelled" ? "off" : "warn"), t("mem.rs." + x.status)));
+        li.appendChild(top);
+        li.appendChild(el("p", "job-meta", [day(x.at), x.id, t("mem.pointsN", { n: x.points }), (x.name ? x.name + " · " : "") + x.email].join(" · ")));
+        if (x.note) li.appendChild(el("p", "note", x.note));
+        var acts = el("div", "acct-links");
+        (x.status === "requested" ? ["sent", "cancelled"] : ["requested"]).forEach(function (to) {
+          var b = button(t("mem.a.to." + to), to === "sent" ? "btn btn-primary btn-sm" : "btn-link" + (to === "cancelled" ? " danger" : ""));
+          b.addEventListener("click", function () {
+            busy(b, true);
+            api("adminRedemption", { id: x.id, status: to }).then(function () { show("a-rewards"); }, function (err) { alertBox(b, errText(err)); busy(b, false); });
+          });
+          acts.appendChild(b);
+        });
+        li.appendChild(acts);
+        rl.appendChild(li);
+      });
+      rq.appendChild(rl);
+    });
+  };
+
 
   // ===== staff =====
   VIEWS["s-jobs"] = function (box) {
@@ -669,6 +1145,21 @@
       stat(grid, o.cancelRequests, "dash.stat.cancel", "warn", function () { show("a-jobs", "cancel"); });
       stat(grid, o.unassigned, "dash.stat.unassigned", "", function () { show("a-jobs", "unassigned"); });
       box.appendChild(grid);
+      if (o.money) {
+        var mc = card(box, "dash.moneyMonth");
+        if (!o.money.ready) mc.appendChild(el("p", "notice notice-warn", t("pay.notReadyAdmin")));
+        else if (o.money.mode === "test") mc.appendChild(el("p", "note", t("pay.modeTest")));
+        var mg = el("div", "dash-stats");
+        stat(mg, o.money.toPay, "dash.stat.quotesOpen", "warn", function () { show("a-jobs", "s:quoted"); });
+        stat(mg, o.money.count, "pay.sum.count", "ok", function () { show("a-payments"); });
+        [["pay.sum.gross", o.money.gross], ["pay.sum.net", o.money.net]].forEach(function (x) {
+          var d = button("", "dash-stat", function () { show("a-payments"); });
+          d.appendChild(el("span", "dash-stat-n dash-stat-money", baht(x[1])));
+          d.appendChild(el("span", "dash-stat-label", t(x[0])));
+          mg.appendChild(d);
+        });
+        mc.appendChild(mg);
+      }
       if (o.visits) {
         var v = card(box, "dash.visitors");
         var vg = el("div", "dash-stats dash-stats-2");
@@ -850,6 +1341,7 @@
         row.appendChild(a);
       }
       m.appendChild(row); m.appendChild(st);
+      adminMoneyCard(box, j, reopen);
       // customer
       var c = card(box, "dash.customer");
       var mail = el("a", null, j.email); mail.href = "mailto:" + j.email; mail.target = "_blank"; mail.rel = "noopener";
@@ -1152,6 +1644,7 @@
     parts.push(c.maxUses ? t("dash.cp.usedOf", { used: c.used, max: c.maxUses }) : t("dash.cp.usedN", { used: c.used }));
     parts.push(c.perUser ? t("dash.cp.perUser", { n: c.perUser }) : t("dash.cp.perUserAny"));
     if (c.membersOnly) parts.push(t("dash.cp.members"));
+    if (c.stackable) parts.push(t("dash.cp.stacks"));
     return parts.join(" · ");
   }
   function couponState(c) {
@@ -1187,6 +1680,7 @@
       [["1", "dash.cp.perUser1"], ["0", "dash.cp.perUserAny"], ["2", "dash.cp.perUser2"], ["3", "dash.cp.perUser3"]].forEach(function (k) { var o = el("option", null, t(k[1])); o.value = k[0]; perUser.appendChild(o); });
       perUser.value = String(editing ? editing.perUser : 1);
       var members = checkbox("dash.cp.membersOnly", editing ? editing.membersOnly : false);
+      var stack = checkbox("dash.cp.stackable", editing ? editing.stackable : false);
       var active = checkbox("dash.cp.active", editing ? editing.active : true);
       var note = input("text", editing ? editing.note : "", { maxlength: "200" });
       var g1 = el("div", "grid-2");
@@ -1201,14 +1695,15 @@
       g1.appendChild(fieldBox("dash.cp.perUserLabel", perUser));
       g1.appendChild(fieldBox("dash.cp.noteLabel", note));
       f.appendChild(g1);
-      var cbs = el("div", "dash-checks"); cbs.appendChild(members); cbs.appendChild(active); f.appendChild(cbs);
+      var cbs = el("div", "dash-checks"); cbs.appendChild(members); cbs.appendChild(stack); cbs.appendChild(active); f.appendChild(cbs);
+      f.appendChild(el("p", "note", t("dash.cp.stackHint")));
       var st = el("div", "form-status"); st.hidden = true;
       var save = button(t("acct.save"), "btn btn-primary");
       save.addEventListener("click", function () {
         var payload = { isNew: !editing, coupon: {
           code: code.value.trim(), kind: kind.value, value: Number(value.value), maxDiscount: Number(cap.value || 0),
           minSpend: Number(min.value || 0), start: start.value, end: end.value, maxUses: Number(maxUses.value || 0),
-          perUser: Number(perUser.value), membersOnly: members.input.checked, active: active.input.checked, note: note.value.trim() } };
+          perUser: Number(perUser.value), membersOnly: members.input.checked, stackable: stack.input.checked, active: active.input.checked, note: note.value.trim() } };
         busy(save, true);
         api("adminSaveCoupon", payload).then(function () { show("a-coupons"); }, function (err) { status(st, "error", errText(err)); busy(save, false); });
       });
