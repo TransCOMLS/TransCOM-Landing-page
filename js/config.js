@@ -139,6 +139,16 @@ window.APP_CONFIG = {
   // ค่าจัดส่งเอกสารฉบับจริงทางไปรษณีย์ (ต่องาน) / Posting the paper copy (per job)
   shippingFee: 50,
 
+  // Electronic certification stamp (owner's design, 2026-11-09): the shop seal (img/seal.png), the check QR
+  // and the code, put bottom-right on translation PDFs/images when staff upload them — only for certified
+  // jobs WITHOUT a paper copy by post (paper copies get the rubber stamp by hand). The wording follows the
+  // translation's language (Thai → English job: English stamp). {code} = the job's check code.
+  certStamp: {
+    pages: "all",          // "all" pages, or "last" page only
+    th: ["เอกสารนี้ได้รับการรับรองผ่านระบบอิเล็กทรอนิกส์", "รหัสรับรองเอกสาร ( {code} )"],
+    en: ["This Document has been E-Certified", "Certification Code ( {code} )"]
+  },
+
   // Online payment fees of Beam Checkout (% of the amount paid), shown on the pricing page.
   // Owner's choice 2026-11-09: the customer pays them (terms 2.5). Check with Beam that adding
   // card fees for the payer is allowed; showPaymentFees: false hides the table.
