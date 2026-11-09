@@ -150,9 +150,9 @@ window.APP_CONFIG = {
   },
 
   // Online payment fees of Beam Checkout (% of the amount paid), shown on the pricing page.
-  // Owner's choice 2026-11-09: the customer pays them (terms 2.5). Check with Beam that adding
-  // card fees for the payer is allowed; showPaymentFees: false hides the table.
-  showPaymentFees: true,
+  // Owner's decision 2026-11-09 (final): the shop bears all payment fees (terms 2.5), so the table is hidden.
+  // The rates stay here for the owner's reference and for Phase 6 reports.
+  showPaymentFees: false,
   paymentFees: [
     { key: "cardStandard", rate: 1.80 },
     { key: "cardPremium", rate: 2.95 },
