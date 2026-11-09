@@ -38,6 +38,7 @@ var CONFIG = {
   revisionDays: 7,       // customers may ask for corrections within this many days
 
   // Job submission (Phase 3)
+  certifier: 'TransCOM (ผู้ให้บริการแปลและรับรองคำแปล)',   // shown when a certificate QR is scanned; per job in "Certificates"
   jobPrefix: 'TR',       // job numbers: TR-<Buddhist year>-<6 random characters>, e.g. TR-2569-K7F3QD
   maxFiles: 10,          // per job, documents + ID files together
   maxFileMB: 10,
@@ -67,7 +68,7 @@ function categoryName_(code, th) {
 
 var SHEETS = { users: 'Users', jobs: 'Jobs', sessions: '_sessions', promotions: 'Promotions', news: 'News',
               dashboard: 'Dashboard', glossary: 'Glossary', discounts: 'Discounts',
-              coupons: 'Coupons', couponUses: 'CouponUses' };
+              coupons: 'Coupons', couponUses: 'CouponUses', certs: 'Certificates' };
 
 // Column headers (Thai, for the owner) and the keys the code uses.
 // Columns are found by header text, so the owner may reorder them.
@@ -143,7 +144,8 @@ var JOB_COLS = [
   ['readyAt', 'แปลเสร็จเมื่อ'],          // staff marked the translation ready for checking
   ['cancelRequest', 'คำขอยกเลิก'],       // customer's request, waiting for Admin
   ['internalNotes', 'บันทึกภายใน'],      // staff/admin only — customers never see this
-  ['revisionRequest', 'คำขอแก้ไขล่าสุด']  // the customer's latest "please correct" message
+  ['revisionRequest', 'คำขอแก้ไขล่าสุด'],  // the customer's latest "please correct" message
+  ['certCode', 'รหัสตรวจสอบการรับรอง']    // certified jobs: code printed as a QR on the translation (see Certificates)
 ];
 
 // Home page content the owner edits in the Sheet (tick "แสดง" to publish).
@@ -190,6 +192,28 @@ var COUPON_COLS = [
   ['note', 'หมายเหตุ'],
   ['createdAt', 'สร้างเมื่อ']
 ];
+// Certificates: one row per certified translation, checked by anyone who scans the QR
+// (owner's request 2026-11-09). No customer name or contact details — terms 4.6 — so the
+// row can stay after the job's personal data is deleted.
+var CERT_COLS = [
+  ['code', 'รหัสตรวจสอบ'],
+  ['jobNo', 'เลขที่งาน'],
+  ['status', 'สถานะ'],               // รอรับรอง / รับรองแล้ว / ยกเลิกการรับรอง
+  ['docTitle', 'ชื่อเอกสาร'],         // e.g. สูติบัตร — set on the job page by staff/admin
+  ['category', 'ประเภทเอกสาร'],
+  ['langPair', 'คู่ภาษา'],
+  ['pages', 'จำนวนหน้า'],
+  ['certifiedAt', 'วันที่รับรอง'],     // the day the customer accepted the translation
+  ['certifier', 'ผู้รับรอง'],
+  ['createdAt', 'สร้างเมื่อ'],
+  ['note', 'หมายเหตุ']
+];
+var CERT_STATUSES = [
+  { code: 'pending', th: 'รอรับรอง' },
+  { code: 'valid', th: 'รับรองแล้ว' },
+  { code: 'revoked', th: 'ยกเลิกการรับรอง' }
+];
+
 var COUPON_USE_COLS = [
   ['code', 'โค้ด'],
   ['email', 'อีเมล'],
@@ -304,7 +328,10 @@ var ACTIONS = {
   adminSavePost: adminSavePost_,
   adminDeletePost: adminDeletePost_,
   adminUploadImage: adminUploadImage_,
-  adminChangeEmail: adminChangeEmail_
+  adminChangeEmail: adminChangeEmail_,
+  // certification check (QR) — public lookup + staff/admin edits
+  verifyCert: verifyCert_,
+  certUpdate: certUpdate_
 };
 
 /* ======================================================================
@@ -940,6 +967,7 @@ function myJob_(req) {
   var job = jobSummary_(r, ss_().getSpreadsheetTimeZone());
   job.files = job.status === 'delivered' || job.status === 'review' ? jobFiles_(r, ['translation']) : [];
   job.revisionRequest = String(r.revisionRequest || '');
+  job.cert = certInfo_(r);
   if (job.status === 'delivered' && !job.confirmedAt && r.deliveredAt) {
     job.revisionUntil = day_(addDays_(new Date(r.deliveredAt), CONFIG.revisionDays), ss_().getSpreadsheetTimeZone());
   }
@@ -1056,6 +1084,7 @@ function staffView_(r, tz) {
   j.internalNotes = String(r.internalNotes || '');
   j.revisionRequest = String(r.revisionRequest || '');
   j.files = jobFiles_(r, ['doc', 'id', 'translation']);
+  j.cert = certInfo_(r, true);
   return j;
 }
 
@@ -2085,6 +2114,7 @@ function afterStatus_(jobs, row, code) {
     updateRow_(jobs, row, changes);
     for (var k in changes) row[k] = changes[k];
   }
+  try { certSync_(row); } catch (err) { console.error('cert ' + row.jobNo + ': ' + err); }
   try { sendStatusMail_(row, code); } catch (err) { console.error('status mail ' + row.jobNo + ': ' + err); }
 }
 
@@ -2137,6 +2167,146 @@ function sendStatusMail_(r, code) {
 }
 
 /* ======================================================================
+   Certification check (owner's request 2026-11-09)
+   Every certified job gets a random code (XXXX-XXXX-XXXX). Staff put its QR on the certified
+   translation; whoever receives the document scans it and sees, on the website, the date the
+   translation was certified (the day the customer accepted it), the document, the language pair,
+   the number of pages and who certified it. Never the customer's name (terms 4.6).
+   ====================================================================== */
+
+var CERT_RE = /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/;
+
+function isCertified_(r) { return r.certified === true || String(r.certified).toUpperCase() === 'TRUE'; }
+function certStatusCode_(label) {
+  var v = String(label || '').trim();
+  for (var i = 0; i < CERT_STATUSES.length; i++) if (CERT_STATUSES[i].th === v || CERT_STATUSES[i].code === v) return CERT_STATUSES[i].code;
+  return 'pending';
+}
+function certStatusLabel_(code) {
+  for (var i = 0; i < CERT_STATUSES.length; i++) if (CERT_STATUSES[i].code === code) return CERT_STATUSES[i].th;
+  return CERT_STATUSES[0].th;
+}
+function normCertCode_(v) {
+  var c = String(v || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
+  return c.length === 12 ? c.slice(0, 4) + '-' + c.slice(4, 8) + '-' + c.slice(8) : '';
+}
+function certUrl_(code) { return CONFIG.siteUrl + '/?verify=' + code; }
+
+function newCertCode_(certs) {
+  var used = {};
+  certs.rows.forEach(function (r) { used[String(r.code || '')] = 1; });
+  for (var tries = 0; tries < 20; tries++) {
+    var hex = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
+    var c = '';
+    for (var i = 0; i < 12; i++) c += JOBNO_CHARS.charAt(parseInt(hex.substr(i * 4, 4), 16) % JOBNO_CHARS.length);
+    c = c.slice(0, 4) + '-' + c.slice(4, 8) + '-' + c.slice(8);
+    if (!used[c]) return c;
+  }
+  fail_('busy');
+}
+
+// The job's Certificates row (made the first time it is needed). No lock inside: callers hold it,
+// or run from a status change. Returns the row, or null for jobs without certification.
+function certRow_(r) {
+  if (!isCertified_(r)) return null;
+  var certs = table_(SHEETS.certs, CERT_COLS);
+  var code = String(r.certCode || '').trim();
+  if (code) {
+    var hit = find_(certs, 'code', code);
+    if (hit) return hit;
+  } else {
+    code = newCertCode_(certs);
+    var jobs = table_(SHEETS.jobs, JOB_COLS);
+    var jr = jobRow_(jobs, r.jobNo);
+    updateRow_(jobs, jr, { certCode: code });
+    r.certCode = code;
+  }
+  appendRow_(certs, {
+    code: code, jobNo: String(r.jobNo), status: certStatusLabel_('pending'), docTitle: '',
+    category: String(r.category || ''), langPair: String(r.langPair || ''), pages: r.pages === '' ? '' : r.pages,
+    certifiedAt: '', certifier: CONFIG.certifier, createdAt: new Date(), note: ''
+  });
+  return find_(table_(SHEETS.certs, CERT_COLS), 'code', code);
+}
+
+// Keep the certificate in step with the job: delivered → certified (date = when the customer
+// accepted it, else the delivery day); cancelled → withdrawn. A certificate the admin withdrew stays withdrawn.
+function certSync_(r) {
+  if (!isCertified_(r) || !ss_().getSheetByName(SHEETS.certs)) return;
+  var c = certRow_(r);
+  if (!c) return;
+  var code = statusCode_(r.status), now = certStatusCode_(c.status);
+  var changes = {};
+  if (code === 'delivered' && now !== 'revoked') {
+    changes.status = certStatusLabel_('valid');
+    changes.certifiedAt = r.confirmedAt ? new Date(r.confirmedAt) : (r.deliveredAt ? new Date(r.deliveredAt) : new Date());
+  } else if (code === 'cancelled') {
+    changes.status = certStatusLabel_('revoked');
+  }
+  if (r.pages !== '' && r.pages != null && String(c.pages) !== String(r.pages)) changes.pages = r.pages;
+  if (Object.keys(changes).length) updateRow_(table_(SHEETS.certs, CERT_COLS), find_(table_(SHEETS.certs, CERT_COLS), 'code', c.code), changes);
+}
+
+// Shown on the job page (customer: code + link; staff/admin: also the editable details)
+function certInfo_(r, staff) {
+  if (!isCertified_(r) || !ss_().getSheetByName(SHEETS.certs)) return null;
+  var c = withLock_(function () { return certRow_(r); });
+  if (!c) return null;
+  var tz = ss_().getSpreadsheetTimeZone();
+  var out = { code: String(c.code), url: certUrl_(String(c.code)), status: certStatusCode_(c.status), certifiedAt: day_(c.certifiedAt, tz) };
+  if (staff) { out.docTitle = String(c.docTitle || ''); out.certifier = String(c.certifier || ''); }
+  return out;
+}
+
+// Public lookup from the QR / the "Check a certification" page. One generic not_found;
+// 300 misses an hour from everyone together pause lookups (codes have 31^12 combinations).
+function verifyCert_(req) {
+  var code = normCertCode_(req.code);
+  if (!CERT_RE.test(code)) fail_('invalid_code');
+  var cache = CacheService.getScriptCache();
+  var misses = parseInt(cache.get('certmiss') || '0', 10);
+  if (misses >= 300) fail_('rate_limited');
+  var c = ss_().getSheetByName(SHEETS.certs) ? find_(table_(SHEETS.certs, CERT_COLS), 'code', code) : null;
+  if (!c) { cache.put('certmiss', String(misses + 1), 3600); fail_('not_found'); }
+  var tz = ss_().getSpreadsheetTimeZone();
+  var st = certStatusCode_(c.status);
+  return { ok: true, cert: {
+    code: code, status: st, jobNo: String(c.jobNo || ''),
+    certifiedAt: st === 'valid' ? day_(c.certifiedAt, tz) : '',
+    docTitle: String(c.docTitle || ''), category: String(c.category || ''), langPair: String(c.langPair || ''),
+    pages: c.pages === '' || c.pages == null ? null : Number(c.pages),
+    certifier: String(c.certifier || CONFIG.certifier)
+  } };
+}
+
+// Staff (their jobs): document title. Admin: also who certifies and the status (withdraw / restore).
+function certUpdate_(req) {
+  var me = need_(req, ['staff', 'admin']);
+  var r = jobRow_(table_(SHEETS.jobs, JOB_COLS), req.jobNo);
+  if (me.role !== 'admin' && email_(r.assignee, true) !== me.email) fail_('not_found');
+  if (!isCertified_(r)) fail_('not_found');
+  var changes = {};
+  if (req.docTitle !== undefined) changes.docTitle = text_(req.docTitle, 200);
+  if (me.role === 'admin') {
+    if (req.certifier !== undefined) changes.certifier = text_(req.certifier, 200) || CONFIG.certifier;
+    if (req.status !== undefined) {
+      if (['pending', 'valid', 'revoked'].indexOf(String(req.status)) === -1) fail_('invalid_choice');
+      changes.status = certStatusLabel_(String(req.status));
+      if (req.status === 'valid') {
+        var c0 = certRow_(r);
+        if (c0 && !c0.certifiedAt) changes.certifiedAt = r.confirmedAt ? new Date(r.confirmedAt) : new Date();
+      }
+    }
+  }
+  withLock_(function () {
+    var c = certRow_(r);
+    updateRow_(table_(SHEETS.certs, CERT_COLS), find_(table_(SHEETS.certs, CERT_COLS), 'code', c.code), changes);
+  });
+  note_(r, me.email, 'แก้ไขข้อมูลการรับรอง ' + Object.keys(changes).join(', '));
+  return { ok: true, cert: certInfo_(jobRow_(table_(SHEETS.jobs, JOB_COLS), req.jobNo), true) };
+}
+
+/* ======================================================================
    "The translation is correct" link (from the delivery email)
    ====================================================================== */
 
@@ -2165,6 +2335,7 @@ function confirm_(jobNo) {
     return r;
   });
   if (row && statusCode_(row.status) === 'review') setStatus_(row.jobNo, 'delivered', null);
+  else if (row) { try { certSync_(row); } catch (err) { console.error('cert ' + jobNo + ': ' + err); } }
   return row;
 }
 
@@ -2324,6 +2495,13 @@ function setup() {
   });
   ensureSheet_(SHEETS.coupons, COUPON_COLS);
   ensureSheet_(SHEETS.couponUses, COUPON_USE_COLS);
+  var certSheet = ensureSheet_(SHEETS.certs, CERT_COLS);
+  addMissingColumns_(certSheet, CERT_COLS);
+  var certStatusCol = colIndex_(certSheet, 'สถานะ');
+  if (certStatusCol) {
+    certSheet.getRange(2, certStatusCol, Math.max(certSheet.getMaxRows() - 1, 1), 1).setDataValidation(
+      SpreadsheetApp.newDataValidation().requireValueInList(CERT_STATUSES.map(function (x) { return x.th; }), true).build());
+  }
   // Phase 5: discount settings, one row per customer type (0 % until the owner sets them)
   if (!ss_().getSheetByName(SHEETS.discounts)) {
     var disc = ensureSheet_(SHEETS.discounts, DISCOUNT_COLS);

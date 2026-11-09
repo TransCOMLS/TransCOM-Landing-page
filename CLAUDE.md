@@ -16,10 +16,10 @@ provider manages all jobs from one Google Sheet, with no paid server.
 ## Files
 - `index.html` — CSS/JS links carry `?v=<date+letter>` (cache-busting: GitHub Pages lets browsers keep
   files ~10 min) — **bump it on every release** or customers keep running old JS.
-  Single page; 13 `.panel` sections in `<main>`: home, services, pricing,
-  calculator, news, submit, track, account, how, faq, contact, privacy, terms. Ids double as `#hash` routes.
+  Single page; 14 `.panel` sections in `<main>`: home, services, pricing,
+  calculator, news, submit, track, verify, account, how, faq, contact, privacy, terms (each id also in app.js `TAB_IDS`). Ids double as `#hash` routes.
   Menu (`.main-nav` in the header): Home · Services & pricing ▾ (services, pricing,
-  calculator, news) · Orders ▾ (how, submit, track) · Help ▾ (faq, privacy, terms) · Contact.
+  calculator, news) · Orders ▾ (how, submit, track, verify) · Help ▾ (faq, privacy, terms) · Contact.
   Items carry `data-tab`; other in-page links use `data-goto`. "My account" is the
   `.account-btn` in the header (≥640px) and a menu item below 1024px.
 - `css/style.css` — mobile-first. All colours are tokens on `:root` (light) and
@@ -69,7 +69,8 @@ provider manages all jobs from one Google Sheet, with no paid server.
   the owner — do not reword without being asked). `**bold**` is rendered as <strong>.
   Source: the owner's Claude doc "ข้อกำหนดและเงื่อนไขการรับบริการ TransCOM",
   https://claude.ai/artifact/WPowapbhHQNouryR3mHDZB (since 2026-11-05 terms.js has LINE removed,
-  at the owner's request; the doc may still mention it). Numbers are written out ("เจ็ด (7)") and
+  at the owner's request; the doc may still mention it; on 2026-11-09 clauses 2.5, 2.6, the refund paragraph after 2.10,
+  5.2, 5.5, 8.1 and the closing line were updated for Beam payments at the owner's request — the doc still has the old text). Numbers are written out ("เจ็ด (7)") and
   do NOT follow config.js — if a policy number changes (retention, revision days, refunds),
   change the doc, terms.js and the privacy text in i18n.js together. Thai version prevails (9.6).
 - `js/home.js` — home page: instant estimate in the hero (carries into the calculator),
@@ -93,6 +94,12 @@ provider manages all jobs from one Google Sheet, with no paid server.
   vertical on phone, a row ≥640px; cancelled = note only; unknown status = `other`), next-step
   note, dates, contact link. Redraws on `langchange`; editing an input hides the old card;
   signed-in customers get their email filled in.
+- `js/verify.js` — certification check page `#verify` (owner's request 2026-11-09): the QR on a certified
+  translation opens `/?verify=XXXX-XXXX-XXXX`; action `verifyCert` → status (pending / valid / revoked),
+  certified date (= customer's acceptance), document title + category, language pair, pages, certifier, job no.
+  Never the customer's name (terms 4.6). `js/qr.js` — own QR encoder (byte mode, level M, versions 1–6; matches
+  the Python `qrcode` reference module-for-module), loaded on demand by portal.js `certCard` (job pages:
+  QR, PNG download, copy link; staff set the document title, admin also certifier + status via `certUpdate`).
 - `js/portal.js` — Phase 5: the signed-in dashboard in `#account` (`.dash`: sidebar `#dash-nav` +
   `#dash-view`; `#dash-settings` holds account.js's profile/manage cards). Menu and views per
   `profile.role`: customer (overview, orders open/closed/cancel, job detail + translated-file
@@ -132,7 +139,10 @@ provider manages all jobs from one Google Sheet, with no paid server.
   session, then signs in). Reset and sign-in codes can't be swapped. Setting a password signs out other sessions. A verified
   `backupEmail` can receive sign-in codes and log in (`userByLogin_`). adminChangeEmail moves Users,
   Jobs (+ note) and CouponUses to the new email, ends sessions, emails both. Security notices:
-  `securityMail_`. Roles: Users "บทบาท" (ROLES), bootstrap admins = provider email, script
+  `securityMail_`. Certificates sheet (`CERT_COLS`, no personal data, survives the purge): one row per certified
+  job, code `XXXX-XXXX-XXXX` (31-char alphabet) in Jobs `certCode`, made on first view (`certRow_`), kept in
+  step by `certSync_` (delivered → valid, cancelled → revoked; admin's revoke sticks); `verifyCert` 300 misses/h
+  pause; `CONFIG.certifier` default signer. Roles: Users "บทบาท" (ROLES), bootstrap admins = provider email, script
   owner, Script Property ADMIN_EMAILS (`need_(req, roles)` checks every call). Customer types in
   "ประเภทลูกค้า" (CUSTOMER_TYPES); "Discounts" sheet (type % + tiers by spend) for Phase 6 quotes.
   Jobs gain assignee, readyAt, cancelRequest, internalNotes (log). Translations go to subfolder
@@ -222,9 +232,10 @@ provider manages all jobs from one Google Sheet, with no paid server.
         (full + abbreviated) are built but **off** until VAT registration (illegal to issue
         before; e-Tax Invoice by Email needs Revenue Department sign-up). Owner to confirm
         details with their accountant.
-      - Payment: PromptPay QR (amount filled in) and bank transfer — domestic and
-        international (SWIFT details) — with the customer uploading the transfer slip;
-        provider confirms in the Sheet. No payment gateway for now.
+      - Payment (changed 2026-11-09): **Beam Payment Gateway** is the main channel (cards, PromptPay QR;
+        Merchant API key only in Script Properties — the repo is public). Terms 2.5/2.6/2.10/5.2/5.5/8.1 were
+        updated for Beam at the owner's request; other methods (e.g. SWIFT transfer) only when the quote says so.
+        `TransCOM-store-policy.pdf` (made from terms.js) is the store policy uploaded to Beam.
       - Quotes per job (Quotes sheet), payment records, receipts with running numbers.
       - Members only: discount codes (Coupons sheet: code, % or THB, min spend, dates,
         uses) and loyalty points by amount spent (e.g. 1 point per 100 THB, redeem as a
@@ -251,6 +262,6 @@ console errors, `node --check js/*.js` passes, and i18n keys match between th/en
 The owner keeps a matching preview copy on claude.ai: https://claude.ai/artifact/WrtJLSJG77T717XyWkqMrF
 After each phase, republish it with the Artifact tool, passing that URL as `url` (read it first).
 Publish `index.html` with its `<!DOCTYPE>`, `<html>`, `<head>`/`<body>` tags and the charset/viewport
-metas removed (title, font links, the stylesheet link and the theme script stay), plus `css/style.css`, the nine
-`js/*.js` files (config, i18n, terms, app, account, submit, track, portal, home) and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
+metas removed (title, font links, the stylesheet link and the theme script stay), plus `css/style.css`, the
+`js/*.js` files (config, i18n, terms, app, account, submit, track, verify, portal, home, qr) and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
 inline for that copy only.
