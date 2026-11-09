@@ -330,6 +330,7 @@ var ACTIONS = {
   adminUploadImage: adminUploadImage_,
   adminChangeEmail: adminChangeEmail_,
   // certification check (QR) — public lookup + staff/admin edits
+  boot: boot_,              // home page: visitor count + offers/news in one request (saves executions)
   verifyCert: verifyCert_,
   certUpdate: certUpdate_
 };
@@ -1213,7 +1214,7 @@ function adminOverview_(req) {
   });
   return { ok: true, counts: counts, open: open, dueSoon: dueSoon, overdue: overdue,
            cancelRequests: cancelRequests, ready: ready, unassigned: unassigned, months: months,
-           visits: visitStats_() };
+           visits: visitStats_(), mailQuota: mailQuota_() };
 }
 
 function adminJobs_(req) {
@@ -1400,6 +1401,13 @@ function visit_(req) {
   var total = hit ? parseInt(hit, 10) : (parseInt(props.getProperty('VISITS_TOTAL') || '0', 10) || 0);
   if (!hit) cache.put('visits', String(total), 60);
   return { ok: true, total: total };
+}
+
+// One request instead of two for a first visit of the day (Apps Script quota: fewer executions)
+function boot_(req) {
+  var out = getContent_();
+  out.total = visit_(req).total;
+  return out;
 }
 
 function visitStats_() {
@@ -1679,6 +1687,11 @@ function trackJob_(req) {
 /* ======================================================================
    Home page content (public)
    ====================================================================== */
+
+// Emails Apps Script may still send today (Google's daily limit; sign-in codes and status emails use it)
+function mailQuota_() {
+  try { return MailApp.getRemainingDailyQuota(); } catch (e) { return null; }
+}
 
 function getContent_() {
   var cache = CacheService.getScriptCache();

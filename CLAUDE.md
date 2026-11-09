@@ -250,6 +250,9 @@ The owner asked to stop after each phase and show the result before continuing.
   1.5 s after load, and the dashboard for signed-in people or the account page (portal.js catches up via
   `App.account` if `accountchange` already fired). Logos are rounded to 1 decimal (same look, ~45% smaller).
 - Offers/news, the visitor count and the signed-in account show the last copy at once, then the fresh one.
+- Quota (2026-11-09): home.js asks Apps Script only when needed — visit once a day per device, offers/news when the
+  device copy (`tr_content.at`) is over 10 min old, both together as one `boot` request. Admin overview shows
+  `MailApp.getRemainingDailyQuota()` (`mailQuota`), the limit most likely to run out.
 - Code.gs caches checked sign-ins (`sess:<hash>`, 10 min; `dropSessions_` forgets them) and roles (`role:<email>`,
   5 min; `forgetRole_` on admin changes). A role typed straight into the sheet takes up to 5 min.
 

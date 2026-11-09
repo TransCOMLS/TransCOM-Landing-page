@@ -657,6 +657,11 @@
         });
         v.appendChild(vl);
       }
+      // Google's daily email limit (sign-in codes, receipts and status emails all count)
+      if (o.mailQuota != null) {
+        var mq = card(box);
+        mq.appendChild(el("p", "note" + (o.mailQuota < 50 ? " notice notice-warn" : ""), t("dash.mailQuota", { n: App.formatNumber(o.mailQuota) })));
+      }
       var c = card(box, "dash.byStatus");
       var ul = el("ul", "dash-bars");
       var max = 1;

@@ -371,41 +371,51 @@
     content.news = next.news;
     return changed;
   }
-  function loadSheetContent() {
+  // Saving Apps Script quota: the device's copy is used as it is while it is under 10 minutes old,
+  // the visitor count is sent once a day per device, and when both are needed they go in one request.
+  var CONTENT_FRESH_MS = 10 * 60 * 1000;
+
+  function showVisits(total) {
+    var box = $("#visit-count");
+    if (!box || CFG.showVisitorCount === false) return;
+    $("#visit-n").textContent = App.formatNumber(total || 0);
+    box.hidden = !(total > 0);
+  }
+
+  function loadFromBackend() {
     if (!CFG.appsScriptUrl || !App.api) return;
     var cached = null;
     try { cached = JSON.parse(App.storage.get(CONTENT_KEY) || "null"); } catch (e) { cached = null; }
     if (cached && applySheetContent(cached)) renderAll();
-    App.api("getContent", {}).then(function (res) {
-      App.storage.set(CONTENT_KEY, JSON.stringify({ promotions: res.promotions || [], news: res.news || [] }));
+    var last = parseInt(App.storage.get("tr_visits") || "0", 10);
+    if (last > 0) showVisits(last);
+
+    var today = App.todayISO();
+    var needVisit = CFG.showVisitorCount !== false && !!$("#visit-count") && App.storage.get("tr_visit") !== today;
+    var needContent = !(cached && cached.at && Date.now() - cached.at < CONTENT_FRESH_MS);
+    if (!needVisit && !needContent) return;
+
+    function keepContent(res) {
+      App.storage.set(CONTENT_KEY, JSON.stringify({ at: Date.now(), promotions: res.promotions || [], news: res.news || [] }));
       if (applySheetContent(res)) renderAll();
+    }
+    function keepVisits(res) {
+      App.storage.set("tr_visit", today);
+      App.storage.set("tr_visits", String(res.total || 0));
+      showVisits(res.total);
+    }
+    var action = needVisit && needContent ? "boot" : needVisit ? "visit" : "getContent";
+    App.api(action, needVisit ? { isNew: true } : {}).then(function (res) {
+      if (needContent) keepContent(res);
+      if (needVisit) keepVisits(res);
     }, function () { /* keep what is shown */ });
   }
 
-  /* ---------- visitor counter (footer) ---------- */
-  function loadVisits() {
-    var box = $("#visit-count");
-    if (!box || !CFG.appsScriptUrl || CFG.showVisitorCount === false || !App.api) return;
-    var today = App.todayISO(), isNew = App.storage.get("tr_visit") !== today;
-    function show(total) {
-      $("#visit-n").textContent = App.formatNumber(total || 0);
-      box.hidden = !(total > 0);
-    }
-    var last = parseInt(App.storage.get("tr_visits") || "0", 10);
-    if (last > 0) show(last);           // last known number at once, the fresh one replaces it
-    App.api("visit", { isNew: isNew }).then(function (res) {
-      App.storage.set("tr_visit", today);
-      App.storage.set("tr_visits", String(res.total || 0));
-      show(res.total);
-    }, function () { /* no counter without the backend */ });
-  }
-
   function init() {
-    loadVisits();
     initQuick();
     initPostDialog();
     renderAll();
-    loadSheetContent();
+    loadFromBackend();
     document.addEventListener("langchange", renderAll);
     // Re-measure the offer cards once they are visible / resized / the font has loaded
     var fitQueued = false;
