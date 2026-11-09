@@ -80,7 +80,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20261107e">
+  <link rel="stylesheet" href="css/style.css?v=20261109c">
   <script>
     /* Theme before first paint (no white flash in dark mode). Logic lives in js/app.js. */
     (function () {
@@ -121,6 +121,7 @@
             <li><button type="button" class="nav-sublink" data-tab="how" data-i18n="nav.how"></button></li>
             <li><button type="button" class="nav-sublink" data-tab="submit" data-i18n="nav.submit"></button></li>
             <li><button type="button" class="nav-sublink" data-tab="track" data-i18n="nav.track"></button></li>
+            <li><button type="button" class="nav-sublink" data-tab="verify" data-i18n="nav.verify"></button></li>
           </ul>
         </li>
         <li class="nav-group">
@@ -321,6 +322,17 @@
       </div>
       <p class="price-extra"><span data-i18n="pricing.cert"></span> <strong data-i18n="pricing.certValue"></strong></p>
       <p class="price-extra"><span data-i18n="pricing.ship"></span> <strong data-i18n="pricing.shipValue"></strong></p>
+      <!-- Online payment fees (config.paymentFees; terms 2.5) -->
+      <section class="pay-fees" id="pay-fees" aria-labelledby="pay-fees-h" hidden>
+        <h2 class="h4" id="pay-fees-h" data-i18n="pricing.feesTitle"></h2>
+        <div class="table-wrap">
+          <table class="price-table fee-table">
+            <thead><tr><th scope="col" data-i18n="pricing.feesMethod"></th><th scope="col" class="num" data-i18n="pricing.feesRate"></th></tr></thead>
+            <tbody id="pay-fee-rows"></tbody>
+          </table>
+        </div>
+        <p class="note" data-i18n="pricing.feesNote"></p>
+      </section>
       <p class="note" data-i18n="pricing.note"></p>
       <p class="note" data-i18n="pricing.civilNote"></p>
       <div class="actions">
@@ -575,7 +587,7 @@
       <form id="track-form" class="form" novalidate>
         <div class="field">
           <label for="t-jobNo" data-i18n="track.jobNo"></label>
-          <input id="t-jobNo" name="jobNo" type="text" autocomplete="off" autocapitalize="characters" maxlength="20" placeholder="TR-2569-0001" aria-describedby="t-jobNo-err">
+          <input id="t-jobNo" name="jobNo" type="text" autocomplete="off" autocapitalize="characters" maxlength="20" placeholder="TR-2569-K7F3QD" aria-describedby="t-jobNo-err">
           <p class="field-error" id="t-jobNo-err" hidden></p>
         </div>
         <div class="field">
@@ -590,6 +602,26 @@
       </form>
       <!-- Result card, filled by js/track.js -->
       <div id="track-card" class="track-card" tabindex="-1" aria-live="polite" hidden></div>
+    </section>
+
+    <!-- ===== Certification check: whoever receives a certified translation scans its QR (js/verify.js) ===== -->
+    <section id="verify" class="panel" hidden>
+      <h1 data-i18n="verify.title"></h1>
+      <p class="lead" data-i18n="verify.lead"></p>
+      <form id="verify-form" class="form" novalidate>
+        <div class="field">
+          <label for="v-code" data-i18n="verify.code"></label>
+          <input id="v-code" name="code" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="20" placeholder="K7F3-QD9M-2XPA" aria-describedby="v-code-hint v-code-err">
+          <p class="hint" id="v-code-hint" data-i18n="verify.codeHint"></p>
+          <p class="field-error" id="v-code-err" hidden></p>
+        </div>
+        <div class="actions">
+          <button type="submit" class="btn btn-primary btn-block" data-i18n="verify.submit"></button>
+        </div>
+        <div id="verify-status" class="form-status" role="status" aria-live="polite" hidden></div>
+      </form>
+      <div id="verify-card" class="verify-card" tabindex="-1" aria-live="polite" hidden></div>
+      <p class="note verify-scope" data-i18n="verify.scope"></p>
     </section>
 
     <!-- ===== 11. My account (sign in with an emailed code; backend: apps-script/Code.gs) ===== -->
@@ -1060,12 +1092,13 @@
 
   <noscript><p class="noscript">Please enable JavaScript. / กรุณาเปิดใช้งาน JavaScript</p></noscript>
 
-  <script src="js/config.js?v=20261107e"></script>
-  <script src="js/i18n.js?v=20261107e"></script>
-  <script src="js/app.js?v=20261107e"></script>
-  <script src="js/account.js?v=20261107e"></script>
-  <script src="js/submit.js?v=20261107e"></script>
-  <script src="js/track.js?v=20261107e"></script>
-  <script src="js/home.js?v=20261107e"></script>
+  <script src="js/config.js?v=20261109c"></script>
+  <script src="js/i18n.js?v=20261109c"></script>
+  <script src="js/app.js?v=20261109c"></script>
+  <script src="js/account.js?v=20261109c"></script>
+  <script src="js/submit.js?v=20261109c"></script>
+  <script src="js/track.js?v=20261109c"></script>
+  <script src="js/verify.js?v=20261109c"></script>
+  <script src="js/home.js?v=20261109c"></script>
 </body>
 </html>

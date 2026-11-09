@@ -480,6 +480,7 @@
       // check the translation: confirm, or ask for corrections
       if (j.confirmedAt) f.appendChild(el("p", "track-confirmed", t("dash.confirmedOn", { date: day(j.confirmedAt) })));
       else if (j.status === "review" || j.status === "delivered") reviewCard(box, j);
+      certCard(box, j, "customer");
       // cancel request
       if (j.cancelRequested) card(box).appendChild(el("p", "notice notice-warn", t("dash.cancelPending")));
       else if (j.status === "received" || j.status === "quoted") {
@@ -620,6 +621,7 @@
       revisionNotice(c, j);
       if (row.childNodes.length) { c.appendChild(row); c.appendChild(st); }
       workCards(box, j, "staff", reopen);
+      certCard(box, j, "staff", reopen);
       notesCard(box, j, function (text) { return api("staffUpdate", { jobNo: j.jobNo, note: text }).then(reopen); });
     });
   };
@@ -830,6 +832,7 @@
         ["dash.readyAt", day(j.readyAt)], ["track.deliveredAt", day(j.deliveredAt)], ["dash.confirmedAt", day(j.confirmedAt)]
       ]));
       workCards(box, j, "admin", reopen);
+      certCard(box, j, "admin", reopen);
       notesCard(box, j, function (text) { return api("adminUpdateJob", { jobNo: j.jobNo, note: text }).then(reopen); });
     });
   };
@@ -994,6 +997,80 @@
 
 
   // ----- discount codes -----
+  /* ---------- certification check: the code + QR to put on the certified translation ---------- */
+  function certCard(box, job, role, reopen) {
+    var cert = job.cert;
+    if (!cert) return;
+    var c = card(box, "cert.cardTitle");
+    c.classList.add("dash-cert");
+    c.appendChild(el("p", "note", t(role === "customer" ? "cert.customerHint" : "cert.staffHint")));
+    var row = el("div", "dash-cert-row");
+    var qrBox = el("div", "dash-cert-qr");
+    qrBox.setAttribute("role", "img");
+    qrBox.setAttribute("aria-label", t("cert.qrAlt", { code: cert.code }));
+    row.appendChild(qrBox);
+    var info = el("div", "dash-cert-info");
+    info.appendChild(el("p", "dash-cert-label", t("cert.code")));
+    info.appendChild(el("p", "dash-cert-code", cert.code));
+    info.appendChild(el("span", "flag " + (cert.status === "valid" ? "flag-ok" : cert.status === "revoked" ? "flag-bad" : "flag-warn"), t("cert.status." + cert.status)));
+    if (cert.certifiedAt) info.appendChild(el("p", "note", t("cert.certifiedOn", { date: day(cert.certifiedAt) })));
+    var acts = el("div", "acct-links");
+    var dl = button(t("cert.downloadQr"), "btn btn-outline btn-sm");
+    dl.disabled = true;
+    var cp = button(t("cert.copyLink"), "btn-link");
+    var open = el("a", "btn-link", t("cert.openCheck"));
+    open.href = cert.url; open.target = "_blank"; open.rel = "noopener";
+    acts.appendChild(dl); acts.appendChild(cp); acts.appendChild(open);
+    info.appendChild(acts);
+    row.appendChild(info);
+    c.appendChild(row);
+    var st = el("div", "form-status"); st.hidden = true;
+    c.appendChild(st);
+    // the QR maker is only fetched when a certified job is opened
+    App.loadScript("js/qr.js").then(function () {
+      qrBox.appendChild(window.QR.toCanvas(cert.url, 5, 4));
+      dl.disabled = false;
+      dl.addEventListener("click", function () {
+        var a = document.createElement("a");
+        a.href = window.QR.toCanvas(cert.url, 20, 4).toDataURL("image/png");   // 820 px square, sharp when printed
+        a.download = "QR-" + cert.code + ".png";
+        document.body.appendChild(a); a.click(); a.parentNode.removeChild(a);
+      });
+    }, function () { status(st, "error", t("acct.err.network")); });
+    cp.addEventListener("click", function () {
+      var done = function () { cp.textContent = t("cert.copied"); setTimeout(function () { cp.textContent = t("cert.copyLink"); }, 2000); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(cert.url).then(done, function () { window.prompt(t("cert.copyLink"), cert.url); });
+      else window.prompt(t("cert.copyLink"), cert.url);
+    });
+    if (role === "customer") return;
+    // staff: document title · admin: also who certifies and the status
+    var f = el("div", "form");
+    var title = input("text", cert.docTitle || "", { maxlength: "200", placeholder: t("cert.docTitlePh") });
+    f.appendChild(fieldBox("cert.docTitle", title, "cert.docTitleHint"));
+    var who = null, sel = null;
+    if (role === "admin") {
+      who = input("text", cert.certifier || "", { maxlength: "200" });
+      f.appendChild(fieldBox("cert.certifier", who, "cert.certifierHint"));
+      sel = el("select");
+      ["pending", "valid", "revoked"].forEach(function (k) { var o = el("option", null, t("cert.status." + k)); o.value = k; if (k === cert.status) o.selected = true; sel.appendChild(o); });
+      f.appendChild(fieldBox("cert.statusLabel", sel, "cert.statusHint"));
+    }
+    var save = button(t("acct.save"), "btn btn-outline btn-sm");
+    var r2 = el("div", "actions"); r2.appendChild(save);
+    f.appendChild(r2);
+    var st2 = el("div", "form-status"); st2.hidden = true;
+    f.appendChild(st2);
+    c.appendChild(f);
+    save.addEventListener("click", function () {
+      var payload = { jobNo: job.jobNo, docTitle: title.value.trim() };
+      if (who) payload.certifier = who.value.trim();
+      if (sel && sel.value !== cert.status) payload.status = sel.value;
+      busy(save, true);
+      api("certUpdate", payload).then(function () { if (reopen) reopen(); else status(st2, "success", t("acct.saved")); },
+        function (err) { status(st2, "error", errText(err)); busy(save, false); });
+    });
+  }
+
   function fieldBox(labelKey, input, hintKey) {
     var f = el("div", "field");
     var id = "fx-" + Math.random().toString(36).slice(2, 8);
@@ -1293,7 +1370,7 @@
   }
 
   function linkedJob() {
-    var m = /[?&]job=([A-Za-z]{1,5}-\d{4}-\d{4,})/.exec(location.search || "");
+    var m = /[?&]job=([A-Za-z]{1,5}-\d{4}-[0-9A-Za-z]{4,8})/.exec(location.search || "");
     return m ? m[1].toUpperCase() : "";
   }
   function clearLinkedJob() {

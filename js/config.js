@@ -139,6 +139,18 @@ window.APP_CONFIG = {
   // ค่าจัดส่งเอกสารฉบับจริงทางไปรษณีย์ (ต่องาน) / Posting the paper copy (per job)
   shippingFee: 50,
 
+  // Online payment fees of Beam Checkout (% of the amount paid), shown on the pricing page.
+  // Owner's choice 2026-11-09: the customer pays them (terms 2.5). Check with Beam that adding
+  // card fees for the payer is allowed; showPaymentFees: false hides the table.
+  showPaymentFees: true,
+  paymentFees: [
+    { key: "cardStandard", rate: 1.80 },
+    { key: "cardPremium", rate: 2.95 },
+    { key: "cardOverseas", rate: 3.25 },
+    { key: "cardAmex", rate: 3.50 },
+    { key: "promptpay", rate: 0.25 }
+  ],
+
   // นโยบาย / Policy values
   revisionDays: 7,        // แก้ไขคำแปลได้ภายในกี่วันหลังส่งงาน
   retentionDays: 90,      // เก็บไฟล์และข้อมูลกี่วันหลังส่งมอบงาน
