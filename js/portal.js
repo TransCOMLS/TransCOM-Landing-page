@@ -336,7 +336,13 @@
     return ul;
   }
 
-  function uploader(jobNo, onDone) {
+  // Certified, no paper copy by post → the e-certification stamp goes on uploaded PDFs/images (js/stamp.js)
+  function eCertJob(job) { return !!(job && job.cert && job.cert.status !== "revoked" && job.certified && !job.shipping); }
+  function loadStamp() { return App.loadScript("js/qr.js").then(function () { return App.loadScript("js/stamp.js"); }); }
+
+  var uploadNote = null;   // { jobNo, text } shown again after the job page reloads
+  function uploader(job, onDone) {
+    var jobNo = job.jobNo;
     var wrap = el("div", "dash-upload");
     var id = "up-" + jobNo;
     var input = el("input", "file-input");
@@ -347,7 +353,19 @@
     label.appendChild(el("span", "file-drop-btn", t("dash.uploadTranslation")));
     label.appendChild(el("span", "hint", t("form.filesHint")));
     var st = el("div", "form-status"); st.hidden = true; st.setAttribute("role", "status");
-    wrap.appendChild(input); wrap.appendChild(label); wrap.appendChild(st);
+    wrap.appendChild(input); wrap.appendChild(label);
+    var stampBox = null;
+    if (eCertJob(job)) {
+      var sl = el("label", "choice choice-top dash-stamp-choice");
+      stampBox = el("input"); stampBox.type = "checkbox"; stampBox.checked = true;
+      var sx = el("span");
+      sx.appendChild(el("strong", null, t("dash.stampAuto")));
+      sx.appendChild(el("span", "hint", t("dash.stampHint")));
+      sl.appendChild(stampBox); sl.appendChild(sx);
+      wrap.appendChild(sl);
+    }
+    wrap.appendChild(st);
+    if (uploadNote && uploadNote.jobNo === jobNo) { status(st, "success", uploadNote.text); uploadNote = null; }
     input.addEventListener("change", function () {
       var files = Array.prototype.slice.call(input.files || []);
       input.value = "";
@@ -355,17 +373,30 @@
       var max = (CFG.maxFileMB || 10) * 1048576, allowed = CFG.allowedExtensions || ["pdf", "jpg", "jpeg", "png", "docx"];
       var bad = files.filter(function (f) { var ext = (f.name.split(".").pop() || "").toLowerCase(); return f.size > max || allowed.indexOf(ext) === -1; });
       if (bad.length) { status(st, "error", t("dash.err.bad_file") + " " + bad.map(function (f) { return f.name; }).join(", ")); return; }
-      var chain = Promise.resolve();
+      var chain = Promise.resolve(), skipped = [];
       App.busy.open({ title: t("busy.uploadTitle"), text: t("busy.wait") });
       files.forEach(function (f, i) {
         chain = chain.then(function () {
           status(st, "", t("submit.uploading", { n: i + 1, total: files.length }));
           App.busy.step(t("submit.uploading", { n: i + 1, total: files.length }), i, files.length);
-          return readBase64(f).then(function (data) { return api("uploadTranslation", { jobNo: jobNo, name: f.name, data: data }); });
+          var stampIt = stampBox && stampBox.checked && /\.(pdf|jpe?g|png)$/i.test(f.name);
+          var ready = stampIt
+            ? loadStamp().then(function () {
+                App.busy.step(t("dash.stamping", { name: f.name }), i, files.length);
+                return window.Stamp.stampFile(f, job);
+              }).then(function (sf) {
+                if (sf.size > max) throw { code: "too_large" };
+                return sf;
+              }, function (e) { throw (e && e.code) ? e : { code: "stamp_failed" }; })
+            : Promise.resolve(f);
+          if (stampBox && stampBox.checked && !stampIt) skipped.push(f.name);
+          return ready.then(readBase64).then(function (data) { return api("uploadTranslation", { jobNo: jobNo, name: f.name, data: data }); });
         });
       });
       chain.then(function () {
-        status(st, "success", t("dash.uploaded"));
+        var msg = t("dash.uploaded") + (skipped.length ? " " + t("dash.stampSkipped", { names: skipped.join(", ") }) : "");
+        status(st, "success", msg);
+        uploadNote = { jobNo: jobNo, text: msg };
         App.busy.done({ title: t("busy.uploadedTitle"), text: t("busy.uploadedText", { n: files.length }) });
         onDone();
       }, function (err) { App.busy.close(); status(st, "error", errText(err)); });
@@ -584,7 +615,7 @@
     var tr = card(box, "dash.translatedFiles");
     var trFiles = j.files.filter(function (f) { return f.kind === "translation"; });
     tr.appendChild(fileList(j.jobNo, trFiles, !closed && (j.status !== "delivered" || role === "admin"), reopen));
-    if (!closed && j.status !== "delivered") tr.appendChild(uploader(j.jobNo, reopen));
+    if (!closed && j.status !== "delivered") tr.appendChild(uploader(j, reopen));
   }
 
   VIEWS["s-job"] = function (box, jobNo) {
@@ -1025,7 +1056,13 @@
     var cp = button(t("cert.copyLink"), "btn-link");
     var open = el("a", "btn-link", t("cert.openCheck"));
     open.href = cert.url; open.target = "_blank"; open.rel = "noopener";
-    acts.appendChild(dl); acts.appendChild(cp); acts.appendChild(open);
+    acts.appendChild(dl);
+    var stampDl = null;
+    if (role !== "customer" && eCertJob(job)) {
+      stampDl = button(t("cert.downloadStamp"), "btn btn-outline btn-sm");
+      acts.appendChild(stampDl);
+    }
+    acts.appendChild(cp); acts.appendChild(open);
     info.appendChild(acts);
     row.appendChild(info);
     c.appendChild(row);
@@ -1035,6 +1072,15 @@
     App.loadScript("js/qr.js").then(function () {
       qrBox.appendChild(window.QR.toCanvas(cert.url, 5, 4));
       dl.disabled = false;
+      if (stampDl) stampDl.addEventListener("click", function () {
+        stampDl.disabled = true;
+        App.loadScript("js/stamp.js").then(function () { return window.Stamp.canvas(job, 6); }).then(function (cv) {
+          var a = document.createElement("a");
+          a.href = cv.toDataURL("image/png");
+          a.download = "E-Certified-" + cert.code + ".png";
+          document.body.appendChild(a); a.click(); a.parentNode.removeChild(a);
+        }, function () { status(st, "error", t("acct.err.network")); }).then(function () { stampDl.disabled = false; });
+      });
       dl.addEventListener("click", function () {
         var a = document.createElement("a");
         a.href = window.QR.toCanvas(cert.url, 20, 4).toDataURL("image/png");   // 820 px square, sharp when printed

@@ -6,6 +6,8 @@ provider manages all jobs from one Google Sheet, with no paid server.
 
 ## Tech stack (strict)
 - Plain HTML + CSS + vanilla JavaScript. No frameworks, no build step, no npm deps.
+  One exception (owner's OK, 2026-11-09): `js/vendor/pdf-lib.min.js` (pdf-lib 1.17.1, MIT, licence beside it),
+  self-hosted and loaded only when staff upload a PDF that gets the e-certification stamp.
 - Hosted on GitHub Pages (public repo, `main` / root) at https://www.prathaitranslation.com
   (DNS at Cloudflare, "DNS only"). Google Sites embedding was dropped on 2026-11-06 so the
   address bar follows the `#hash` page; the code still works inside an iframe.
@@ -100,6 +102,12 @@ provider manages all jobs from one Google Sheet, with no paid server.
   Never the customer's name (terms 4.6). `js/qr.js` — own QR encoder (byte mode, level M, versions 1–6; matches
   the Python `qrcode` reference module-for-module), loaded on demand by portal.js `certCard` (job pages:
   QR, PNG download, copy link; staff set the document title, admin also certifier + status via `certUpdate`).
+- `js/stamp.js` — e-certification stamp (owner's design 2026-11-09): line 1, shop seal `img/seal.png` + check QR
+  side by side, line 2 with the code; wording from `config.certStamp` in the translation's language (en-th → Thai,
+  otherwise English); bottom-right, 10 mm up / 14 mm in, on every page (`certStamp.pages`). Applied in the staff
+  uploader (checkbox, ticked) only when the job is certified, not withdrawn and has NO paper copy by post
+  (paper copies get the rubber stamp by hand). PDFs via pdf-lib (crop box + page rotation handled), JPG/PNG via
+  canvas; DOCX are uploaded unstamped and staff are told. `Stamp.canvas` also gives a PNG download on the cert card.
 - `js/portal.js` — Phase 5: the signed-in dashboard in `#account` (`.dash`: sidebar `#dash-nav` +
   `#dash-view`; `#dash-settings` holds account.js's profile/manage cards). Menu and views per
   `profile.role`: customer (overview, orders open/closed/cancel, job detail + translated-file
@@ -266,5 +274,6 @@ The owner keeps a matching preview copy on claude.ai: https://claude.ai/artifact
 After each phase, republish it with the Artifact tool, passing that URL as `url` (read it first).
 Publish `index.html` with its `<!DOCTYPE>`, `<html>`, `<head>`/`<body>` tags and the charset/viewport
 metas removed (title, font links, the stylesheet link and the theme script stay), plus `css/style.css`, the
-`js/*.js` files (config, i18n, terms, app, account, submit, track, verify, portal, home, qr) and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
+`js/*.js` files (config, i18n, terms, app, account, submit, track, verify, portal, home, qr, stamp,
+vendor/pdf-lib.min.js) and `img/seal.png` and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
 inline for that copy only.

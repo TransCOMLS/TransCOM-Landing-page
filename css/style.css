@@ -1534,3 +1534,8 @@ button.dash-bar-row:hover .dash-bar { background: var(--accent-line); }
 .pay-fees { margin-top: 24px; max-width: 560px; }
 .pay-fees h2 { margin: 0 0 8px; }
 .fee-table th[scope="row"] { font-weight: 400; }
+
+/* Translation upload: automatic e-certification stamp */
+.dash-stamp-choice { margin-top: 10px; }
+.dash-stamp-choice > span { display: grid; gap: 2px; }
+.dash-stamp-choice .hint { margin: 0; }
