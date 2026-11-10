@@ -94,28 +94,63 @@
     load(note === "back" ? "payCheck" : "payInfo", note === "back" ? 0 : -1);
   }
 
+  // Short reason for a failed payment attempt (Beam failureCode)
+  function failText(code) {
+    var k = "pay.fail." + code, v = t(k);
+    return v === k ? t("pay.fail.CH_PROCESSING_FAILED") : v;
+  }
+
+  // round -1 = just open the page; 0…4 = back from Beam, confirming (pop-up stays until it is settled)
+  var CHECKS = 5;
   function load(action, round) {
     var box = $("#pay-view"), st = $("#pay-status");
     $("#receipt-view").hidden = true;
     box.hidden = false;
     $("#pay-title").textContent = t("pay.title");
     if (!state.data) box.textContent = "";
-    App.showStatus(st, "", t(round >= 0 ? "pay.checking" : "acct.loading"));
+    var confirming = round >= 0;
+    var slow = null;
+    if (confirming) {
+      if (round === 0) App.busy.open({ title: t("pay.busy.confirmTitle"), text: t("pay.busy.confirmText") });
+      App.busy.step(t("pay.busy.checkN", { n: round + 1, max: CHECKS }), round, CHECKS);
+    } else {
+      App.showStatus(st, "", t("acct.loading"));
+      slow = setTimeout(function () { slow = "open"; App.busy.open({ title: t("busy.loadingTitle"), text: t("busy.loadingText"), guard: false }); }, 700);
+    }
     api(action, { jobNo: state.jobNo, t: state.t }).then(function (res) {
+      if (slow === "open") App.busy.close(); else clearTimeout(slow);
       state.data = res.pay;
       App.showStatus(st, "", "");
       var d = res.pay;
-      // back from Beam but not confirmed yet: ask again a few times (2, 4, 8, 16 s)
-      if (round >= 0 && !d.payments.length && d.canPay && round < 4) {
-        App.showStatus(st, "", t("pay.checking"));
-        setTimeout(function () { if (state.kind === "pay") load("payCheck", round + 1); }, 2000 * Math.pow(2, round));
-        if (round === 0) draw();
+      if (confirming && d.payments.length) {
+        state.note = "paid";
+        draw();
+        App.busy.done({ title: t("pay.thanks"), text: t("pay.busy.receipt", { no: d.payments[0].receiptNo }) });
         return;
       }
-      if (round >= 0 && !d.payments.length) state.note = "pending";
-      else if (d.payments.length && state.note === "back") state.note = "paid";
+      if (confirming && d.failure) {
+        state.note = "";
+        draw();
+        App.busy.fail({ title: t("pay.busy.failTitle"), text: failText(d.failure) });
+        return;
+      }
+      // back from Beam but not confirmed yet: ask again a few times (2, 4, 8, 16 s)
+      if (confirming && d.canPay && round < CHECKS - 1) {
+        if (round === 0) draw();
+        setTimeout(function () { if (state.kind === "pay") load("payCheck", round + 1); }, 2000 * Math.pow(2, round));
+        return;
+      }
+      if (confirming) {
+        state.note = "pending";
+        draw();
+        App.busy.fail({ title: t("pay.busy.pendingTitle"), text: t("pay.pendingNote") });
+        return;
+      }
       draw();
+      if (state.note === "cancelled" && d.canPay) App.busy.fail({ title: t("pay.busy.cancelTitle"), text: t("pay.cancelledNote") });
     }, function (err) {
+      if (slow === "open" || confirming) App.busy.fail({ title: t("pay.busy.errorTitle"), text: err.code === "not_found" ? t("pay.err.link") : errText(err) });
+      else clearTimeout(slow);
       App.showStatus(st, "error", err.code === "not_found" ? t("pay.err.link") : errText(err));
     });
   }
@@ -251,11 +286,18 @@
     var st = el("div", "form-status"); st.hidden = true; st.setAttribute("role", "status");
     go.addEventListener("click", function () {
       go.disabled = true;
-      App.showStatus(st, "", t("pay.redirecting"));
+      App.showStatus(st, "", "");
+      App.busy.open({ title: t("pay.busy.goTitle"), text: t("pay.busy.goText") });
+      App.busy.step(t("pay.redirecting"));
       api("payStart", { jobNo: state.jobNo, t: state.t, coupon: state.price ? state.price.couponCode : "" }).then(function (res) {
-        if (res.paid) { state.data = res.pay; draw(); return; }
-        try { (window.top || window).location.href = res.url; } catch (e) { window.open(res.url, "_blank", "noopener"); }
-      }, function (err) { go.disabled = false; App.showStatus(st, "error", errText(err)); });
+        if (res.paid) { App.busy.close(); state.data = res.pay; draw(); return; }
+        App.busy.release();   // keep the pop-up on screen while the browser opens Beam's page
+        try { (window.top || window).location.href = res.url; } catch (e) { App.busy.close(); window.open(res.url, "_blank", "noopener"); }
+      }, function (err) {
+        go.disabled = false;
+        App.busy.fail({ title: t("pay.busy.failTitle"), text: errText(err) });
+        App.showStatus(st, "error", errText(err));
+      });
     });
     var ac = el("div", "actions"); ac.appendChild(go);
     pay.appendChild(ac); pay.appendChild(st);
@@ -368,6 +410,8 @@
       if (e.detail && e.detail.tab !== "pay") { clearQuery(); document.body.classList.remove("receipt-open"); }
       else if (e.detail && e.detail.tab === "pay" && !state.kind) $("#pay-status") && App.showStatus($("#pay-status"), "", t("pay.err.link"));
     });
+    // Back from Beam with the browser's Back button: the page comes back from cache with the "opening" pop-up
+    window.addEventListener("pageshow", function (e) { if (e.persisted && App.busy) App.busy.close(); });
     document.addEventListener("langchange", function () {
       if (state.kind === "pay" && state.data) { $("#pay-title").textContent = t("pay.title"); draw(); }
       if (state.kind === "receipt" && state.data) { $("#pay-title").textContent = t("rc.title"); drawReceipt(); }

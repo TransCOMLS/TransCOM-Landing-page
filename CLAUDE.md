@@ -67,7 +67,12 @@ provider manages all jobs from one Google Sheet, with no paid server.
   `App.busy` (`<dialog id="busy-dialog">`): pop-up while sending the job form or uploading
   translations — spinner + step + progress + "don't close, large files take a moment"; Escape is
   ignored and leaving the page asks first; `done()` shows a tick, then it closes by itself
-  (owner's choice, ~1.8 s); `close()` on errors (the form keeps its data).
+  (owner's choice, ~1.8 s); `close()` on errors (the form keeps its data). Owner's request 2026-11-10: `fail({title,text})`
+  = red ✗ + short reason + OK button (`#busy-ok`); `open({guard:false})` = plain loading without the leave-page question;
+  `release()` drops the guard but keeps the pop-up (going on to Beam). Used by pay.js (going to Beam, confirming on return
+  with 5 checks, payment failure reason from Beam `failureCode` → `pay.fail.*`, cancelled) and portal.js `load()` (pop-up
+  only when a view takes over 0.7 s; ✗ on error). The track form normalises job numbers (`normJobNo`: spaces, no dashes,
+  lower case; server `normJobNo_` too).
 - `js/terms.js` — `window.TERMS.th` / `.en`: terms and conditions text (legal; edited by
   the owner — do not reword without being asked). `**bold**` is rendered as <strong>.
   Source: the owner's Claude doc "ข้อกำหนดและเงื่อนไขการรับบริการ TransCOM",
@@ -100,7 +105,8 @@ provider manages all jobs from one Google Sheet, with no paid server.
 - `js/verify.js` — certification check page `#verify` (owner's request 2026-11-09): the QR on a certified
   translation opens `/?verify=XXXX-XXXX-XXXX`; action `verifyCert` → status (pending / valid / revoked),
   certified date (= customer's acceptance), document title + category, language pair, pages, certifier, job no.
-  Never the customer's name (terms 4.6). `js/qr.js` — own QR encoder (byte mode, level M, versions 1–6; matches
+  Never the customer's name (terms 4.6). A job number typed here (TR-2569-ZCT46R also has 12 characters) is recognised and
+  the person is sent to Track with it filled in. `js/qr.js` — own QR encoder (byte mode, level M, versions 1–6; matches
   the Python `qrcode` reference module-for-module), loaded on demand by portal.js `certCard` (job pages:
   QR, PNG download, copy link; staff set the document title, admin also certifier + status via `certUpdate`).
 - `js/stamp.js` — e-certification stamp (owner's design 2026-11-09): line 1, shop seal `img/seal.png` + check QR

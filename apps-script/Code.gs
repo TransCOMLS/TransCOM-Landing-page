@@ -1692,9 +1692,16 @@ function adminUploadImage_(req) {
 // New numbers: 6 random characters; older ones (TR-2569-0001) still work
 var JOBNO_RE = /^[A-Z]{1,5}-\d{4}-[0-9A-Z]{4,8}$/;
 
+// "tr 2569 k7f3qd", "TR2569K7F3QD", other dashes → TR-2569-K7F3QD
+function normJobNo_(v) {
+  var s = String(v || '').toUpperCase().replace(/[\s\u200b]+/g, '').replace(/[\u2010-\u2015\u2212_.\/]/g, '-').replace(/-+/g, '-');
+  var m = /^([A-Z]{1,5})-?(\d{4})-?([0-9A-Z]{4,8})$/.exec(s);
+  return m ? m[1] + '-' + m[2] + '-' + m[3] : s;
+}
+
 function trackJob_(req) {
   var email = email_(req.email);
-  var jobNo = String(req.jobNo || '').trim().toUpperCase();
+  var jobNo = normJobNo_(req.jobNo);
   if (!JOBNO_RE.test(jobNo)) fail_('invalid_jobNo');
 
   var cache = CacheService.getScriptCache();
@@ -3067,7 +3074,22 @@ function payCheck_(req) {
   if (n < 60) {
     cache.put(key, String(n + 1), 3600);
     var q = quotesOf_(jobNo).filter(function (x) { return x.linkId && x.mode === beamMode_() && x.status === 'active'; })[0];
-    if (q && payReady_()) { try { syncLink_(q.linkId); } catch (e) { console.error('paycheck ' + jobNo + ': ' + e); } }
+    var failure = '';
+    if (q && payReady_()) {
+      try {
+        if (!syncLink_(q.linkId)) {
+          // not paid: tell the customer why the last attempt failed (card declined, not enough money…)
+          var list = beam_('get', '/api/v1/charges?source_in=PAYMENT_LINK&sourceId=' + encodeURIComponent(q.linkId) + '&limit=5');
+          var charges = (list && (list.data || list.charges || list.items)) || [];
+          charges.sort(function (a, b) { return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); });
+          var last = charges[0];
+          if (last && last.status === 'FAILED') failure = String(last.failureCode || 'CH_PROCESSING_FAILED');
+        }
+      } catch (e) { console.error('paycheck ' + jobNo + ': ' + e); }
+    }
+    var v = payView_(jobNo);
+    if (failure && !v.payments.length) v.failure = failure;
+    return { ok: true, pay: v };
   }
   return { ok: true, pay: payView_(jobNo) };
 }

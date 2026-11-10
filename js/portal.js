@@ -86,15 +86,27 @@
   }
 
   // Load something for the current view; drop the answer if the person has moved on
+  // Slow answer (over 0.7 s): a loading pop-up (owner's request 2026-11-10); a failure turns it into ✗ + reason
+  var SLOW_MS = 700;
   function load(box, action, payload, draw) {
     var seq = ++state.seq;
     box.appendChild(el("p", "muted dash-loading", t("acct.loading")));
+    var popup = false;
+    var slow = setTimeout(function () {
+      if (seq !== state.seq || App.busy.isOpen()) return;
+      popup = true;
+      App.busy.open({ title: t("busy.loadingTitle"), text: t("busy.loadingText"), guard: false });
+    }, SLOW_MS);
     return api(action, payload).then(function (res) {
+      clearTimeout(slow);
+      if (popup) App.busy.close();
       if (seq !== state.seq) return;
       var l = $(".dash-loading", box);
       if (l) l.remove();
       draw(res);
     }, function (err) {
+      clearTimeout(slow);
+      if (popup) App.busy.fail({ title: t("busy.errorTitle"), text: errText(err) });
       if (seq !== state.seq) return;
       var l = $(".dash-loading", box);
       if (l) l.remove();

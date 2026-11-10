@@ -1450,7 +1450,14 @@ button.dash-bar-row:hover .dash-bar { background: var(--accent-line); }
 .busy-check { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
 .busy-check circle { fill: var(--success-soft); stroke: var(--success); stroke-width: 3; }
 .busy-check path { fill: none; stroke: var(--success); stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 40; stroke-dashoffset: 40; }
-.busy-modal.is-done .busy-spinner { display: none; }
+.busy-modal.is-done .busy-spinner, .busy-modal.is-failed .busy-spinner { display: none; }
+.busy-cross { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
+.busy-cross circle { fill: var(--error-soft); stroke: var(--error); stroke-width: 3; }
+.busy-cross path { fill: none; stroke: var(--error); stroke-width: 4.5; stroke-linecap: round; stroke-dasharray: 24; stroke-dashoffset: 24; }
+.busy-modal.is-failed .busy-cross { opacity: 1; animation: busy-pop .35s ease-out; }
+.busy-modal.is-failed .busy-cross path { animation: busy-draw .4s .15s ease-out forwards; }
+.busy-modal.is-failed #busy-title { color: var(--error); }
+.busy-modal.is-failed .busy-step:empty, .busy-modal.is-done .busy-step:empty { display: none; }
 .busy-modal.is-done .busy-check { opacity: 1; animation: busy-pop .35s ease-out; }
 .busy-modal.is-done .busy-check path { animation: busy-draw .45s .15s ease-out forwards; }
 .busy-step { margin: 0; min-height: 1.6em; font-weight: 600; color: var(--accent); }
@@ -1463,6 +1470,7 @@ button.dash-bar-row:hover .dash-bar { background: var(--accent-line); }
 @media (prefers-reduced-motion: reduce) {
   .busy-spinner { animation-duration: 2.4s; }
   .busy-modal.is-done .busy-check, .busy-modal.is-done .busy-check path { animation: none; stroke-dashoffset: 0; }
+  .busy-modal.is-failed .busy-cross, .busy-modal.is-failed .busy-cross path { animation: none; stroke-dashoffset: 0; }
 }
 
 /* Visitor counter in the footer (always-dark footer: white text allowed) */
