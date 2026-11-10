@@ -305,7 +305,8 @@
     seller.appendChild(logo);
     seller.appendChild(el("p", "receipt-seller-name", r.seller.name));
     if (r.seller.owner) seller.appendChild(el("p", null, t("rc.by") + " " + r.seller.owner));
-    if (r.seller.address) seller.appendChild(el("p", null, r.seller.address));
+    var addr = App.getLang() === "en" && r.seller.addressEn ? r.seller.addressEn : r.seller.address;
+    if (addr) seller.appendChild(el("p", null, addr));
     if (r.seller.taxId) seller.appendChild(el("p", null, t("rc.taxId") + " " + r.seller.taxId));
     seller.appendChild(el("p", null, t("rc.contact", { phone: r.seller.phone, email: r.seller.email, web: r.seller.web })));
     head.appendChild(seller);

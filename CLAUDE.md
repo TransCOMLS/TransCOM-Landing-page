@@ -280,7 +280,7 @@ provider manages all jobs from one Google Sheet, with no paid server.
         treat a webhook only as a nudge (+ secret `?hook=` in the URL), always re-fetch the link/charge from Beam
         with our key before marking paid; also check on the customer's return and with a 15-min trigger; dedupe.
         Script Properties: `BEAM_MERCHANT_ID_TEST`/`BEAM_API_KEY_TEST` (Playground), `BEAM_MERCHANT_ID`/`BEAM_API_KEY`
-        (Production), `BEAM_MODE` test|live, receipt `RECEIPT_TAX_ID` + `RECEIPT_ADDRESS` (owner's personal data —
+        (Production), `BEAM_MODE` test|live, receipt `RECEIPT_TAX_ID` + `RECEIPT_ADDRESS` (+ optional `RECEIPT_ADDRESS_EN`, shown on English receipts) (owner's personal data —
         never in the public repo). Receipt seller: "TransCOM Language Service" (นาย ชุษณะ รุ่งเป้า).
       - Owner's answers 2026-11-09: all payment methods on; quote + payment link valid **15 days**.
         Membership (members only): 1 point per 100 THB paid. Tier by points EARNED (redeeming does not lower it):

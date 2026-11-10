@@ -2558,7 +2558,7 @@ function sendCodeMail_(email, code, lang, kind) {
 
    Script Properties: BEAM_MODE (test | live; test when empty), BEAM_MERCHANT_ID_TEST +
    BEAM_API_KEY_TEST (Playground), BEAM_MERCHANT_ID + BEAM_API_KEY (Production),
-   BEAM_HOOK_SECRET (made by setup), RECEIPT_TAX_ID, RECEIPT_ADDRESS (owner's personal data —
+   BEAM_HOOK_SECRET (made by setup), RECEIPT_TAX_ID, RECEIPT_ADDRESS (+ optional RECEIPT_ADDRESS_EN for English receipts) (owner's personal data —
    never in the public repo), RECEIPT_SEQ_<yyyy> / RECEIPT_SEQ_TEST_<yyyy> (receipt counters).
    ====================================================================== */
 
@@ -3279,6 +3279,7 @@ function receipt_(req) {
   o.buyer = { name: String(p.name || ''), email: String(p.email || '') };
   o.seller = { name: CONFIG.sellerName, owner: CONFIG.sellerOwner,
                taxId: String(props.getProperty('RECEIPT_TAX_ID') || ''), address: String(props.getProperty('RECEIPT_ADDRESS') || ''),
+               addressEn: String(props.getProperty('RECEIPT_ADDRESS_EN') || ''),
                phone: CONFIG.contactPhone, email: CONFIG.contactEmail, web: CONFIG.siteUrl.replace(/^https:\/\//, '') };
   return { ok: true, receipt: o };
 }

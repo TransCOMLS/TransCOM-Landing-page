@@ -405,6 +405,7 @@
    | `BEAM_MODE` | เว้นว่าง/`test` = ทดสอบ · `live` = เก็บเงินจริง |
    | `RECEIPT_TAX_ID` | เลขประจำตัวผู้เสียภาษี (แสดงบนใบเสร็จ) |
    | `RECEIPT_ADDRESS` | ที่อยู่ตามทะเบียนพาณิชย์ (แสดงบนใบเสร็จ) |
+   | `RECEIPT_ADDRESS_EN` | (ไม่บังคับ) ที่อยู่ภาษาอังกฤษ แสดงเมื่อลูกค้าเปิดใบเสร็จเป็นภาษาอังกฤษ — ไม่ใส่ = ใช้ที่อยู่ไทย |
 
 3. เข้าเว็บ → **การเงิน → การชำระเงิน** → คัดลอก **Webhook URL** → Beam Lighthouse → **Developers → Webhooks → Create Webhook**
    วาง URL และเลือกอีเวนต์ `payment_link.paid`, `charge.succeeded`, `refund.succeeded`, `refund.failed`, `transaction.created`
