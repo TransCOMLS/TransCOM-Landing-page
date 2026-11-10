@@ -57,6 +57,9 @@ var CONFIG = {
   quoteDays: 15,         // a quote (and its Beam payment link) can be paid for this many days
   bahtPerPoint: 100,     // members get 1 point per 100 THB paid
   tierDays: 365,         // a membership level lasts a year from the last paid job
+  // Payment methods offered on Beam's checkout page (owner 2026-11-09: all). Beam needs them listed on every link.
+  // Script Property BEAM_METHODS (e.g. "card,qrPromptPay") overrides this list if Beam refuses one for the account.
+  payMethods: ['card', 'qrPromptPay', 'eWallets', 'mobileBanking', 'cardInstallments', 'buyNowPayLater'],
   tiers: [               // level by points earned (redeeming gifts does not lower it) → discount on every translation
     { code: 'bronze',   name: 'Bronze',   points: 50,  percent: 5 },
     { code: 'silver',   name: 'Silver',   points: 100, percent: 10 },
@@ -1689,9 +1692,16 @@ function adminUploadImage_(req) {
 // New numbers: 6 random characters; older ones (TR-2569-0001) still work
 var JOBNO_RE = /^[A-Z]{1,5}-\d{4}-[0-9A-Z]{4,8}$/;
 
+// "tr 2569 k7f3qd", "TR2569K7F3QD", other dashes → TR-2569-K7F3QD
+function normJobNo_(v) {
+  var s = String(v || '').toUpperCase().replace(/[\s\u200b]+/g, '').replace(/[\u2010-\u2015\u2212_.\/]/g, '-').replace(/-+/g, '-');
+  var m = /^([A-Z]{1,5})-?(\d{4})-?([0-9A-Z]{4,8})$/.exec(s);
+  return m ? m[1] + '-' + m[2] + '-' + m[3] : s;
+}
+
 function trackJob_(req) {
   var email = email_(req.email);
-  var jobNo = String(req.jobNo || '').trim().toUpperCase();
+  var jobNo = normJobNo_(req.jobNo);
   if (!JOBNO_RE.test(jobNo)) fail_('invalid_jobNo');
 
   var cache = CacheService.getScriptCache();
@@ -2692,6 +2702,33 @@ function beamCfg_() {
   return { mode: mode, id: id, key: key,
            base: mode === 'live' ? 'https://api.beamcheckout.com' : 'https://playground.api.beamcheckout.com' };
 }
+// Run from the Apps Script editor (Run ▶ testBeam): checks the keys and that a payment link can be made.
+// Prints Beam's own answers in the Execution log; never prints the API key. The test link (1 THB) is disabled at once.
+function testBeam() {
+  var c = beamCfg_();
+  console.log('mode: ' + c.mode + ' · ' + c.base + ' · merchant ' + c.id.slice(0, 4) + '…' + ' · key length ' + c.key.length);
+  var opt = { muteHttpExceptions: true, contentType: 'application/json',
+              headers: { Authorization: 'Basic ' + Utilities.base64Encode(c.id + ':' + c.key) } };
+  var r1 = UrlFetchApp.fetch(c.base + '/api/v1/payment-links/transcom-key-check', Object.assign({ method: 'get' }, opt));
+  console.log('1) key check → HTTP ' + r1.getResponseCode() + ' ' + r1.getContentText().slice(0, 300) +
+              (r1.getResponseCode() === 404 ? '   ✓ keys accepted' : r1.getResponseCode() === 401 ? '   ✗ wrong merchant ID / key, or a Playground key in live mode' : ''));
+  // 2) one 1-THB test link per payment method group, each disabled at once
+  var ok = [];
+  PAY_GROUPS.forEach(function (g) {
+    var body = { order: { currency: 'THB', netAmount: 100, description: CONFIG.serviceName + ' — test (disabled at once)', referenceId: 'TEST-LINK' },
+                 collectPhoneNumber: false, linkSettings: linkSettings_([g]) };
+    var r2 = UrlFetchApp.fetch(c.base + '/api/v1/payment-links', Object.assign({ method: 'post', payload: JSON.stringify(body) }, opt));
+    var made = parse_(r2.getContentText());
+    if (made && made.id) {
+      UrlFetchApp.fetch(c.base + '/api/v1/payment-links/' + encodeURIComponent(made.id) + '/disable', Object.assign({ method: 'patch' }, opt));
+      ok.push(g);
+      console.log('2) ' + g + ' → ✓ works (test link disabled)');
+    } else console.log('2) ' + g + ' → ✗ HTTP ' + r2.getResponseCode() + ' ' + r2.getContentText().slice(0, 300));
+  });
+  console.log('methods that work: ' + (ok.join(', ') || 'none') + '   · the website offers: ' + payGroups_().join(', '));
+  console.log('last error seen by the website: ' + (PropertiesService.getScriptProperties().getProperty('BEAM_LAST_ERROR') || '-'));
+}
+
 function payReady_() { try { beamCfg_(); return true; } catch (e) { return false; } }
 
 // One Beam call. Retries once on 429 / 5xx / network with the same idempotency key.
@@ -2711,8 +2748,49 @@ function beam_(method, path, body, idem) {
     if (code === 404) fail_('not_found');
     if (attempt === 0 && (!code || code === 429 || code >= 500)) { Utilities.sleep(1500); continue; }
     console.error('beam ' + method + ' ' + path + ' → ' + code + ' ' + ec + ' ' + (res ? res.getContentText().slice(0, 300) : ''));
-    fail_(code === 401 ? 'pay_not_ready' : 'pay_failed');
+    try {
+      PropertiesService.getScriptProperties().setProperty('BEAM_LAST_ERROR', new Date().toISOString() + ' ' + method.toUpperCase() + ' ' + path.split('?')[0] +
+        ' → HTTP ' + code + ' ' + ec + ' ' + (res ? res.getContentText().slice(0, 300) : 'no response'));
+    } catch (e) { /* diagnostics only */ }
+    var err2 = new Error(code === 401 ? 'pay_not_ready' : 'pay_failed');
+    err2.code = code === 401 ? 'pay_not_ready' : 'pay_failed';
+    err2.status = code; err2.beamCode = ec; err2.beamMessage = String(err && err.error && err.error.errorMessage || err && err.message || '');
+    throw err2;
   }
+}
+
+// linkSettings for a list of groups (card, qrPromptPay, eWallets, mobileBanking, cardInstallments, buyNowPayLater)
+var PAY_GROUPS = ['card', 'qrPromptPay', 'eWallets', 'mobileBanking', 'cardInstallments', 'buyNowPayLater'];
+function linkSettings_(groups) {
+  var out = {};
+  PAY_GROUPS.forEach(function (g) {
+    var on = groups.indexOf(g) > -1;
+    out[g] = { isEnabled: on };
+    if (g === 'cardInstallments') ['installments3m', 'installments4m', 'installments6m', 'installments10m'].forEach(function (m) { out[g][m] = { isEnabled: on }; });
+  });
+  return out;
+}
+function payGroups_() {
+  var raw = String(PropertiesService.getScriptProperties().getProperty('BEAM_METHODS') || '').trim();
+  var list = raw ? raw.split(/[,\s]+/) : CONFIG.payMethods;
+  list = list.filter(function (g) { return PAY_GROUPS.indexOf(g) > -1; });
+  return list.length ? list : ['card', 'qrPromptPay'];
+}
+// Create a payment link; if Beam refuses the method list (a method not open on the account), try fewer methods
+function createLink_(body) {
+  var tries = [payGroups_(), ['card', 'qrPromptPay'], ['qrPromptPay'], ['card']], seen = {}, last = null;
+  for (var i = 0; i < tries.length; i++) {
+    var key = tries[i].join(',');
+    if (seen[key]) continue;
+    seen[key] = true;
+    body.linkSettings = linkSettings_(tries[i]);
+    try { return beam_('post', '/api/v1/payment-links', body, Utilities.getUuid()); }
+    catch (e) {
+      last = e;
+      if (e.status !== 400) throw e;              // only a validation error is worth retrying with fewer methods
+    }
+  }
+  throw last;
 }
 
 /* ---------- tokens: links in emails work without signing in ---------- */
@@ -2950,7 +3028,7 @@ function payStart_(req) {
   }
   if (q.linkId && q.mode === cfg.mode) disableLink_(q.linkId);
   var back = CONFIG.siteUrl + '/?pay=' + encodeURIComponent(jobNo) + '&t=' + payToken_(jobNo);
-  var made = beam_('post', '/api/v1/payment-links', {
+  var made = createLink_({
     order: {
       currency: 'THB',
       netAmount: satang_(price.amount),
@@ -2962,7 +3040,7 @@ function payStart_(req) {
     cancelUrl: back + '&cancelled=1',
     expiresAt: new Date(q.validUntil + 'T23:59:59+07:00').toISOString(),
     collectPhoneNumber: false
-  }, Utilities.getUuid());
+  });
   if (!made || !made.id || !made.url) fail_('pay_failed');
   withLock_(function () {
     var t = table_(SHEETS.quotes, QUOTE_COLS);
@@ -2996,7 +3074,22 @@ function payCheck_(req) {
   if (n < 60) {
     cache.put(key, String(n + 1), 3600);
     var q = quotesOf_(jobNo).filter(function (x) { return x.linkId && x.mode === beamMode_() && x.status === 'active'; })[0];
-    if (q && payReady_()) { try { syncLink_(q.linkId); } catch (e) { console.error('paycheck ' + jobNo + ': ' + e); } }
+    var failure = '';
+    if (q && payReady_()) {
+      try {
+        if (!syncLink_(q.linkId)) {
+          // not paid: tell the customer why the last attempt failed (card declined, not enough money…)
+          var list = beam_('get', '/api/v1/charges?source_in=PAYMENT_LINK&sourceId=' + encodeURIComponent(q.linkId) + '&limit=5');
+          var charges = (list && (list.data || list.charges || list.items)) || [];
+          charges.sort(function (a, b) { return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); });
+          var last = charges[0];
+          if (last && last.status === 'FAILED') failure = String(last.failureCode || 'CH_PROCESSING_FAILED');
+        }
+      } catch (e) { console.error('paycheck ' + jobNo + ': ' + e); }
+    }
+    var v = payView_(jobNo);
+    if (failure && !v.payments.length) v.failure = failure;
+    return { ok: true, pay: v };
   }
   return { ok: true, pay: payView_(jobNo) };
 }

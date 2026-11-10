@@ -112,12 +112,36 @@
     }).then(function () { if (btn) btn.disabled = false; });
   }
 
+  function jobNoHint(raw) {
+    var jobNo = "TR-" + raw.slice(2, 6) + "-" + raw.slice(6);
+    var status = $("#verify-status");
+    last = null;
+    render();
+    App.showStatus(status, "", "");
+    status.hidden = false;
+    status.className = "form-status";
+    status.textContent = t("verify.isJobNo", { jobNo: jobNo }) + " ";
+    var go = el("button", "btn btn-outline btn-sm", t("verify.goTrack"));
+    go.type = "button";
+    go.addEventListener("click", function () {
+      var tj = $("#t-jobNo");
+      if (tj) tj.value = jobNo;
+      App.showTab("track", { focusHeading: true });
+      var te = $("#t-email");
+      if (te) setTimeout(function () { (te.value ? $("#track-form button[type=submit]") : te).focus(); }, 60);
+    });
+    status.appendChild(go);
+  }
+
   function init() {
     var form = $("#verify-form"), input = $("#v-code");
     if (!form) return;
     input.addEventListener("input", function () { App.setFieldError(input, null); });
     form.addEventListener("submit", function (e) {
       e.preventDefault();
+      // A job number (TR-2569-ZCT46R) also has 12 letters/digits: send the person to "Track your job" instead
+      var raw = String(input.value || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+      if (/^TR\d{4}[0-9A-Z]{4,8}$/.test(raw)) { jobNoHint(raw); return; }
       var code = norm(input.value);
       if (!code || !CODE_RE.test(code)) { App.setFieldError(input, [t("verify.badCode")]); input.focus(); return; }
       input.value = code;

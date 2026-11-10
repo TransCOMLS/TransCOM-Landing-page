@@ -821,6 +821,12 @@
   var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@.]{2,}$/;
   var LINE_RE = /^[A-Za-z0-9._\-@]{1,60}$/;
   var JOBNO_RE = /^TR-\d{4}-[0-9A-Z]{4,8}$/;   // TR-2569-K7F3QD (older: TR-2569-0001)
+  // Accepts what people paste or type: spaces, other dashes, lower case, no dashes ("tr 2569 k7f3qd", "TR2569K7F3QD")
+  function normJobNo(v) {
+    var s = String(v || "").toUpperCase().replace(/[\s\u200b]+/g, "").replace(/[\u2010-\u2015\u2212_./]/g, "-").replace(/-+/g, "-");
+    var m = /^TR-?(\d{4})-?([0-9A-Z]{4,8})$/.exec(s);
+    return m ? "TR-" + m[1] + "-" + m[2] : s;
+  }
 
   // Local date as YYYY-MM-DD (toISOString would use UTC and be a day off in Thailand)
   function todayISO() {
@@ -1178,7 +1184,7 @@
     var jobNo = $("#t-jobNo"), email = $("#t-email"), out = $("#track-result");
     var rules = {
       "t-jobNo": function () {
-        var v = jobNo.value.trim().toUpperCase();
+        var v = normJobNo(jobNo.value);
         if (!v) return [t("err.required")];
         return JOBNO_RE.test(v) ? [] : [t("err.jobNo")];
       },
@@ -1204,7 +1210,7 @@
     form.addEventListener("submit", function (e) {
       e.preventDefault();
       checked = true;
-      jobNo.value = jobNo.value.trim().toUpperCase();
+      jobNo.value = normJobNo(jobNo.value);
       var first = run();
       if (first) { showStatus(out, "", ""); first.focus(); return; }
       var ev = new CustomEvent("tracksubmit", { detail: { jobNo: jobNo.value, email: email.value.trim() }, cancelable: true });
@@ -1249,6 +1255,8 @@
   /* ---------- "Please wait" pop-up while sending (job form, translation uploads) ----------
      App.busy.open({ title, text }) → step(text, value, max) → done({ title, text }): the spinner turns
      into a tick, then the pop-up closes by itself (BUSY_DONE_MS) — or close() on an error.
+     fail({ title, text }) turns it into a red cross with a short reason and an OK button (owner's request
+     2026-11-10, payments). open({ guard: false }) = plain loading: no "leave this page?" question.
      While sending: Escape is ignored and leaving the page asks first. */
   var BUSY_DONE_MS = 1800;
   var busyState = { on: false, resolve: null };
@@ -1262,7 +1270,8 @@
       var b = busyEls();
       if (!b.dlg) return;
       busyState.on = true;
-      b.dlg.classList.remove("is-done");
+      clearTimeout(busyState.timer);
+      b.dlg.classList.remove("is-done", "is-failed");
       b.title.textContent = o.title || "";
       b.text.textContent = o.text || "";
       b.step.textContent = "";
@@ -1272,7 +1281,28 @@
         document.documentElement.classList.add("modal-open");
         if (typeof b.dlg.showModal === "function") b.dlg.showModal(); else b.dlg.setAttribute("open", "");
       }
-      window.addEventListener("beforeunload", busyLeaveGuard);
+      if (o.guard === false) window.removeEventListener("beforeunload", busyLeaveGuard);
+      else window.addEventListener("beforeunload", busyLeaveGuard);
+    },
+    // Leave the pop-up on screen but let the page go (e.g. on to the payment page)
+    release: function () { busyState.on = false; window.removeEventListener("beforeunload", busyLeaveGuard); },
+    fail: function (o) {
+      var b = busyEls();
+      busyState.on = false;
+      clearTimeout(busyState.timer);
+      window.removeEventListener("beforeunload", busyLeaveGuard);
+      if (!b.dlg) return Promise.resolve();
+      if (!b.dlg.open) busy.open({ title: "", text: "", guard: false });
+      busyState.on = false;
+      b.dlg.classList.remove("is-done");
+      b.dlg.classList.add("is-failed");
+      b.title.textContent = o.title || "";
+      b.text.textContent = o.text || "";
+      b.step.textContent = "";
+      b.bar.hidden = true;
+      b.actions.hidden = false;
+      if (b.ok) setTimeout(function () { b.ok.focus(); }, 50);
+      return new Promise(function (resolve) { busyState.resolve = resolve; });
     },
     step: function (text, value, max) {
       var b = busyEls();
@@ -1285,6 +1315,7 @@
       busyState.on = false;
       window.removeEventListener("beforeunload", busyLeaveGuard);
       if (!b.dlg) return Promise.resolve();
+      b.dlg.classList.remove("is-failed");
       b.dlg.classList.add("is-done");
       b.title.textContent = o.title || "";
       b.text.textContent = o.text || "";

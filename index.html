@@ -80,7 +80,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20261110b">
+  <link rel="stylesheet" href="css/style.css?v=20261110c">
   <script>
     /* Theme before first paint (no white flash in dark mode). Logic lives in js/app.js. */
     (function () {
@@ -1013,12 +1013,13 @@
       <div class="busy-icon" aria-hidden="true">
         <span class="busy-spinner"></span>
         <svg class="busy-check" viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/><path d="M15 27.5l7.5 7.5L37.5 18"/></svg>
+        <svg class="busy-cross" viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/><path d="M18 18l16 16M34 18L18 34"/></svg>
       </div>
       <h2 class="h3" id="busy-title"></h2>
       <p class="busy-step" id="busy-step" role="status" aria-live="polite"></p>
       <progress class="busy-progress" id="busy-progress" max="1" value="0"></progress>
       <p class="busy-text" id="busy-text"></p>
-      <div class="busy-actions" id="busy-actions" hidden></div>
+      <div class="busy-actions" id="busy-actions" hidden><button type="button" class="btn btn-primary btn-block" id="busy-ok" data-i18n="busy.ok"></button></div>
     </div>
   </dialog>
 
@@ -1100,14 +1101,14 @@
 
   <noscript><p class="noscript">Please enable JavaScript. / กรุณาเปิดใช้งาน JavaScript</p></noscript>
 
-  <script src="js/config.js?v=20261110b"></script>
-  <script src="js/i18n.js?v=20261110b"></script>
-  <script src="js/app.js?v=20261110b"></script>
-  <script src="js/account.js?v=20261110b"></script>
-  <script src="js/submit.js?v=20261110b"></script>
-  <script src="js/track.js?v=20261110b"></script>
-  <script src="js/verify.js?v=20261110b"></script>
-  <script src="js/pay.js?v=20261110b"></script>
-  <script src="js/home.js?v=20261110b"></script>
+  <script src="js/config.js?v=20261110c"></script>
+  <script src="js/i18n.js?v=20261110c"></script>
+  <script src="js/app.js?v=20261110c"></script>
+  <script src="js/account.js?v=20261110c"></script>
+  <script src="js/submit.js?v=20261110c"></script>
+  <script src="js/track.js?v=20261110c"></script>
+  <script src="js/verify.js?v=20261110c"></script>
+  <script src="js/pay.js?v=20261110c"></script>
+  <script src="js/home.js?v=20261110c"></script>
 </body>
 </html>
