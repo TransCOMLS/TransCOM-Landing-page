@@ -1457,7 +1457,7 @@ button.dash-bar-row:hover .dash-bar { background: var(--accent-line); }
 .busy-modal.is-failed .busy-cross { opacity: 1; animation: busy-pop .35s ease-out; }
 .busy-modal.is-failed .busy-cross path { animation: busy-draw .4s .15s ease-out forwards; }
 .busy-modal.is-failed #busy-title { color: var(--error); }
-.busy-modal.is-failed .busy-step:empty, .busy-modal.is-done .busy-step:empty { display: none; }
+.busy-step:empty { display: none; }   /* plain loading / done / failed: no empty line under the title */
 .busy-modal.is-done .busy-check { opacity: 1; animation: busy-pop .35s ease-out; }
 .busy-modal.is-done .busy-check path { animation: busy-draw .45s .15s ease-out forwards; }
 .busy-step { margin: 0; min-height: 1.6em; font-weight: 600; color: var(--accent); }
@@ -1640,6 +1640,14 @@ button.dash-bar-row:hover .dash-bar { background: var(--accent-line); }
 .receipt-pay { margin: 10px 0; }
 .receipt-pay > div { justify-content: flex-start; }
 .receipt-note { margin: 6px 0 0; font-size: 0.8125rem; color: #566072; }
+.receipt .pay-note { background: #f6f8fb; color: #1d2433; }
+.qd-pay { display: flex; gap: 16px; align-items: center; margin: 14px 0 10px; padding: 12px 14px; border: 1px solid #d9dee7; border-radius: 12px; break-inside: avoid; }
+.qd-qr canvas { display: block; width: 116px; height: 116px; image-rendering: pixelated; }
+.qd-pay-text h3 { margin: 0 0 4px; font-size: 1rem; color: #01417b; }
+.qd-pay-text p { margin: 0 0 4px; font-size: 0.9rem; }
+.qd-url { font-family: Consolas, Menlo, monospace; font-size: 0.78rem !important; word-break: break-all; color: #566072; }
+.qd-paid { margin: 0; font-weight: 700; color: #067647; }
+@media (max-width: 480px) { .qd-pay { flex-direction: column; align-items: flex-start; } }
 @media (max-width: 560px) {
   .receipt { padding: 20px 14px; }
   .receipt-title { text-align: left; }

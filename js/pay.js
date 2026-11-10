@@ -5,7 +5,8 @@
  *   /?receipt=RC-6926-00001&t=<token>         printable receipt (Print / Save as PDF)
  * The token comes from the quote email or the signed-in account page, so guests can pay too.
  * The Beam API key never reaches the browser: Apps Script creates the link (payStart) and checks it.
- * Exposes window.Pay = { open(jobNo, t), receipt(no, t) }.
+ *   …&doc=quote                               printable quotation (companies need a document; owner 2026-11-10)
+ * Exposes window.Pay = { open(jobNo, t, note), receipt(no, t) } — note "doc" opens the quotation document.
  */
 (function () {
   "use strict";
@@ -87,7 +88,8 @@
   /* ---------- quote & payment ---------- */
   function open(jobNo, token, note) {
     state.kind = "pay"; state.jobNo = String(jobNo || "").toUpperCase(); state.t = String(token || "");
-    state.data = null; state.price = null; state.coupon = ""; state.note = note || "";
+    state.data = null; state.price = null; state.coupon = ""; state.wantDoc = note === "doc"; state.doc = false;
+    state.note = note === "doc" ? "" : (note || "");
     document.body.classList.remove("receipt-open");
     if (App.showTab) App.showTab("pay");
     setQuery("pay=" + encodeURIComponent(state.jobNo) + "&t=" + encodeURIComponent(state.t));
@@ -147,6 +149,7 @@
         return;
       }
       draw();
+      if (state.wantDoc) { state.wantDoc = false; showQuoteDoc(); return; }
       if (state.note === "cancelled" && d.canPay) App.busy.fail({ title: t("pay.busy.cancelTitle"), text: t("pay.cancelledNote") });
     }, function (err) {
       if (slow === "open" || confirming) App.busy.fail({ title: t("pay.busy.errorTitle"), text: err.code === "not_found" ? t("pay.err.link") : errText(err) });
@@ -244,6 +247,12 @@
     meta.textContent = t("pay.validUntil", { date: longDate(q.validUntil) });
     qc.appendChild(meta);
     if (q.note) qc.appendChild(el("p", "pay-note", q.note));
+    var dl0 = el("div", "acct-links");
+    dl0.hidden = !d.seller;
+    var docBtn = el("button", "btn btn-outline btn-sm", t("qd.open")); docBtn.type = "button";
+    docBtn.addEventListener("click", showQuoteDoc);
+    dl0.appendChild(docBtn);
+    qc.appendChild(dl0);
     box.appendChild(qc);
 
     if (d.payments.length) return;
@@ -327,41 +336,130 @@
     }, function (err) { App.showStatus(st, "error", err.code === "not_found" ? t("pay.err.link") : errText(err)); });
   }
 
-  function drawReceipt() {
-    var r = state.data, box = $("#receipt-view");
-    if (!r || state.kind !== "receipt") return;
-    box.textContent = "";
-    document.body.classList.add("receipt-open");
+  // Header of a printable document: shop details left, document name + numbers right
+  function docHead(doc, sellerData, name, nameAlt, metaRows) {
+    var head = el("header", "receipt-head");
+    var seller = el("div", "receipt-seller");
+    var logo = el("img"); logo.src = "img/logo.svg"; logo.alt = sellerData.name; logo.className = "receipt-logo";
+    seller.appendChild(logo);
+    seller.appendChild(el("p", "receipt-seller-name", sellerData.name));
+    if (sellerData.owner) seller.appendChild(el("p", null, t("rc.by") + " " + sellerData.owner));
+    var addr = App.getLang() === "en" && sellerData.addressEn ? sellerData.addressEn : sellerData.address;
+    if (addr) seller.appendChild(el("p", null, addr));
+    if (sellerData.taxId) seller.appendChild(el("p", null, t("rc.taxId") + " " + sellerData.taxId));
+    seller.appendChild(el("p", null, t("rc.contact", { phone: sellerData.phone, email: sellerData.email, web: sellerData.web })));
+    head.appendChild(seller);
+    var title = el("div", "receipt-title");
+    title.appendChild(el("h2", null, name));
+    title.appendChild(el("p", "receipt-sub", nameAlt));
+    var meta = el("dl", "receipt-meta");
+    metaRows.forEach(function (r) { row(meta, r[0], r[1]); });
+    title.appendChild(meta);
+    head.appendChild(title);
+    doc.appendChild(head);
+  }
+  function docBar(box, onBack) {
     var bar = el("div", "actions receipt-actions no-print");
+    if (onBack) {
+      var back = el("button", "btn btn-outline", "← " + t("qd.back")); back.type = "button";
+      back.addEventListener("click", onBack);
+      bar.appendChild(back);
+    }
     var pr = el("button", "btn btn-primary", t("rc.print")); pr.type = "button";
     pr.addEventListener("click", function () { window.print(); });
     bar.appendChild(pr);
     bar.appendChild(el("p", "note", t("rc.printHint")));
     box.appendChild(bar);
+  }
+  function quoteNo(d) { return "QT-" + d.jobNo.replace(/^[A-Z]+-/, "") + "-" + d.quote.version; }
+
+  // ---------- quotation document (print / save as PDF) ----------
+  function showQuoteDoc() {
+    var d = state.data;
+    if (!d || !d.quote || !d.seller) return;     // seller details come with the Phase 6.1 Code.gs
+    state.doc = true;
+    setQuery("pay=" + encodeURIComponent(state.jobNo) + "&t=" + encodeURIComponent(state.t) + "&doc=quote");
+    $("#pay-view").hidden = true;
+    $("#pay-title").textContent = t("qd.title");
+    var box = $("#receipt-view");
+    box.hidden = false;
+    box.textContent = "";
+    document.body.classList.add("receipt-open");
+    docBar(box, function () {
+      state.doc = false;
+      document.body.classList.remove("receipt-open");
+      box.hidden = true;
+      setQuery("pay=" + encodeURIComponent(state.jobNo) + "&t=" + encodeURIComponent(state.t));
+      $("#pay-title").textContent = t("pay.title");
+      $("#pay-view").hidden = false;
+      draw();
+    });
+    var q = d.quote;
+    var doc = el("article", "receipt quotation");
+    if (d.mode === "test") doc.appendChild(el("p", "receipt-test", t("qd.test")));
+    docHead(doc, d.seller, t("qd.docName"), t("qd.docNameAlt"), [
+      [t("rc.no"), quoteNo(d)], [t("rc.date"), longDate(q.createdAt)], [t("qd.validUntil"), longDate(q.validUntil)], [t("track.jobNo"), d.jobNo]
+    ]);
+    var buyer = el("section", "receipt-buyer");
+    buyer.appendChild(el("h3", null, t("qd.buyer")));
+    buyer.appendChild(el("p", null, d.name || "-"));
+    if (d.email) buyer.appendChild(el("p", "muted", d.email));
+    var job = [catName(d.category), pairName(d.langPair)];
+    if (d.pages) job.push(t("acct.pagesN", { pages: d.pages }));
+    buyer.appendChild(el("p", "muted", job.join(" · ")));
+    doc.appendChild(buyer);
+    var tb = el("table", "quote-table receipt-table");
+    var th = el("thead"), hr = el("tr");
+    hr.appendChild(el("th", "num", "#")); hr.appendChild(el("th", null, t("pay.item"))); hr.appendChild(el("th", "num", t("pay.amount")));
+    th.appendChild(hr); tb.appendChild(th);
+    var body = el("tbody");
+    q.items.forEach(function (it, i) {
+      var tr = el("tr"); tr.appendChild(el("td", "num", String(i + 1))); tr.appendChild(el("td", null, it.text)); tr.appendChild(el("td", "num", baht(it.amount)));
+      body.appendChild(tr);
+    });
+    tb.appendChild(body);
+    var foot = el("tfoot");
+    function line(a, b, cls) { var tr = el("tr", cls); var td = el("td", null, a); td.colSpan = 2; tr.appendChild(td); tr.appendChild(el("td", "num", b)); foot.appendChild(tr); }
+    line(t("pay.subtotal"), baht(q.subtotal), "sub");
+    if (q.discount) line(t("pay.discount") + (q.discountName ? " — " + q.discountName + " " + q.discountPercent + "%" : ""), "−" + baht(q.discount), "disc");
+    line(t("qd.total"), baht(q.total), "total");
+    tb.appendChild(foot);
+    doc.appendChild(tb);
+    if (App.getLang() === "th") doc.appendChild(el("p", "receipt-words", "(" + bahtText(q.total) + ")"));
+    if (q.note) doc.appendChild(el("p", "pay-note", q.note));
+    // how to pay: QR to the online payment page (or "paid")
+    var paid = d.payments.filter(function (p) { return p.status !== "refunded"; })[0];
+    var payBox = el("section", "qd-pay");
+    if (paid) payBox.appendChild(el("p", "qd-paid", t("qd.paid", { no: paid.receiptNo, date: longDate(paid.paidDay) })));
+    else if (d.canPay) {
+      var qrBox = el("div", "qd-qr");
+      qrBox.setAttribute("role", "img");
+      qrBox.setAttribute("aria-label", t("qd.qrAlt"));
+      payBox.appendChild(qrBox);
+      var txt = el("div", "qd-pay-text");
+      txt.appendChild(el("h3", null, t("qd.howTitle")));
+      txt.appendChild(el("p", null, t("qd.how")));
+      txt.appendChild(el("p", "qd-url", d.payUrl));
+      payBox.appendChild(txt);
+      App.loadScript("js/qr.js").then(function () { qrBox.appendChild(window.QR.toCanvas(d.payUrl, 4, 2)); }, function () { qrBox.remove(); });
+    } else payBox.appendChild(el("p", "qd-paid", t(d.expired ? "pay.expired" : "pay.closed")));
+    doc.appendChild(payBox);
+    doc.appendChild(el("p", "receipt-note", t("qd.terms", { date: longDate(q.validUntil) })));
+    doc.appendChild(el("p", "receipt-note", t("rc.noVat")));
+    doc.appendChild(el("p", "receipt-note", t("qd.electronic")));
+    box.appendChild(doc);
+  }
+
+  function drawReceipt() {
+    var r = state.data, box = $("#receipt-view");
+    if (!r || state.kind !== "receipt") return;
+    box.textContent = "";
+    document.body.classList.add("receipt-open");
+    docBar(box, null);
 
     var doc = el("article", "receipt");
     if (r.mode === "test") doc.appendChild(el("p", "receipt-test", t("rc.test")));
-    var head = el("header", "receipt-head");
-    var seller = el("div", "receipt-seller");
-    var logo = el("img"); logo.src = "img/logo.svg"; logo.alt = r.seller.name; logo.className = "receipt-logo";
-    seller.appendChild(logo);
-    seller.appendChild(el("p", "receipt-seller-name", r.seller.name));
-    if (r.seller.owner) seller.appendChild(el("p", null, t("rc.by") + " " + r.seller.owner));
-    var addr = App.getLang() === "en" && r.seller.addressEn ? r.seller.addressEn : r.seller.address;
-    if (addr) seller.appendChild(el("p", null, addr));
-    if (r.seller.taxId) seller.appendChild(el("p", null, t("rc.taxId") + " " + r.seller.taxId));
-    seller.appendChild(el("p", null, t("rc.contact", { phone: r.seller.phone, email: r.seller.email, web: r.seller.web })));
-    head.appendChild(seller);
-    var title = el("div", "receipt-title");
-    title.appendChild(el("h2", null, t("rc.docName")));
-    title.appendChild(el("p", "receipt-sub", t("rc.docNameAlt")));
-    var meta = el("dl", "receipt-meta");
-    row(meta, t("rc.no"), r.receiptNo);
-    row(meta, t("rc.date"), longDate(r.paidDay));
-    row(meta, t("track.jobNo"), r.jobNo);
-    title.appendChild(meta);
-    head.appendChild(title);
-    doc.appendChild(head);
+    docHead(doc, r.seller, t("rc.docName"), t("rc.docNameAlt"), [[t("rc.no"), r.receiptNo], [t("rc.date"), longDate(r.paidDay)], [t("track.jobNo"), r.jobNo]]);
 
     var buyer = el("section", "receipt-buyer");
     buyer.appendChild(el("h3", null, t("rc.buyer")));
@@ -404,7 +502,7 @@
     if (!$("#pay")) return;
     var q = location.search || "";
     var m = /[?&]pay=([^&#]+)/.exec(q), tk = /[?&]t=([0-9a-fA-F]{32})/.exec(q), rc = /[?&]receipt=([^&#]+)/.exec(q);
-    if (m && tk) open(decodeURIComponent(m[1]), tk[1].toLowerCase(), /[?&]back=1/.test(q) ? "back" : /[?&]cancelled=1/.test(q) ? "cancelled" : "");
+    if (m && tk) open(decodeURIComponent(m[1]), tk[1].toLowerCase(), /[?&]back=1/.test(q) ? "back" : /[?&]cancelled=1/.test(q) ? "cancelled" : /[?&]doc=quote/.test(q) ? "doc" : "");
     else if (rc && tk) receipt(decodeURIComponent(rc[1]), tk[1].toLowerCase());
     document.addEventListener("tabchange", function (e) {
       if (e.detail && e.detail.tab !== "pay") { clearQuery(); document.body.classList.remove("receipt-open"); }
@@ -413,7 +511,7 @@
     // Back from Beam with the browser's Back button: the page comes back from cache with the "opening" pop-up
     window.addEventListener("pageshow", function (e) { if (e.persisted && App.busy) App.busy.close(); });
     document.addEventListener("langchange", function () {
-      if (state.kind === "pay" && state.data) { $("#pay-title").textContent = t("pay.title"); draw(); }
+      if (state.kind === "pay" && state.data) { if (state.doc) showQuoteDoc(); else { $("#pay-title").textContent = t("pay.title"); draw(); } }
       if (state.kind === "receipt" && state.data) { $("#pay-title").textContent = t("rc.title"); drawReceipt(); }
     });
   }

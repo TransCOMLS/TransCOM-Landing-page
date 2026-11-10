@@ -2235,6 +2235,9 @@ function sendStatusMail_(r, code) {
     if (oq.note) o.intro.push(esc_(oq.note));
     o.rows = quoteRowsHtml_(oq, th);
     o.button = { label: th ? 'ดูใบเสนอราคาและชำระเงิน' : 'View quote and pay', url: payUrl_(r.jobNo) };
+    o.after = [(th ? 'ต้องการใบเสนอราคาเป็นเอกสาร (เช่น สำหรับองค์กร): ' : 'Need the quotation as a document (e.g. for your company): ') +
+      '<a href="' + esc_(payUrl_(r.jobNo) + '&doc=quote') + '" style="color:#006192;font-weight:600">' +
+      (th ? 'เปิด / พิมพ์ / บันทึกเป็น PDF' : 'open / print / save as PDF') + '</a>'];
     o.small = esc_(th ? 'ชำระด้วยบัตรเครดิต/เดบิต QR พร้อมเพย์ วอลเล็ต หรือแอปธนาคาร ผ่านระบบ Beam Checkout ร้านไม่เก็บข้อมูลบัตร ใช้คูปองส่วนลดได้ที่หน้าชำระเงิน'
                      : 'Pay by card, PromptPay QR, e-wallet or banking app through Beam Checkout — we never see your card details. Discount codes can be added on the payment page.');
   }
@@ -2955,6 +2958,15 @@ function disableLink_(linkId) {
 
 /* ---------- paying (public: job number + token from the email or the account page) ---------- */
 
+// Shop details on receipts and quotation documents (tax ID + address from Script Properties)
+function sellerInfo_() {
+  var props = PropertiesService.getScriptProperties();
+  return { name: CONFIG.sellerName, owner: CONFIG.sellerOwner,
+           taxId: String(props.getProperty('RECEIPT_TAX_ID') || ''), address: String(props.getProperty('RECEIPT_ADDRESS') || ''),
+           addressEn: String(props.getProperty('RECEIPT_ADDRESS_EN') || ''),
+           phone: CONFIG.contactPhone, email: CONFIG.contactEmail, web: CONFIG.siteUrl.replace(/^https:\/\//, '') };
+}
+
 function payView_(jobNo) {
   var tz = ss_().getSpreadsheetTimeZone();
   var r = jobRow_(table_(SHEETS.jobs, JOB_COLS), jobNo);
@@ -2969,6 +2981,9 @@ function payView_(jobNo) {
     category: String(r.category || ''), langPair: String(r.langPair || ''),
     pages: r.pages === '' || r.pages == null ? null : Number(r.pages),
     name: String(r.name || ''),
+    email: email,
+    seller: sellerInfo_(),               // for the printable quotation (owner's request 2026-11-10: companies need a document)
+    payUrl: payUrl_(jobNo),
     quote: q || (last && last.status !== 'active' ? last : null),
     canPay: !!q && statusCode_(r.status) === 'quoted' && !paid.length,
     expired: !!(last && last.status === 'active' && !q) || !!(last && last.status === 'expired'),
@@ -3370,10 +3385,7 @@ function receipt_(req) {
   o.discountName = String(p.discountName || ''); o.discount = money_(p.discount);
   o.couponCode = String(p.couponCode || ''); o.couponDiscount = money_(p.couponDiscount);
   o.buyer = { name: String(p.name || ''), email: String(p.email || '') };
-  o.seller = { name: CONFIG.sellerName, owner: CONFIG.sellerOwner,
-               taxId: String(props.getProperty('RECEIPT_TAX_ID') || ''), address: String(props.getProperty('RECEIPT_ADDRESS') || ''),
-               addressEn: String(props.getProperty('RECEIPT_ADDRESS_EN') || ''),
-               phone: CONFIG.contactPhone, email: CONFIG.contactEmail, web: CONFIG.siteUrl.replace(/^https:\/\//, '') };
+  o.seller = sellerInfo_();
   return { ok: true, receipt: o };
 }
 
