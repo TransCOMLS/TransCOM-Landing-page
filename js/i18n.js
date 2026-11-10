@@ -1981,7 +1981,7 @@ window.I18N = {
     "verify.goTrack": "Go to Track your job",
     "busy.ok": "OK",
     "busy.loadingTitle": "Loading",
-    "busy.loadingText": "Please wait a moment.",
+    "busy.loadingText": "This is taking a moment — please wait.",
     "busy.errorTitle": "Couldn't load",
     "pay.busy.goTitle": "Opening the payment page",
     "pay.busy.goText": "Please don't close this page — we are setting up your payment with Beam.",
