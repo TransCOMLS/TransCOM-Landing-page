@@ -253,7 +253,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
       · admin, managed on the website; discount settings stored for Phase 6. Owner's choices:
       no wallet / top-up, translators never named to customers, "pay" + "payment history" in one
       Payment group, admin manages nearly everything on the web.
-- [x] Phase 6 — finance (built 2026-11-10; tested against a fake Beam; waiting for the owner's Beam keys to test live). Owner's decisions 2026-11-04, all switchable
+- [x] Phase 6 — finance (built 2026-11-10; live payment tested OK 2026-11-10: 100 THB PromptPay → RC-6926-00001, receipt,
+      emails, status, Payments row). Beam account so far allows only qrPromptPay + mobileBanking (cards, e-wallets, instalments,
+      BNPL refused) → owner set Script Property BEAM_METHODS = qrPromptPay,mobileBanking. Owner's decisions 2026-11-04, all switchable
       in config and managed from the Sheet:
       - Not VAT-registered: issue **electronic receipts** (ใบเสร็จรับเงิน). Tax invoices
         (full + abbreviated) are built but **off** until VAT registration (illegal to issue
