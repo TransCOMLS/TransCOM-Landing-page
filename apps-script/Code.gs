@@ -2692,6 +2692,28 @@ function beamCfg_() {
   return { mode: mode, id: id, key: key,
            base: mode === 'live' ? 'https://api.beamcheckout.com' : 'https://playground.api.beamcheckout.com' };
 }
+// Run from the Apps Script editor (Run ▶ testBeam): checks the keys and that a payment link can be made.
+// Prints Beam's own answers in the Execution log; never prints the API key. The test link (1 THB) is disabled at once.
+function testBeam() {
+  var c = beamCfg_();
+  console.log('mode: ' + c.mode + ' · ' + c.base + ' · merchant ' + c.id.slice(0, 4) + '…' + ' · key length ' + c.key.length);
+  var opt = { muteHttpExceptions: true, contentType: 'application/json',
+              headers: { Authorization: 'Basic ' + Utilities.base64Encode(c.id + ':' + c.key) } };
+  var r1 = UrlFetchApp.fetch(c.base + '/api/v1/payment-links/transcom-key-check', Object.assign({ method: 'get' }, opt));
+  console.log('1) key check → HTTP ' + r1.getResponseCode() + ' ' + r1.getContentText().slice(0, 300) +
+              (r1.getResponseCode() === 404 ? '   ✓ keys accepted' : r1.getResponseCode() === 401 ? '   ✗ wrong merchant ID / key, or a Playground key in live mode' : ''));
+  var body = { order: { currency: 'THB', netAmount: 100, description: CONFIG.serviceName + ' — test (will be disabled)', referenceId: 'TEST-LINK' },
+               collectPhoneNumber: false };
+  var r2 = UrlFetchApp.fetch(c.base + '/api/v1/payment-links', Object.assign({ method: 'post', payload: JSON.stringify(body) }, opt));
+  console.log('2) create payment link → HTTP ' + r2.getResponseCode() + ' ' + r2.getContentText().slice(0, 500));
+  var made = parse_(r2.getContentText());
+  if (made && made.id) {
+    var r3 = UrlFetchApp.fetch(c.base + '/api/v1/payment-links/' + encodeURIComponent(made.id) + '/disable', Object.assign({ method: 'patch' }, opt));
+    console.log('3) test link disabled → HTTP ' + r3.getResponseCode() + '   ✓ payment links work');
+  }
+  console.log('last error seen by the website: ' + (PropertiesService.getScriptProperties().getProperty('BEAM_LAST_ERROR') || '-'));
+}
+
 function payReady_() { try { beamCfg_(); return true; } catch (e) { return false; } }
 
 // One Beam call. Retries once on 429 / 5xx / network with the same idempotency key.
@@ -2711,6 +2733,10 @@ function beam_(method, path, body, idem) {
     if (code === 404) fail_('not_found');
     if (attempt === 0 && (!code || code === 429 || code >= 500)) { Utilities.sleep(1500); continue; }
     console.error('beam ' + method + ' ' + path + ' → ' + code + ' ' + ec + ' ' + (res ? res.getContentText().slice(0, 300) : ''));
+    try {
+      PropertiesService.getScriptProperties().setProperty('BEAM_LAST_ERROR', new Date().toISOString() + ' ' + method.toUpperCase() + ' ' + path.split('?')[0] +
+        ' → HTTP ' + code + ' ' + ec + ' ' + (res ? res.getContentText().slice(0, 300) : 'no response'));
+    } catch (e) { /* diagnostics only */ }
     fail_(code === 401 ? 'pay_not_ready' : 'pay_failed');
   }
 }
