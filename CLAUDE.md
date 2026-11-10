@@ -18,8 +18,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
 ## Files
 - `index.html` — CSS/JS links carry `?v=<date+letter>` (cache-busting: GitHub Pages lets browsers keep
   files ~10 min) — **bump it on every release** or customers keep running old JS.
-  Single page; 14 `.panel` sections in `<main>`: home, services, pricing,
-  calculator, news, submit, track, verify, account, how, faq, contact, privacy, terms (each id also in app.js `TAB_IDS`). Ids double as `#hash` routes.
+  Single page; 15 `.panel` sections in `<main>`: home, services, pricing,
+  calculator, news, submit, track, verify, pay, account, how, faq, contact, privacy, terms (each id also in app.js `TAB_IDS`;
+  `pay` is not in the menu). Ids double as `#hash` routes.
   Menu (`.main-nav` in the header): Home · Services & pricing ▾ (services, pricing,
   calculator, news) · Orders ▾ (how, submit, track, verify) · Help ▾ (faq, privacy, terms) · Contact.
   Items carry `data-tab`; other in-page links use `data-goto`. "My account" is the
@@ -108,6 +109,10 @@ provider manages all jobs from one Google Sheet, with no paid server.
   uploader (checkbox, ticked) only when the job is certified, not withdrawn and has NO paper copy by post
   (paper copies get the rubber stamp by hand). PDFs via pdf-lib (crop box + page rotation handled), JPG/PNG via
   canvas; DOCX are uploaded unstamped and staff are told. `Stamp.canvas` also gives a PNG download on the cert card.
+- `js/pay.js` — Phase 6, panel `#pay`: `/?pay=<jobNo>&t=<payToken>` = quote + discount code (`payPrice`) + Pay → `payStart`
+  → Beam hosted checkout; back with `&back=1` (`payCheck`, retries 2/4/8/16 s) or `&cancelled=1`; `/?receipt=<no>&t=<token>` =
+  printable electronic receipt (`receipt`; amount in Thai words; print CSS shows only `.receipt`, which is always white "paper" —
+  the one place with fixed colours besides the dark bands). Query kept only while on `#pay`. `window.Pay.open/receipt`.
 - `js/portal.js` — Phase 5: the signed-in dashboard in `#account` (`.dash`: sidebar `#dash-nav` +
   `#dash-view`; `#dash-settings` holds account.js's profile/manage cards). Menu and views per
   `profile.role`: customer (overview, orders open/closed/cancel, job detail + translated-file
@@ -117,6 +122,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
   detail: assign, status, cancel approve/reject, notes, files; users & roles; discounts). Listens
   to `accountchange` from account.js. New accounts without a name open on the profile view.
   Customers are never told who translated. Sidebar on ≥1024px; a scrollable chip row below.
+  Phase 6: customer `c-quotes`/`c-pay`/`c-payHistory`/`c-points` (membership card, levels, rewards), quote card on `c-job`;
+  admin quote form + payments/refund on `a-job` (`adminMoneyCard`), `a-payments` (live/test tabs, month totals, webhook URL),
+  `a-rewards` (gifts + redemption requests), money stats on `a-overview`; coupon flag `stackable`.
 - `js/account.js` — customer accounts (optional; guests can still submit): sign in with a
   6-digit code emailed by Apps Script; after that an optional password (`login`; form remembers
   password mode in `tr_login`) and a verified backup email (security card `#acct-security` in
@@ -165,6 +173,14 @@ provider manages all jobs from one Google Sheet, with no paid server.
   badge, 6-step progress (`mailSteps_`), details table, one button, navy footer with contacts
   (`CONFIG.contactPhone/lineId/contactEmail` — keep in step with js/config.js). Language pairs and
   categories show as names (`LANG_PAIR_NAMES`, `CATEGORY_NAMES`). Customer receipt + provider notice (`PROVIDER_EMAIL` or the script owner);
+  Phase 6 (section "money"): Quotes / Payments / Rewards / Redemptions sheets; actions payInfo, payPrice, payStart, payCheck,
+  receipt (public, with hash tokens `payToken_` / `receiptToken_`), myPayments, myMembership, redeemReward, adminSaveQuote,
+  adminCancelQuote, adminPayments, adminRefund, adminRewards, adminSaveReward, adminDeleteReward, adminRedemption.
+  `beam_()` = UrlFetchApp + Basic auth + idempotency key (retry once on 429/5xx). Webhook = `doPost` with `?hook=<BEAM_HOOK_SECRET>`
+  → `beamHook_` only re-fetches (`syncLink_`, `syncRefund_`, `syncFees_`); `recordPayment_` is idempotent per chargeId (receipt no.,
+  quote paid, CouponUses, status paid, emails, fees). Trigger `checkPayments` every 15 min (missed payments, quote expiry, fees,
+  pending refunds). Test mode (`BEAM_MODE` ≠ live) uses Playground and `TEST-RC-…` receipt numbers with their own counter.
+  Points/levels are computed from Payments (`memberInfo_`), nothing stored. The quoted status email carries the quote + pay link.
   installable `onJobEdit` emails the customer on each status change (delivered → sets
   deliveredAt, deleteBy +90 d). Status `review` "รอลูกค้าตรวจ" (owner's request 2026-11-06): the
   email links to the job page (`jobUrl_` = `/?job=TR-…#account`; portal.js opens it after sign-in,
@@ -234,7 +250,7 @@ provider manages all jobs from one Google Sheet, with no paid server.
       · admin, managed on the website; discount settings stored for Phase 6. Owner's choices:
       no wallet / top-up, translators never named to customers, "pay" + "payment history" in one
       Payment group, admin manages nearly everything on the web.
-- [ ] Phase 6 — finance (owner's decisions, 2026-11-04). Build after Phase 5, all switchable
+- [x] Phase 6 — finance (built 2026-11-10; tested against a fake Beam; waiting for the owner's Beam keys to test live). Owner's decisions 2026-11-04, all switchable
       in config and managed from the Sheet:
       - Not VAT-registered: issue **electronic receipts** (ใบเสร็จรับเงิน). Tax invoices
         (full + abbreviated) are built but **off** until VAT registration (illegal to issue
@@ -250,11 +266,30 @@ provider manages all jobs from one Google Sheet, with no paid server.
         restart each year, 5 digits: `RC-<BE yy><CE yy>-00001`, e.g. `RC-6926-00001` for 2569/2026 (owner's
         choice 2026-11-09; counter per year in Script Properties, never reused). Loyalty points are in scope.
       - Quotes per job (Quotes sheet), payment records, receipts with running numbers.
-      - Members only: discount codes (Coupons sheet: code, % or THB, min spend, dates,
-        uses) and loyalty points by amount spent (e.g. 1 point per 100 THB, redeem as a
-        discount; rates in config). Guests can still get quotes, pay and get receipts.
-      - Apply the Discounts sheet (customer type % / spend tiers, higher one wins) on quotes;
-        fill the dashboard's Quotes, Pay and Payment history views.
+      - Beam integration (docs read 2026-11-09, https://docs.beamcheckout.com/llms.txt — pages as `<path>.md`):
+        **Payment Links** (`POST /api/v1/payment-links` → `id`, `url`; `GET /api/v1/payment-links/{id}` → `status`
+        ACTIVE/PAID/EXPIRED/DISABLED/VOIDED/REFUNDED; `PATCH …/{id}/disable`; single use, not editable, no iframe).
+        Body: `order {currency:"THB", netAmount (satang), description, referenceId = jobNo, internalNote, orderItems}`,
+        `redirectUrl`, `cancelUrl`, `expiresAt` (ISO), `collectPhoneNumber:false`, `linkSettings` omitted = account
+        defaults (owner: ALL methods on). Charges: `GET /api/v1/charges?source_in=PAYMENT_LINK&sourceId=<linkId>` →
+        `SUCCEEDED` charge gives `chargeId`, `paymentMethod.paymentMethodType`, `transactionTime`. Fees: Transactions
+        (`transaction.created`: grossAmount, feeAmount, vatAmount, netAmount, satang). Refunds: `POST /api/v1/refunds
+        {chargeId, amount?, reason}` (partial = CARD only; uses Beam balance). Header `x-beam-idempotency-key` on POST.
+        Playground `https://playground.api.beamcheckout.com`, Production `https://api.beamcheckout.com`.
+        Webhooks are signed in a header (`X-Beam-Signature`, event in `X-Beam-Event`) that Apps Script CANNOT read →
+        treat a webhook only as a nudge (+ secret `?hook=` in the URL), always re-fetch the link/charge from Beam
+        with our key before marking paid; also check on the customer's return and with a 15-min trigger; dedupe.
+        Script Properties: `BEAM_MERCHANT_ID_TEST`/`BEAM_API_KEY_TEST` (Playground), `BEAM_MERCHANT_ID`/`BEAM_API_KEY`
+        (Production), `BEAM_MODE` test|live, receipt `RECEIPT_TAX_ID` + `RECEIPT_ADDRESS` (+ optional `RECEIPT_ADDRESS_EN`, shown on English receipts) (owner's personal data —
+        never in the public repo). Receipt seller: "TransCOM Language Service" (นาย ชุษณะ รุ่งเป้า).
+      - Owner's answers 2026-11-09: all payment methods on; quote + payment link valid **15 days**.
+        Membership (members only): 1 point per 100 THB paid. Tier by points EARNED (redeeming does not lower it):
+        Bronze 50 · Silver 100 · Gold 200 · Platinum 300 → member discount 5 / 10 / 15 / 20 % on every translation;
+        tier lasts 1 year from the last paid job (then lapses). Points are redeemed for gifts (Rewards sheet, admin
+        sets gifts + cost, customer requests, admin marks sent) — not cash. Point balance expires on each signup
+        anniversary (whole balance resets). Member tier % vs Discounts sheet (customer type) → the higher one wins.
+        Coupons combine with the member discount only if the coupon allows it (per-coupon flag).
+      - Fill the dashboard's Quotes, Pay and Payment history views.
 
 The owner asked to stop after each phase and show the result before continuing.
 

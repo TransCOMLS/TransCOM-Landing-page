@@ -49,7 +49,20 @@ var CONFIG = {
 
   // Status lookup (Phase 4)
   lookupsPerHour: 30,    // per email (stops someone trying job numbers one by one)
-  lookupFailsPerHour: 300  // wrong lookups from everyone together, then a pause
+  lookupFailsPerHour: 300, // wrong lookups from everyone together, then a pause
+
+  // Phase 6 — money (owner's decisions 2026-11-09)
+  sellerName: 'TransCOM Language Service',   // on receipts; tax ID + address are Script Properties (personal data)
+  sellerOwner: 'นาย ชุษณะ รุ่งเป้า',
+  quoteDays: 15,         // a quote (and its Beam payment link) can be paid for this many days
+  bahtPerPoint: 100,     // members get 1 point per 100 THB paid
+  tierDays: 365,         // a membership level lasts a year from the last paid job
+  tiers: [               // level by points earned (redeeming gifts does not lower it) → discount on every translation
+    { code: 'bronze',   name: 'Bronze',   points: 50,  percent: 5 },
+    { code: 'silver',   name: 'Silver',   points: 100, percent: 10 },
+    { code: 'gold',     name: 'Gold',     points: 200, percent: 15 },
+    { code: 'platinum', name: 'Platinum', points: 300, percent: 20 }
+  ]
 };
 
 // Category codes sent by the website (js/config.js categories) → names for the Sheet,
@@ -68,7 +81,8 @@ function categoryName_(code, th) {
 
 var SHEETS = { users: 'Users', jobs: 'Jobs', sessions: '_sessions', promotions: 'Promotions', news: 'News',
               dashboard: 'Dashboard', glossary: 'Glossary', discounts: 'Discounts',
-              coupons: 'Coupons', couponUses: 'CouponUses', certs: 'Certificates' };
+              coupons: 'Coupons', couponUses: 'CouponUses', certs: 'Certificates',
+              quotes: 'Quotes', payments: 'Payments', rewards: 'Rewards', redemptions: 'Redemptions' };
 
 // Column headers (Thai, for the owner) and the keys the code uses.
 // Columns are found by header text, so the owner may reorder them.
@@ -190,7 +204,8 @@ var COUPON_COLS = [
   ['perUser', 'ใช้ได้ต่อบัญชี'],     // 0 = unlimited, 1 = once per account
   ['membersOnly', 'เฉพาะสมาชิก'],
   ['note', 'หมายเหตุ'],
-  ['createdAt', 'สร้างเมื่อ']
+  ['createdAt', 'สร้างเมื่อ'],
+  ['stackable', 'ใช้ร่วมกับส่วนลดสมาชิกได้']   // Phase 6: off = the customer gets the bigger of code / member discount
 ];
 // Certificates: one row per certified translation, checked by anyone who scans the QR
 // (owner's request 2026-11-09). No customer name or contact details — terms 4.6 — so the
@@ -266,6 +281,7 @@ function doGet(e) {
 
 function doPost(e) {
   var out;
+  if (e && e.parameter && e.parameter.hook) return json_(beamHook_(e));   // Beam webhook (Phase 6)
   try {
     var req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     var action = ACTIONS[req.action];
@@ -332,7 +348,24 @@ var ACTIONS = {
   // certification check (QR) — public lookup + staff/admin edits
   boot: boot_,              // home page: visitor count + offers/news in one request (saves executions)
   verifyCert: verifyCert_,
-  certUpdate: certUpdate_
+  certUpdate: certUpdate_,
+  // Phase 6 — money. Public with the token from the email / account page: payInfo, payStart, payCheck, receipt
+  payInfo: payInfo_,
+  payStart: payStart_,
+  payPrice: payPrice_,
+  payCheck: payCheck_,
+  receipt: receipt_,
+  myPayments: myPayments_,
+  myMembership: myMembership_,
+  redeemReward: redeemReward_,
+  adminSaveQuote: adminSaveQuote_,
+  adminCancelQuote: adminCancelQuote_,
+  adminPayments: adminPayments_,
+  adminRefund: adminRefund_,
+  adminRewards: adminRewards_,
+  adminSaveReward: adminSaveReward_,
+  adminDeleteReward: adminDeleteReward_,
+  adminRedemption: adminRedemption_
 };
 
 /* ======================================================================
@@ -749,6 +782,11 @@ function adminChangeEmail_(req) {
       var uses = table_(SHEETS.couponUses, COUPON_USE_COLS);
       uses.rows.forEach(function (r) { if (email_(r.email, true) === from) updateRow_(uses, r, { email: to }); });
     }
+    [[SHEETS.payments, PAY_COLS], [SHEETS.redemptions, REDEEM_COLS]].forEach(function (d) {
+      if (!ss_().getSheetByName(d[0])) return;
+      var t = table_(d[0], d[1]);
+      t.rows.forEach(function (r) { if (email_(r.email, true) === from) updateRow_(t, r, { email: to }); });
+    });
     dropSessions_(function (r) { return r.email === from; });
     forgetRole_(from); forgetRole_(to);
     after = find_(table_(SHEETS.users, USER_COLS), 'email', to);
@@ -969,6 +1007,10 @@ function myJob_(req) {
   job.files = job.status === 'delivered' || job.status === 'review' ? jobFiles_(r, ['translation']) : [];
   job.revisionRequest = String(r.revisionRequest || '');
   job.cert = certInfo_(r);
+  var q = quotesOf_(job.jobNo)[0];
+  job.quote = q ? { version: q.version, total: q.total, validUntil: q.validUntil, status: q.status } : null;
+  job.payToken = payToken_(job.jobNo);
+  job.payments = paymentsOf_(function (p) { return String(p.jobNo).toUpperCase() === job.jobNo.toUpperCase(); });
   if (job.status === 'delivered' && !job.confirmedAt && r.deliveredAt) {
     job.revisionUntil = day_(addDays_(new Date(r.deliveredAt), CONFIG.revisionDays), ss_().getSpreadsheetTimeZone());
   }
@@ -1214,7 +1256,7 @@ function adminOverview_(req) {
   });
   return { ok: true, counts: counts, open: open, dueSoon: dueSoon, overdue: overdue,
            cancelRequests: cancelRequests, ready: ready, unassigned: unassigned, months: months,
-           visits: visitStats_(), mailQuota: mailQuota_() };
+           visits: visitStats_(), mailQuota: mailQuota_(), money: moneyStats_() };
 }
 
 function adminJobs_(req) {
@@ -1254,6 +1296,7 @@ function adminJob_(req) {
   ['name', 'email', 'line', 'phone', 'address', 'assignee', 'cancelRequest', 'folder', 'lang'].forEach(function (k) { j[k] = String(r[k] || ''); });
   var u = find_(table_(SHEETS.users, USER_COLS), 'email', email_(r.email, true));
   j.customerType = u ? typeCode_(u.customerType) : 'general';
+  j.money = moneyFor_(r);
   return { ok: true, job: j, staff: staffList_() };
 }
 
@@ -1438,6 +1481,7 @@ function couponRow_(r, tz, uses) {
     maxUses: Number(r.maxUses) || 0,
     perUser: r.perUser === '' || r.perUser == null ? 1 : Number(r.perUser) || 0,
     membersOnly: active_({ active: r.membersOnly }),
+    stackable: active_({ active: r.stackable }),
     note: String(r.note || ''),
     used: uses ? (uses[String(r.code || '').toUpperCase()] || 0) : 0
   };
@@ -1514,7 +1558,7 @@ function adminSaveCoupon_(req) {
     if (req.isNew && row) fail_('coupon_exists');
     var obj = { code: code, active: c.active !== false, kind: kind, value: value, maxDiscount: maxDiscount, minSpend: minSpend,
                 start: c.start || '', end: c.end || '', maxUses: maxUses, perUser: perUser, membersOnly: c.membersOnly === true,
-                note: text_(c.note, 200) };
+                stackable: c.stackable === true, note: text_(c.note, 200) };
     if (row) updateRow_(t, row, obj);
     else { obj.createdAt = new Date(); appendRow_(t, obj); }
   });
@@ -2170,6 +2214,20 @@ function sendStatusMail_(r, code) {
     }
   }
   if (code === 'cancelled') o.button = { label: th ? 'ติดต่อเรา' : 'Contact us', url: CONFIG.siteUrl + '/#contact' };
+  // Phase 6: the quote itself, with a button to pay online (no sign-in needed)
+  var oq = code === 'quoted' ? openQuote_(r.jobNo) : null;
+  if (oq) {
+    o.title = th ? 'ใบเสนอราคา งาน ' + r.jobNo : 'Quote for job ' + r.jobNo;
+    o.preheader = (th ? 'ยอดชำระ ' : 'Total ') + baht_(oq.total, th) + (th ? ' — ชำระออนไลน์ได้ถึง ' : ' — pay online by ') + dateText_(oq.validUntil, th);
+    o.intro = [th ? 'เรียนคุณ' + esc_(r.name) : 'Dear ' + esc_(r.name) + ',',
+      esc_(th ? 'เราตรวจเอกสารของท่านแล้ว นี่คือใบเสนอราคา เมื่อชำระเงินแล้วเราจะเริ่มแปลทันที'
+              : 'We have checked your documents. Here is your quote — we start translating as soon as it is paid.')];
+    if (oq.note) o.intro.push(esc_(oq.note));
+    o.rows = quoteRowsHtml_(oq, th);
+    o.button = { label: th ? 'ดูใบเสนอราคาและชำระเงิน' : 'View quote and pay', url: payUrl_(r.jobNo) };
+    o.small = esc_(th ? 'ชำระด้วยบัตรเครดิต/เดบิต QR พร้อมเพย์ วอลเล็ต หรือแอปธนาคาร ผ่านระบบ Beam Checkout ร้านไม่เก็บข้อมูลบัตร ใช้คูปองส่วนลดได้ที่หน้าชำระเงิน'
+                     : 'Pay by card, PromptPay QR, e-wallet or banking app through Beam Checkout — we never see your card details. Discount codes can be added on the payment page.');
+  }
   MailApp.sendEmail({
     to: String(r.email),
     subject: (th ? 'สถานะงาน ' : 'Job ') + r.jobNo + ': ' + (th ? st.th : st.en) + ' — ' + CONFIG.serviceName,
@@ -2400,6 +2458,7 @@ function installTriggers_() {
   var have = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); });
   if (have.indexOf('onJobEdit') === -1) ScriptApp.newTrigger('onJobEdit').forSpreadsheet(ss_()).onEdit().create();
   if (have.indexOf('purgeDueJobs') === -1) ScriptApp.newTrigger('purgeDueJobs').timeBased().everyDays(1).atHour(3).create();
+  if (have.indexOf('checkPayments') === -1) ScriptApp.newTrigger('checkPayments').timeBased().everyMinutes(15).create();
 }
 
 /* ======================================================================
@@ -2487,6 +2546,1002 @@ function sendCodeMail_(email, code, lang, kind) {
 }
 
 /* ======================================================================
+   Phase 6 — money (owner's decisions 2026-11-04 … 2026-11-09)
+   Quote (admin, Quotes sheet) → the customer pays on Beam's hosted page (Payment Link: cards,
+   PromptPay, wallets, banking apps, installments — whatever is on for the Beam account) → paid:
+   Payments row, electronic receipt RC-<BE yy><CE yy>-00001, points, emails.
+
+   Beam signs webhooks in a header that Apps Script cannot read, so a webhook is only a nudge:
+   we always ask Beam (with our key) for the real state before recording anything. The customer's
+   return from Beam and a 15-minute trigger (checkPayments) do the same check, so a payment is
+   recorded even if a webhook never arrives. Recording is idempotent (one row per Beam chargeId).
+
+   Script Properties: BEAM_MODE (test | live; test when empty), BEAM_MERCHANT_ID_TEST +
+   BEAM_API_KEY_TEST (Playground), BEAM_MERCHANT_ID + BEAM_API_KEY (Production),
+   BEAM_HOOK_SECRET (made by setup), RECEIPT_TAX_ID, RECEIPT_ADDRESS (+ optional RECEIPT_ADDRESS_EN for English receipts) (owner's personal data —
+   never in the public repo), RECEIPT_SEQ_<yyyy> / RECEIPT_SEQ_TEST_<yyyy> (receipt counters).
+   ====================================================================== */
+
+var QUOTE_COLS = [
+  ['jobNo', 'เลขที่งาน'],
+  ['version', 'ฉบับที่'],
+  ['status', 'สถานะ'],                     // ใช้งาน / ชำระแล้ว / มีฉบับใหม่แทน / หมดอายุ / ยกเลิก
+  ['items', 'รายการ'],                     // one line per item: "รายละเอียด = จำนวนเงิน"
+  ['subtotal', 'ยอดก่อนส่วนลด (บาท)'],
+  ['discountName', 'ส่วนลดที่ใช้'],
+  ['discountPercent', 'ส่วนลด (%)'],
+  ['discount', 'ส่วนลด (บาท)'],
+  ['total', 'ยอดตามใบเสนอราคา (บาท)'],
+  ['validUntil', 'ใช้ได้ถึง'],
+  ['note', 'หมายเหตุถึงลูกค้า'],
+  ['createdAt', 'สร้างเมื่อ'],
+  ['createdBy', 'สร้างโดย'],
+  ['couponCode', 'โค้ดส่วนลด'],
+  ['couponDiscount', 'ส่วนลดจากโค้ด (บาท)'],
+  ['payAmount', 'ยอดที่ส่งชำระ (บาท)'],
+  ['linkId', 'Beam ลิงก์ (ห้ามแก้)'],
+  ['linkUrl', 'ลิงก์ชำระเงิน'],
+  ['linkAt', 'สร้างลิงก์เมื่อ'],
+  ['mode', 'โหมด']                         // ทดสอบ (Playground) / จริง
+];
+var QUOTE_STATUSES = [
+  { code: 'active', th: 'ใช้งาน' },
+  { code: 'paid', th: 'ชำระแล้ว' },
+  { code: 'replaced', th: 'มีฉบับใหม่แทน' },
+  { code: 'expired', th: 'หมดอายุ' },
+  { code: 'cancelled', th: 'ยกเลิก' }
+];
+var PAY_COLS = [
+  ['receiptNo', 'เลขที่ใบเสร็จ'],
+  ['jobNo', 'เลขที่งาน'],
+  ['version', 'ใบเสนอราคาฉบับที่'],
+  ['paidAt', 'ชำระเมื่อ'],
+  ['name', 'ชื่อลูกค้า'],
+  ['email', 'อีเมล'],
+  ['items', 'รายการ'],
+  ['subtotal', 'ยอดก่อนส่วนลด (บาท)'],
+  ['discountName', 'ส่วนลดที่ใช้'],
+  ['discount', 'ส่วนลด (บาท)'],
+  ['couponCode', 'โค้ดส่วนลด'],
+  ['couponDiscount', 'ส่วนลดจากโค้ด (บาท)'],
+  ['amount', 'ยอดชำระ (บาท)'],
+  ['method', 'ช่องทาง'],
+  ['fee', 'ค่าธรรมเนียม Beam (บาท)'],
+  ['feeVat', 'VAT ค่าธรรมเนียม (บาท)'],
+  ['net', 'ยอดสุทธิที่ได้รับ (บาท)'],
+  ['member', 'สมาชิก'],
+  ['points', 'แต้มที่ได้'],
+  ['status', 'สถานะ'],                     // ชำระแล้ว / กำลังคืนเงิน / คืนเงินบางส่วน / คืนเงินแล้ว
+  ['refundAmount', 'คืนเงิน (บาท)'],
+  ['refundStatus', 'สถานะการคืนเงิน'],      // pending / succeeded / failed
+  ['refundAt', 'คืนเงินเมื่อ'],
+  ['refundReason', 'เหตุผลการคืนเงิน'],
+  ['refundId', 'Beam refundId (ห้ามแก้)'],
+  ['chargeId', 'Beam chargeId (ห้ามแก้)'],
+  ['linkId', 'Beam ลิงก์ (ห้ามแก้)'],
+  ['mode', 'โหมด']
+];
+var REWARD_COLS = [
+  ['id', 'รหัส'],
+  ['active', 'แสดง'],
+  ['nameTh', 'ของสมนาคุณ (ไทย)'],
+  ['nameEn', 'ของสมนาคุณ (EN)'],
+  ['points', 'ใช้แต้ม'],
+  ['stock', 'คงเหลือ (ว่าง = ไม่จำกัด)'],
+  ['note', 'หมายเหตุ']
+];
+var REDEEM_COLS = [
+  ['id', 'เลขที่คำขอ'],
+  ['at', 'ขอเมื่อ'],
+  ['email', 'อีเมล'],
+  ['name', 'ชื่อ'],
+  ['rewardId', 'รหัสของสมนาคุณ'],
+  ['rewardName', 'ของสมนาคุณ'],
+  ['points', 'ใช้แต้ม'],
+  ['status', 'สถานะ'],                     // รอดำเนินการ / ส่งแล้ว / ยกเลิก
+  ['note', 'ที่อยู่/หมายเหตุจากลูกค้า'],
+  ['doneAt', 'ดำเนินการเมื่อ']
+];
+var REDEEM_STATUSES = [
+  { code: 'requested', th: 'รอดำเนินการ' },
+  { code: 'sent', th: 'ส่งแล้ว' },
+  { code: 'cancelled', th: 'ยกเลิก' }
+];
+var PAY_METHOD_NAMES = {
+  CARD: ['บัตรเครดิต/เดบิต', 'Credit/debit card'],
+  CARD_INSTALLMENTS: ['ผ่อนชำระผ่านบัตร', 'Card instalments'],
+  QR_PROMPT_PAY: ['QR พร้อมเพย์', 'PromptPay QR'],
+  ALIPAY: ['Alipay', 'Alipay'], LINE_PAY: ['Rabbit LINE Pay', 'LINE Pay'], SHOPEE_PAY: ['ShopeePay', 'ShopeePay'],
+  TRUE_MONEY: ['TrueMoney Wallet', 'TrueMoney Wallet'], WECHAT_PAY: ['WeChat Pay', 'WeChat Pay'],
+  KPLUS: ['K PLUS', 'K PLUS'], MAKE: ['MAKE by KBank', 'MAKE by KBank'], SCB_EASY: ['SCB EASY', 'SCB EASY'],
+  KRUNGSRI_APP: ['KMA กรุงศรี', 'Krungsri app'], BANGKOK_BANK_APP: ['Bangkok Bank', 'Bangkok Bank app'],
+  KRUNGTHAI_NEXT: ['Krungthai NEXT', 'Krungthai NEXT'], SPAY_LATER: ['SPayLater', 'SPayLater']
+};
+function payMethodName_(code, th) {
+  var n = PAY_METHOD_NAMES[String(code || '')];
+  return n ? n[th ? 0 : 1] : String(code || '-');
+}
+function labelOf_(list, code) { for (var i = 0; i < list.length; i++) if (list[i].code === code) return list[i].th; return ''; }
+function codeOf_(list, label, dflt) {
+  var v = String(label || '').trim();
+  for (var i = 0; i < list.length; i++) if (list[i].th === v || list[i].code === v) return list[i].code;
+  return dflt;
+}
+function money_(v) { var n = Math.round((Number(v) || 0) * 100) / 100; return n > 0 ? n : 0; }
+function satang_(v) { return Math.round(money_(v) * 100); }
+function baht_(v, th) {
+  var n = money_(v), s = n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return (th ? '' : 'THB ') + s + (th ? ' บาท' : '');
+}
+function today_() { return Utilities.formatDate(new Date(), ss_().getSpreadsheetTimeZone(), 'yyyy-MM-dd'); }
+function dayPlus_(n) { return Utilities.formatDate(addDays_(new Date(), n), ss_().getSpreadsheetTimeZone(), 'yyyy-MM-dd'); }
+
+/* ---------- Beam API ---------- */
+
+function beamMode_() {
+  return String(PropertiesService.getScriptProperties().getProperty('BEAM_MODE') || '').trim().toLowerCase() === 'live' ? 'live' : 'test';
+}
+function modeLabel_(mode) { return mode === 'live' ? 'จริง' : 'ทดสอบ'; }
+function modeCode_(label) { return String(label || '').trim() === 'จริง' || label === 'live' ? 'live' : 'test'; }
+
+function beamCfg_() {
+  var p = PropertiesService.getScriptProperties(), mode = beamMode_();
+  var id = String(p.getProperty(mode === 'live' ? 'BEAM_MERCHANT_ID' : 'BEAM_MERCHANT_ID_TEST') || '').trim();
+  var key = String(p.getProperty(mode === 'live' ? 'BEAM_API_KEY' : 'BEAM_API_KEY_TEST') || '').trim();
+  if (!id || !key) fail_('pay_not_ready');
+  return { mode: mode, id: id, key: key,
+           base: mode === 'live' ? 'https://api.beamcheckout.com' : 'https://playground.api.beamcheckout.com' };
+}
+function payReady_() { try { beamCfg_(); return true; } catch (e) { return false; } }
+
+// One Beam call. Retries once on 429 / 5xx / network with the same idempotency key.
+function beam_(method, path, body, idem) {
+  var c = beamCfg_();
+  var opt = { method: method, muteHttpExceptions: true, contentType: 'application/json',
+              headers: { Authorization: 'Basic ' + Utilities.base64Encode(c.id + ':' + c.key) } };
+  if (idem) opt.headers['x-beam-idempotency-key'] = idem;
+  if (body) opt.payload = JSON.stringify(body);
+  for (var attempt = 0; attempt < 2; attempt++) {
+    var res = null;
+    try { res = UrlFetchApp.fetch(c.base + path, opt); } catch (e) { console.error('beam ' + path + ': ' + e); }
+    var code = res ? res.getResponseCode() : 0;
+    if (code >= 200 && code < 300) return parse_(res.getContentText()) || {};
+    var err = res ? parse_(res.getContentText()) : null;
+    var ec = err && err.error && err.error.errorCode || '';
+    if (code === 404) fail_('not_found');
+    if (attempt === 0 && (!code || code === 429 || code >= 500)) { Utilities.sleep(1500); continue; }
+    console.error('beam ' + method + ' ' + path + ' → ' + code + ' ' + ec + ' ' + (res ? res.getContentText().slice(0, 300) : ''));
+    fail_(code === 401 ? 'pay_not_ready' : 'pay_failed');
+  }
+}
+
+/* ---------- tokens: links in emails work without signing in ---------- */
+
+function payToken_(jobNo) { return hash_(String(jobNo).toUpperCase() + '|pay').slice(0, 32); }
+function payUrl_(jobNo) { return CONFIG.siteUrl + '/?pay=' + encodeURIComponent(jobNo) + '&t=' + payToken_(jobNo); }
+function receiptToken_(no) { return hash_(String(no) + '|receipt').slice(0, 32); }
+function receiptUrl_(no) { return CONFIG.siteUrl + '/?receipt=' + encodeURIComponent(no) + '&t=' + receiptToken_(no); }
+function checkToken_(want, got) {
+  if (!/^[0-9a-f]{32}$/.test(String(got || '')) || want !== String(got)) fail_('not_found');
+}
+
+/* ---------- quotes ---------- */
+
+function parseItems_(text) {
+  return String(text || '').split('\n').map(function (line) {
+    var at = line.lastIndexOf(' = ');
+    if (at < 0) return null;
+    return { text: line.slice(0, at).trim(), amount: money_(String(line.slice(at + 3)).replace(/,/g, '')) };
+  }).filter(function (x) { return x && x.text; });
+}
+function itemsText_(items) {
+  return items.map(function (it) { return it.text.replace(/ = /g, ' - ') + ' = ' + money_(it.amount).toFixed(2); }).join('\n');
+}
+
+function quoteObj_(r, tz) {
+  return {
+    jobNo: String(r.jobNo || '').toUpperCase(),
+    version: Number(r.version) || 1,
+    status: codeOf_(QUOTE_STATUSES, r.status, 'active'),
+    items: parseItems_(r.items),
+    subtotal: money_(r.subtotal),
+    discountName: String(r.discountName || ''),
+    discountPercent: Number(r.discountPercent) || 0,
+    discount: money_(r.discount),
+    total: money_(r.total),
+    validUntil: day_(r.validUntil, tz),
+    note: String(r.note || ''),
+    createdAt: day_(r.createdAt, tz),
+    couponCode: String(r.couponCode || ''),
+    couponDiscount: money_(r.couponDiscount),
+    payAmount: money_(r.payAmount),
+    linkId: String(r.linkId || ''),
+    linkUrl: String(r.linkUrl || ''),
+    mode: modeCode_(r.mode)
+  };
+}
+function quotesOf_(jobNo) {
+  jobNo = String(jobNo || '').toUpperCase();
+  var tz = ss_().getSpreadsheetTimeZone();
+  return rowsIfSheet_(SHEETS.quotes, QUOTE_COLS).filter(function (r) { return String(r.jobNo || '').toUpperCase() === jobNo; })
+    .map(function (r) { return quoteObj_(r, tz); }).sort(function (a, b) { return b.version - a.version; });
+}
+// The quote the customer can pay now (null if none, or out of date)
+function openQuote_(jobNo) {
+  var q = quotesOf_(jobNo).filter(function (x) { return x.status === 'active'; })[0];
+  return q && (!q.validUntil || q.validUntil >= today_()) ? q : null;
+}
+
+// Best discount for this customer: membership level vs Discounts sheet (customer type / spend) — the higher wins
+function bestDiscount_(email) {
+  email = email_(email, true);
+  var u = email ? find_(table_(SHEETS.users, USER_COLS), 'email', email) : null;
+  var best = { name: '', percent: 0 };
+  function offer(name, pct) { if (pct > best.percent) best = { name: name, percent: pct }; }
+  if (!u) return best;                                             // membership offers are for members only
+  var m = memberInfo_(email, u);
+  if (m.tier) offer('สมาชิก ' + m.tier.name, m.tier.percent);
+  var type = typeCode_(u.customerType), spend = m.lifetimeSpend;
+  discountRows_().forEach(function (d) {
+    if (!d.active || !d.percent) return;
+    if (d.kind === 'type' && d.code === type) offer(d.nameTh || typeLabel_(type), d.percent);
+    if (d.kind === 'tier' && spend >= d.minSpend) offer(d.nameTh || d.code, d.percent);
+  });
+  return best;
+}
+
+// Admin: the form's starting values (suggested discount) and the job's quotes and payments
+function moneyFor_(r) {
+  var jobNo = String(r.jobNo).toUpperCase();
+  return {
+    quotes: quotesOf_(jobNo),
+    payments: paymentsOf_(function (p) { return String(p.jobNo).toUpperCase() === jobNo; }),
+    suggested: bestDiscount_(r.email),
+    payUrl: payUrl_(jobNo),
+    payReady: payReady_(),
+    mode: beamMode_(),
+    quoteDays: CONFIG.quoteDays
+  };
+}
+
+function adminSaveQuote_(req) {
+  var me = need_(req, ['admin']);
+  var jobNo = String(req.jobNo || '').trim().toUpperCase();
+  var r = jobRow_(table_(SHEETS.jobs, JOB_COLS), jobNo);
+  var code = statusCode_(r.status);
+  if (['received', 'quoted'].indexOf(code) === -1) fail_('quote_locked');
+  if (!email_(r.email, true)) fail_('not_found');
+  var items = (req.items || []).slice(0, 15).map(function (it) {
+    var text = text_(it && it.text, 160), amount = Number(it && it.amount);
+    if (!text || !(amount >= 0) || amount > 10000000) fail_('invalid_number');
+    return { text: text, amount: money_(amount) };
+  });
+  if (!items.length) fail_('quote_empty');
+  var subtotal = money_(items.reduce(function (s, it) { return s + it.amount; }, 0));
+  var pct = Number(req.discountPercent || 0);
+  if (!(pct >= 0 && pct <= 100)) fail_('invalid_number');
+  var discount = money_(subtotal * pct / 100), total = money_(subtotal - discount);
+  if (!(total >= 1)) fail_('quote_too_small');                     // Beam needs at least 1 baht
+  var days = Math.max(1, Math.min(60, parseInt(req.days || CONFIG.quoteDays, 10) || CONFIG.quoteDays));
+  var old = [];
+  withLock_(function () {
+    var t = table_(SHEETS.quotes, QUOTE_COLS), version = 1;
+    t.rows.forEach(function (q) {
+      if (String(q.jobNo || '').toUpperCase() !== jobNo) return;
+      version = Math.max(version, (Number(q.version) || 0) + 1);
+      if (codeOf_(QUOTE_STATUSES, q.status, 'active') === 'active') {
+        if (q.linkId) old.push(String(q.linkId));
+        updateRow_(t, q, { status: labelOf_(QUOTE_STATUSES, 'replaced') });
+      }
+    });
+    appendRow_(t, {
+      jobNo: jobNo, version: version, status: labelOf_(QUOTE_STATUSES, 'active'), items: itemsText_(items),
+      subtotal: subtotal, discountName: pct ? (text_(req.discountName, 80) || 'ส่วนลด') : '', discountPercent: pct,
+      discount: discount, total: total, validUntil: dayPlus_(days), note: text_(req.note, 600),
+      createdAt: new Date(), createdBy: me.email, mode: modeLabel_(beamMode_())
+    });
+  });
+  old.forEach(disableLink_);
+  if (code !== 'quoted') setStatus_(jobNo, 'quoted', me.email);    // emails the quote (sendStatusMail_)
+  else {
+    note_(r, me.email, 'ออกใบเสนอราคาฉบับใหม่');
+    try { sendStatusMail_(r, 'quoted'); } catch (e) { console.error('quote mail ' + jobNo + ': ' + e); }
+  }
+  return adminJob_({ token: req.token, jobNo: jobNo });
+}
+
+function adminCancelQuote_(req) {
+  var me = need_(req, ['admin']);
+  var jobNo = String(req.jobNo || '').trim().toUpperCase();
+  var r = jobRow_(table_(SHEETS.jobs, JOB_COLS), jobNo);
+  var links = [];
+  withLock_(function () {
+    var t = table_(SHEETS.quotes, QUOTE_COLS);
+    t.rows.forEach(function (q) {
+      if (String(q.jobNo || '').toUpperCase() === jobNo && codeOf_(QUOTE_STATUSES, q.status, 'active') === 'active') {
+        if (q.linkId) links.push(String(q.linkId));
+        updateRow_(t, q, { status: labelOf_(QUOTE_STATUSES, 'cancelled') });
+      }
+    });
+  });
+  links.forEach(disableLink_);
+  note_(r, me.email, 'ยกเลิกใบเสนอราคา');
+  return adminJob_({ token: req.token, jobNo: jobNo });
+}
+
+function disableLink_(linkId) {
+  if (!linkId || !payReady_()) return;
+  try { beam_('patch', '/api/v1/payment-links/' + encodeURIComponent(linkId) + '/disable', null, Utilities.getUuid()); }
+  catch (e) { /* already paid / expired / disabled */ }
+}
+
+/* ---------- paying (public: job number + token from the email or the account page) ---------- */
+
+function payView_(jobNo) {
+  var tz = ss_().getSpreadsheetTimeZone();
+  var r = jobRow_(table_(SHEETS.jobs, JOB_COLS), jobNo);
+  var all = quotesOf_(jobNo), q = openQuote_(jobNo);
+  var last = all[0] || null;
+  var paid = paymentsOf_(function (p) { return String(p.jobNo).toUpperCase() === String(jobNo).toUpperCase(); });
+  var email = email_(r.email, true);
+  var isMember = !!(email && find_(table_(SHEETS.users, USER_COLS), 'email', email));
+  return {
+    jobNo: String(r.jobNo).toUpperCase(),
+    status: statusCode_(r.status),
+    category: String(r.category || ''), langPair: String(r.langPair || ''),
+    pages: r.pages === '' || r.pages == null ? null : Number(r.pages),
+    name: String(r.name || ''),
+    quote: q || (last && last.status !== 'active' ? last : null),
+    canPay: !!q && statusCode_(r.status) === 'quoted' && !paid.length,
+    expired: !!(last && last.status === 'active' && !q) || !!(last && last.status === 'expired'),
+    payments: paid,
+    member: isMember,
+    mode: beamMode_(),
+    ready: payReady_(),
+    today: day_(new Date(), tz)
+  };
+}
+
+function payInfo_(req) {
+  var jobNo = String(req.jobNo || '').trim().toUpperCase();
+  checkToken_(payToken_(jobNo), req.t);
+  return { ok: true, pay: payView_(jobNo) };
+}
+
+// Price after a discount code (members only codes need the job's email to have an account)
+function withCoupon_(q, code, email, isMember) {
+  var out = { couponCode: '', couponDiscount: 0, discount: q.discount, amount: q.total };
+  code = String(code || '').trim().toUpperCase();
+  if (!code) return out;
+  var c = evalCoupon_(code, email, q.subtotal);
+  var row = rowsIfSheet_(SHEETS.coupons, COUPON_COLS).filter(function (x) { return String(x.code || '').toUpperCase() === code; })[0];
+  if (row && active_({ active: row.membersOnly }) && !isMember) fail_('coupon_sign_in');
+  var stack = row ? active_({ active: row.stackable }) : false;
+  var base = stack ? q.total : q.subtotal;
+  var cd = c.kind === 'percent' ? base * c.value / 100 : c.value;
+  if (c.kind === 'percent' && c.maxDiscount) cd = Math.min(cd, c.maxDiscount);
+  cd = money_(Math.min(cd, base - 1));
+  if (stack) return { couponCode: code, couponDiscount: cd, discount: q.discount, amount: money_(q.total - cd) };
+  // not combinable with the member/customer discount: the customer gets the bigger of the two
+  if (cd <= q.discount) fail_('coupon_lower');
+  return { couponCode: code, couponDiscount: cd, discount: 0, amount: money_(q.subtotal - cd) };
+}
+
+function payStart_(req) {
+  var jobNo = String(req.jobNo || '').trim().toUpperCase();
+  checkToken_(payToken_(jobNo), req.t);
+  var cache = CacheService.getScriptCache(), key = 'paystart:' + jobNo;
+  var n = parseInt(cache.get(key) || '0', 10);
+  if (n >= 20) fail_('rate_limited');
+  cache.put(key, String(n + 1), 3600);
+  var v = payView_(jobNo);
+  if (v.payments.length) return { ok: true, paid: true, pay: v };
+  if (!v.canPay) fail_(v.expired ? 'quote_expired' : 'quote_none');
+  var cfg = beamCfg_();
+  var q = v.quote;
+  var r = jobRow_(table_(SHEETS.jobs, JOB_COLS), jobNo);
+  var price = withCoupon_(q, req.coupon, email_(r.email, true), v.member);
+  // Same price and an unpaid link from the same mode: send the customer back to it
+  if (q.linkId && q.mode === cfg.mode && q.payAmount === price.amount && q.couponCode === price.couponCode) {
+    var link = null;
+    try { link = beam_('get', '/api/v1/payment-links/' + encodeURIComponent(q.linkId)); } catch (e) { link = null; }
+    if (link && link.status === 'ACTIVE' && link.url) return { ok: true, url: link.url };
+    if (link && link.status === 'PAID') { syncLink_(q.linkId); return { ok: true, paid: true, pay: payView_(jobNo) }; }
+  }
+  if (q.linkId && q.mode === cfg.mode) disableLink_(q.linkId);
+  var back = CONFIG.siteUrl + '/?pay=' + encodeURIComponent(jobNo) + '&t=' + payToken_(jobNo);
+  var made = beam_('post', '/api/v1/payment-links', {
+    order: {
+      currency: 'THB',
+      netAmount: satang_(price.amount),
+      description: CONFIG.serviceName + ' ' + jobNo + ' — ' + categoryName_(r.category, true),
+      referenceId: jobNo,
+      internalNote: 'quote v' + q.version
+    },
+    redirectUrl: back + '&back=1',
+    cancelUrl: back + '&cancelled=1',
+    expiresAt: new Date(q.validUntil + 'T23:59:59+07:00').toISOString(),
+    collectPhoneNumber: false
+  }, Utilities.getUuid());
+  if (!made || !made.id || !made.url) fail_('pay_failed');
+  withLock_(function () {
+    var t = table_(SHEETS.quotes, QUOTE_COLS);
+    var row = t.rows.filter(function (x) { return String(x.jobNo || '').toUpperCase() === jobNo && Number(x.version) === q.version; })[0];
+    if (row) updateRow_(t, row, { couponCode: price.couponCode, couponDiscount: price.couponDiscount, payAmount: price.amount,
+                                  linkId: String(made.id), linkUrl: String(made.url), linkAt: new Date(), mode: modeLabel_(cfg.mode) });
+  });
+  return { ok: true, url: String(made.url) };
+}
+
+// The pay page shows the price with a discount code before the customer pays
+function payPrice_(req) {
+  var jobNo = String(req.jobNo || '').trim().toUpperCase();
+  checkToken_(payToken_(jobNo), req.t);
+  var cache = CacheService.getScriptCache(), key = 'payprice:' + jobNo;
+  var n = parseInt(cache.get(key) || '0', 10);
+  if (n >= 30) fail_('rate_limited');                // stops guessing codes
+  cache.put(key, String(n + 1), 3600);
+  var v = payView_(jobNo);
+  if (!v.canPay) fail_(v.expired ? 'quote_expired' : 'quote_none');
+  var r = jobRow_(table_(SHEETS.jobs, JOB_COLS), jobNo);
+  return { ok: true, price: withCoupon_(v.quote, req.coupon, email_(r.email, true), v.member) };
+}
+
+// Customer is back from Beam (or presses "check again"): ask Beam, record if paid
+function payCheck_(req) {
+  var jobNo = String(req.jobNo || '').trim().toUpperCase();
+  checkToken_(payToken_(jobNo), req.t);
+  var cache = CacheService.getScriptCache(), key = 'paycheck:' + jobNo;
+  var n = parseInt(cache.get(key) || '0', 10);
+  if (n < 60) {
+    cache.put(key, String(n + 1), 3600);
+    var q = quotesOf_(jobNo).filter(function (x) { return x.linkId && x.mode === beamMode_() && x.status === 'active'; })[0];
+    if (q && payReady_()) { try { syncLink_(q.linkId); } catch (e) { console.error('paycheck ' + jobNo + ': ' + e); } }
+  }
+  return { ok: true, pay: payView_(jobNo) };
+}
+
+/* ---------- Beam → us ---------- */
+
+// Webhook URL registered in Beam Lighthouse: <web app URL>?hook=<BEAM_HOOK_SECRET>
+function beamHook_(e) {
+  var secret = String(PropertiesService.getScriptProperties().getProperty('BEAM_HOOK_SECRET') || '');
+  if (!secret || String(e.parameter.hook) !== secret) return { ok: false };
+  var b = parse_(e.postData && e.postData.contents) || {};
+  try {
+    if (b.paymentLinkId) syncLink_(String(b.paymentLinkId));
+    else if (b.transactionId) syncFees_(String(b.transactionId), b.transactionType);
+    else if (b.refundId) syncRefund_(String(b.refundId));
+    else if (b.chargeId && b.source === 'PAYMENT_LINK' && b.sourceId) syncLink_(String(b.sourceId));
+  } catch (err) { console.error('hook: ' + (err && err.stack || err)); }
+  return { ok: true };                       // always 2xx: the real state is fetched, retries add nothing
+}
+
+// Ask Beam about a payment link; if it is paid, record the payment (once)
+function syncLink_(linkId) {
+  var q = rowsIfSheet_(SHEETS.quotes, QUOTE_COLS).filter(function (x) { return String(x.linkId) === String(linkId); })[0];
+  if (!q) return null;                        // not ours (or an old test link)
+  var link = beam_('get', '/api/v1/payment-links/' + encodeURIComponent(linkId));
+  if (!link || link.status !== 'PAID') return null;
+  var list = beam_('get', '/api/v1/charges?source_in=PAYMENT_LINK&sourceId=' + encodeURIComponent(linkId) + '&limit=20');
+  var charges = (list && (list.data || list.charges || list.items)) || (Array.isArray(list) ? list : []);
+  var ch = charges.filter(function (c) { return c && c.status === 'SUCCEEDED'; })[0];
+  if (!ch) return null;
+  return recordPayment_(quoteObj_(q, ss_().getSpreadsheetTimeZone()), ch, linkId);
+}
+
+function nextReceiptNo_(mode, when) {
+  var tz = ss_().getSpreadsheetTimeZone();
+  var ce = Number(Utilities.formatDate(when, tz, 'yyyy')), be = ce + 543;
+  var props = PropertiesService.getScriptProperties();
+  var key = 'RECEIPT_SEQ_' + (mode === 'live' ? '' : 'TEST_') + ce;
+  var n = (parseInt(props.getProperty(key) || '0', 10) || 0) + 1;
+  props.setProperty(key, String(n));
+  var no = 'RC-' + String(be).slice(-2) + String(ce).slice(-2) + '-' + ('0000' + n).slice(-5);
+  return mode === 'live' ? no : 'TEST-' + no;
+}
+
+function recordPayment_(q, ch, linkId) {
+  var jobNo = q.jobNo, made = null;
+  withLock_(function () {
+    var pays = table_(SHEETS.payments, PAY_COLS);
+    if (pays.rows.some(function (p) { return String(p.chargeId) === String(ch.chargeId); })) return;
+    var jobs = table_(SHEETS.jobs, JOB_COLS), r = jobRow_(jobs, jobNo);
+    var email = email_(r.email, true);
+    var isMember = !!(email && find_(table_(SHEETS.users, USER_COLS), 'email', email));
+    var paidAt = ch.transactionTime ? new Date(ch.transactionTime) : new Date();
+    if (isNaN(paidAt)) paidAt = new Date();
+    var amount = money_((Number(ch.amount) || 0) / 100);
+    if (Math.abs(amount - q.payAmount) > 0.009) console.error('amount differs ' + jobNo + ': beam ' + amount + ' quote ' + q.payAmount);
+    var mode = q.mode;
+    var no = nextReceiptNo_(mode, paidAt);
+    // a code that can't be combined replaced the member/customer discount (see withCoupon_)
+    var keepDiscount = !q.couponCode || Math.abs(q.payAmount - money_(q.total - q.couponDiscount)) < 0.01;
+    made = {
+      receiptNo: no, jobNo: jobNo, version: q.version, paidAt: paidAt, name: String(r.name || ''), email: email,
+      items: itemsText_(q.items), subtotal: q.subtotal, discountName: keepDiscount ? q.discountName : '',
+      discount: keepDiscount ? q.discount : 0, couponCode: q.couponCode, couponDiscount: q.couponDiscount,
+      amount: amount, method: String(ch.paymentMethod && ch.paymentMethod.paymentMethodType || ''),
+      member: isMember, points: isMember ? Math.floor(amount / CONFIG.bahtPerPoint) : 0,
+      status: 'ชำระแล้ว', chargeId: String(ch.chargeId), linkId: String(linkId), mode: modeLabel_(mode)
+    };
+    appendRow_(pays, made);
+    var t = table_(SHEETS.quotes, QUOTE_COLS);
+    t.rows.forEach(function (x) {
+      if (String(x.jobNo || '').toUpperCase() === jobNo && Number(x.version) === q.version) updateRow_(t, x, { status: labelOf_(QUOTE_STATUSES, 'paid') });
+    });
+    if (q.couponCode) appendRow_(table_(SHEETS.couponUses, COUPON_USE_COLS),
+      { code: q.couponCode, email: email, jobNo: jobNo, discount: q.couponDiscount, at: paidAt });
+  });
+  if (!made) return null;
+  var r = jobRow_(table_(SHEETS.jobs, JOB_COLS), jobNo);
+  if (['received', 'quoted'].indexOf(statusCode_(r.status)) > -1) setStatus_(jobNo, 'paid', null);
+  note_(r, 'system', 'ชำระเงินแล้ว ' + baht_(made.amount, true) + ' (' + payMethodName_(made.method, true) + ') ใบเสร็จ ' + made.receiptNo);
+  try { sendReceiptMail_(made, r); } catch (e) { console.error('receipt mail ' + jobNo + ': ' + e); }
+  try { syncFees_(made.chargeId, 'PAYMENT'); } catch (e) { /* the transaction may not exist yet; the trigger tries again */ }
+  return made;
+}
+
+// Beam's fee and what the shop actually receives (Transactions API)
+function syncFees_(transactionId, type) {
+  if (/^re_/.test(transactionId) || type === 'REFUND' || type === 'VOID') return;
+  var tx = beam_('get', '/api/v1/transactions/' + encodeURIComponent(transactionId));
+  if (!tx || tx.transactionType && tx.transactionType !== 'PAYMENT') return;
+  withLock_(function () {
+    var pays = table_(SHEETS.payments, PAY_COLS);
+    var p = pays.rows.filter(function (x) { return String(x.chargeId) === String(transactionId); })[0];
+    if (p) updateRow_(pays, p, { fee: money_((tx.feeAmount || 0) / 100), feeVat: money_((tx.vatAmount || 0) / 100),
+                                  net: money_((tx.netAmount || 0) / 100) });
+  });
+}
+
+/* ---------- payments ---------- */
+
+function payStatusCode_(p) {
+  var rs = String(p.refundStatus || ''), ra = money_(p.refundAmount);
+  if (rs === 'pending') return 'refunding';
+  if (rs === 'succeeded') return ra >= money_(p.amount) ? 'refunded' : 'partRefunded';
+  return 'paid';
+}
+var PAY_STATUS_TH = { paid: 'ชำระแล้ว', refunding: 'กำลังคืนเงิน', partRefunded: 'คืนเงินบางส่วน', refunded: 'คืนเงินแล้ว' };
+
+function payObj_(p, tz, admin) {
+  var o = {
+    receiptNo: String(p.receiptNo || ''), jobNo: String(p.jobNo || ''), paidAt: iso_(p.paidAt), paidDay: day_(p.paidAt, tz),
+    amount: money_(p.amount), method: String(p.method || ''), status: payStatusCode_(p),
+    refundAmount: String(p.refundStatus) === 'succeeded' || String(p.refundStatus) === 'pending' ? money_(p.refundAmount) : 0,
+    refundStatus: String(p.refundStatus || ''), refundDay: day_(p.refundAt, tz),
+    points: Number(p.points) || 0, mode: modeCode_(p.mode),
+    receiptUrl: p.receiptNo ? receiptUrl_(p.receiptNo) : ''
+  };
+  if (admin) {
+    o.name = String(p.name || ''); o.email = String(p.email || '');
+    o.fee = p.fee === '' || p.fee == null ? null : money_(p.fee);
+    o.feeVat = p.feeVat === '' || p.feeVat == null ? null : money_(p.feeVat);
+    o.net = p.net === '' || p.net == null ? null : money_(p.net);
+    o.refundReason = String(p.refundReason || '');
+    o.couponCode = String(p.couponCode || '');
+  }
+  return o;
+}
+function paymentsOf_(test, admin) {
+  var tz = ss_().getSpreadsheetTimeZone();
+  return rowsIfSheet_(SHEETS.payments, PAY_COLS).filter(function (p) { return p.receiptNo && test(p); })
+    .map(function (p) { return payObj_(p, tz, admin); })
+    .sort(function (a, b) { return b.paidAt.localeCompare(a.paidAt); });
+}
+
+function myPayments_(req) {
+  var me = need_(req, ['customer', 'staff', 'admin']);
+  var tz = ss_().getSpreadsheetTimeZone(), today = today_();
+  var mine = {}, jobStatus = {};
+  rowsIfSheet_(SHEETS.jobs, JOB_COLS).forEach(function (r) {
+    if (r.jobNo && String(r.status || '').trim() && email_(r.email, true) === me.email) {
+      mine[String(r.jobNo).toUpperCase()] = true;
+      jobStatus[String(r.jobNo).toUpperCase()] = statusCode_(r.status);
+    }
+  });
+  var latest = {};
+  rowsIfSheet_(SHEETS.quotes, QUOTE_COLS).forEach(function (r) {
+    var q = quoteObj_(r, tz);
+    if (!mine[q.jobNo]) return;
+    if (!latest[q.jobNo] || q.version > latest[q.jobNo].version) latest[q.jobNo] = q;
+  });
+  var quotes = Object.keys(latest).map(function (k) {
+    var q = latest[k];
+    var open = q.status === 'active' && (!q.validUntil || q.validUntil >= today) && jobStatus[k] === 'quoted';
+    return { jobNo: k, version: q.version, total: q.total, validUntil: q.validUntil, createdAt: q.createdAt,
+             status: q.status === 'active' && !open && q.validUntil && q.validUntil < today ? 'expired' : q.status,
+             canPay: open, t: payToken_(k) };
+  }).sort(function (a, b) { return (b.createdAt || '').localeCompare(a.createdAt || ''); });
+  return { ok: true, payments: paymentsOf_(function (p) { return email_(p.email, true) === me.email; }),
+           quotes: quotes, membership: membershipView_(me.email) };
+}
+
+function adminPayments_(req) {
+  need_(req, ['admin']);
+  var mode = req.mode === 'test' ? 'test' : req.mode === 'live' ? 'live' : beamMode_();
+  var list = paymentsOf_(function (p) { return modeCode_(p.mode) === mode; }, true);
+  var secret = PropertiesService.getScriptProperties().getProperty('BEAM_HOOK_SECRET') || '';
+  var url = '';
+  try { url = ScriptApp.getService().getUrl() || ''; } catch (e) { url = ''; }
+  var sum = { count: 0, gross: 0, fee: 0, net: 0, refunded: 0 }, month = today_().slice(0, 7);
+  list.forEach(function (p) {
+    if (p.paidDay.slice(0, 7) !== month) return;
+    sum.count++; sum.gross = money_(sum.gross + p.amount); sum.refunded = money_(sum.refunded + (p.status === 'refunding' ? 0 : p.refundAmount));
+    sum.fee = money_(sum.fee + (p.fee || 0) + (p.feeVat || 0)); sum.net = money_(sum.net + (p.net || 0));
+  });
+  return { ok: true, payments: list.slice(0, 500), mode: mode, current: beamMode_(), ready: payReady_(), month: sum,
+           hookUrl: url && secret ? url + '?hook=' + secret : '' };
+}
+
+/* ---------- refunds (admin) ---------- */
+
+function adminRefund_(req) {
+  var me = need_(req, ['admin']);
+  var no = String(req.receiptNo || '').trim();
+  var reason = text_(req.reason, 400);
+  var p = rowsIfSheet_(SHEETS.payments, PAY_COLS).filter(function (x) { return String(x.receiptNo) === no; })[0];
+  if (!p) fail_('not_found');
+  if (modeCode_(p.mode) !== beamMode_()) fail_('pay_mode');
+  if (String(p.refundStatus) === 'pending' || String(p.refundStatus) === 'succeeded') fail_('refund_exists');
+  var paid = money_(p.amount);
+  var amount = req.amount === '' || req.amount == null ? paid : money_(req.amount);
+  if (!(amount > 0) || amount > paid) fail_('invalid_number');
+  if (amount < paid && String(p.method) !== 'CARD') fail_('refund_full_only');   // Beam: partial refunds are card only
+  var res = beam_('post', '/api/v1/refunds', { chargeId: String(p.chargeId), amount: satang_(amount), reason: reason || 'refund' }, Utilities.getUuid());
+  if (!res || !res.refundId) fail_('pay_failed');
+  withLock_(function () {
+    var pays = table_(SHEETS.payments, PAY_COLS);
+    var row = pays.rows.filter(function (x) { return String(x.receiptNo) === no; })[0];
+    updateRow_(pays, row, { refundId: String(res.refundId), refundAmount: amount, refundStatus: 'pending', refundReason: reason,
+                            status: PAY_STATUS_TH.refunding });
+  });
+  var jobs = table_(SHEETS.jobs, JOB_COLS);
+  try { note_(jobRow_(jobs, p.jobNo), me.email, 'ขอคืนเงิน ' + baht_(amount, true) + ' ใบเสร็จ ' + no + (reason ? ' — ' + reason : '')); } catch (e) { /* job purged */ }
+  try { syncRefund_(String(res.refundId)); } catch (e) { /* the webhook or the trigger finishes it */ }
+  return { ok: true, payments: paymentsOf_(function (x) { return String(x.jobNo) === String(p.jobNo); }, true) };
+}
+
+function syncRefund_(refundId) {
+  var p0 = rowsIfSheet_(SHEETS.payments, PAY_COLS).filter(function (x) { return String(x.refundId) === String(refundId); })[0];
+  if (!p0 || String(p0.refundStatus) !== 'pending') return;
+  var rf = beam_('get', '/api/v1/refunds/' + encodeURIComponent(refundId));
+  if (!rf || (rf.status !== 'SUCCEEDED' && rf.status !== 'FAILED')) return;
+  var done = null;
+  withLock_(function () {
+    var pays = table_(SHEETS.payments, PAY_COLS);
+    var p = pays.rows.filter(function (x) { return String(x.refundId) === String(refundId); })[0];
+    if (!p || String(p.refundStatus) !== 'pending') return;
+    if (rf.status === 'SUCCEEDED') {
+      var amt = money_((Number(rf.amount) || satang_(p.refundAmount)) / 100);
+      var left = money_(money_(p.amount) - amt);
+      updateRow_(pays, p, { refundStatus: 'succeeded', refundAmount: amt, refundAt: new Date(),
+                            status: left > 0 ? PAY_STATUS_TH.partRefunded : PAY_STATUS_TH.refunded,
+                            points: active_({ active: p.member }) ? Math.floor(left / CONFIG.bahtPerPoint) : 0 });
+    } else updateRow_(pays, p, { refundStatus: 'failed', status: PAY_STATUS_TH.paid });
+    done = { ok: rf.status === 'SUCCEEDED', p: p };
+  });
+  if (!done) return;
+  try {
+    var r = jobRow_(table_(SHEETS.jobs, JOB_COLS), done.p.jobNo);
+    note_(r, 'system', done.ok ? 'คืนเงินสำเร็จ (ส่งเรื่องถึงผู้ให้บริการชำระเงินแล้ว) ใบเสร็จ ' + done.p.receiptNo
+                               : 'คืนเงินไม่สำเร็จ ใบเสร็จ ' + done.p.receiptNo + ' — ลองใหม่ได้ที่หน้างาน');
+    if (done.ok) sendRefundMail_(done.p, r);
+  } catch (e) { console.error('refund after ' + refundId + ': ' + e); }
+}
+
+/* ---------- every 15 minutes: payments the webhook may have missed, expiry, fees, refunds ---------- */
+
+function checkPayments() {
+  if (!payReady_()) return;
+  var mode = beamMode_(), today = today_(), tz = ss_().getSpreadsheetTimeZone();
+  var quotes = rowsIfSheet_(SHEETS.quotes, QUOTE_COLS).map(function (r) { return quoteObj_(r, tz); })
+    .filter(function (q) { return q.status === 'active'; });
+  var expired = quotes.filter(function (q) { return q.validUntil && q.validUntil < today; });
+  quotes.filter(function (q) { return q.linkId && q.mode === mode; }).slice(0, 40).forEach(function (q) {
+    try { syncLink_(q.linkId); } catch (e) { console.error('check ' + q.jobNo + ': ' + e); }
+  });
+  if (expired.length) {
+    var stillOpen = {};
+    rowsIfSheet_(SHEETS.quotes, QUOTE_COLS).forEach(function (r) { var q = quoteObj_(r, tz); if (q.status === 'active') stillOpen[q.jobNo + '|' + q.version] = true; });
+    withLock_(function () {
+      var t = table_(SHEETS.quotes, QUOTE_COLS);
+      t.rows.forEach(function (r) {
+        var q = quoteObj_(r, tz);
+        if (q.status === 'active' && q.validUntil && q.validUntil < today && stillOpen[q.jobNo + '|' + q.version]) updateRow_(t, r, { status: labelOf_(QUOTE_STATUSES, 'expired') });
+      });
+    });
+  }
+  var week = addDays_(new Date(), -7).getTime();
+  rowsIfSheet_(SHEETS.payments, PAY_COLS).forEach(function (p) {
+    if (modeCode_(p.mode) !== mode) return;
+    try {
+      if (String(p.refundStatus) === 'pending' && p.refundId) syncRefund_(String(p.refundId));
+      if ((p.net === '' || p.net == null) && p.chargeId && new Date(p.paidAt).getTime() > week) syncFees_(String(p.chargeId), 'PAYMENT');
+    } catch (e) { console.error('check pay ' + p.receiptNo + ': ' + e); }
+  });
+}
+
+/* ---------- receipts ---------- */
+
+function receipt_(req) {
+  var no = String(req.no || '').trim().toUpperCase();
+  checkToken_(receiptToken_(no), req.t);
+  var p = rowsIfSheet_(SHEETS.payments, PAY_COLS).filter(function (x) { return String(x.receiptNo).toUpperCase() === no; })[0];
+  if (!p) fail_('not_found');
+  var props = PropertiesService.getScriptProperties();
+  var o = payObj_(p, ss_().getSpreadsheetTimeZone(), false);
+  o.items = parseItems_(p.items);
+  o.subtotal = money_(p.subtotal);
+  o.discountName = String(p.discountName || ''); o.discount = money_(p.discount);
+  o.couponCode = String(p.couponCode || ''); o.couponDiscount = money_(p.couponDiscount);
+  o.buyer = { name: String(p.name || ''), email: String(p.email || '') };
+  o.seller = { name: CONFIG.sellerName, owner: CONFIG.sellerOwner,
+               taxId: String(props.getProperty('RECEIPT_TAX_ID') || ''), address: String(props.getProperty('RECEIPT_ADDRESS') || ''),
+               addressEn: String(props.getProperty('RECEIPT_ADDRESS_EN') || ''),
+               phone: CONFIG.contactPhone, email: CONFIG.contactEmail, web: CONFIG.siteUrl.replace(/^https:\/\//, '') };
+  return { ok: true, receipt: o };
+}
+
+function quoteRowsHtml_(q, th) {
+  var rows = q.items.map(function (it) { return [it.text, baht_(it.amount, th)]; });
+  rows.push([th ? 'รวม' : 'Subtotal', baht_(q.subtotal, th)]);
+  if (q.discount) rows.push([(th ? 'ส่วนลด ' : 'Discount ') + (q.discountName ? '(' + q.discountName + ' ' + q.discountPercent + '%)' : ''), '−' + baht_(q.discount, th)]);
+  rows.push([th ? 'ยอดชำระ' : 'Total', '<span style="font-size:17px;color:#01417b">' + esc_(baht_(q.total, th)) + '</span>', true]);
+  rows.push([th ? 'ใช้ได้ถึง' : 'Valid until', dateText_(q.validUntil, th)]);
+  return rows;
+}
+
+function sendReceiptMail_(p, r) {
+  var th = r.lang !== 'en';
+  var rows = [[th ? 'เลขที่ใบเสร็จ' : 'Receipt no.', p.receiptNo], [th ? 'เลขที่งาน' : 'Job no.', p.jobNo],
+              [th ? 'วันที่ชำระ' : 'Paid on', dateText_(p.paidAt, th)], [th ? 'ช่องทาง' : 'Method', payMethodName_(p.method, th)],
+              [th ? 'ยอดชำระ' : 'Amount', baht_(p.amount, th)]];
+  if (p.points) rows.push([th ? 'แต้มที่ได้รับ' : 'Points earned', String(p.points)]);
+  MailApp.sendEmail({
+    to: p.email, name: CONFIG.serviceName, replyTo: providerEmail_(),
+    subject: (th ? 'ใบเสร็จรับเงิน ' : 'Receipt ') + p.receiptNo + ' — ' + CONFIG.serviceName,
+    htmlBody: mailLayout_({
+      th: th, status: 'paid', steps: 'paid',
+      preheader: (th ? 'ได้รับชำระเงินแล้ว ' : 'Payment received ') + baht_(p.amount, th),
+      title: th ? 'ได้รับชำระเงินแล้ว ขอบคุณครับ' : 'Payment received — thank you',
+      intro: [th ? 'เรียนคุณ' + esc_(p.name) : 'Dear ' + esc_(p.name) + ',',
+        esc_(th ? 'เราได้รับชำระเงินสำหรับงาน ' + p.jobNo + ' แล้ว และจะเริ่มแปลเอกสารของท่าน ใบเสร็จรับเงินอิเล็กทรอนิกส์ดูและพิมพ์ได้จากปุ่มด้านล่าง'
+                : 'We have received your payment for job ' + p.jobNo + ' and will start translating. View or print your electronic receipt below.')],
+      rows: rows,
+      button: { label: th ? 'ดู / พิมพ์ใบเสร็จ' : 'View / print receipt', url: receiptUrl_(p.receiptNo) },
+      small: p.mode === modeLabel_('test') ? (th ? 'โหมดทดสอบ — ไม่มีการเรียกเก็บเงินจริง' : 'Test mode — no real money was taken.') : ''
+    })
+  });
+  MailApp.sendEmail({
+    to: providerEmail_(), name: CONFIG.serviceName,
+    subject: 'ได้รับชำระเงิน ' + p.jobNo + ' ' + baht_(p.amount, true) + (p.mode === modeLabel_('test') ? ' (ทดสอบ)' : ''),
+    htmlBody: mailLayout_({ th: true, status: 'paid', title: 'ลูกค้าชำระเงินแล้ว ' + p.jobNo,
+      intro: ['ระบบเปลี่ยนสถานะงานเป็น "ชำระเงินแล้ว" และส่งใบเสร็จให้ลูกค้าแล้ว มอบหมายผู้แปลได้ที่หน้างาน'],
+      rows: rows.concat([['ลูกค้า', p.name + ' · ' + p.email]]),
+      button: { label: 'เปิดหน้างาน', url: CONFIG.siteUrl + '/#account' } })
+  });
+}
+
+function sendRefundMail_(p, r) {
+  var th = String(r.lang) !== 'en';
+  MailApp.sendEmail({
+    to: String(p.email), name: CONFIG.serviceName, replyTo: providerEmail_(),
+    subject: (th ? 'คืนเงินงาน ' : 'Refund for job ') + p.jobNo + ' — ' + CONFIG.serviceName,
+    htmlBody: mailLayout_({ th: th,
+      title: th ? 'เราดำเนินการคืนเงินให้ท่านแล้ว' : 'Your refund is on its way',
+      intro: [th ? 'เรียนคุณ' + esc_(p.name) : 'Dear ' + esc_(p.name) + ',',
+        esc_(th ? 'เราส่งเรื่องคืนเงินไปยังช่องทางที่ท่านชำระแล้ว ระยะเวลาที่เงินเข้าขึ้นอยู่กับธนาคารหรือผู้ให้บริการบัตร/กระเป๋าเงินของท่าน (โดยทั่วไปไม่กี่วันทำการ)'
+                : 'We have sent the refund to the payment method you used. How soon it arrives depends on your bank or card/wallet provider (usually a few working days).')],
+      rows: [[th ? 'เลขที่ใบเสร็จ' : 'Receipt no.', String(p.receiptNo)], [th ? 'จำนวนเงินที่คืน' : 'Amount refunded', baht_(p.refundAmount, th)]],
+      button: { label: th ? 'ติดต่อเรา' : 'Contact us', url: CONFIG.siteUrl + '/#contact' } })
+  });
+}
+
+/* ---------- membership: points, levels, rewards ---------- */
+
+function tierFor_(points) {
+  var best = null;
+  CONFIG.tiers.forEach(function (t) { if (points >= t.points) best = t; });
+  return best;
+}
+
+// { member, points (balance this year), tier, tierPoints, tierUntil, cycleEnd, lifetimeSpend, next }
+function memberInfo_(email, user) {
+  email = email_(email, true);
+  var tz = ss_().getSpreadsheetTimeZone();
+  if (user === undefined) user = email ? find_(table_(SHEETS.users, USER_COLS), 'email', email) : null;
+  var mode = beamMode_();
+  var pays = rowsIfSheet_(SHEETS.payments, PAY_COLS).filter(function (p) {
+    return p.receiptNo && email_(p.email, true) === email && modeCode_(p.mode) === mode;
+  }).map(function (p) {
+    var refunded = String(p.refundStatus) === 'succeeded' ? money_(p.refundAmount) : 0;
+    return { at: new Date(p.paidAt).getTime(), points: Number(p.points) || 0, spend: money_(money_(p.amount) - refunded) };
+  }).filter(function (p) { return !isNaN(p.at); }).sort(function (a, b) { return a.at - b.at; });
+  var out = { member: !!user, points: 0, tier: null, tierPoints: 0, tierUntil: '', cycleEnd: '', lifetimeSpend: 0, next: null,
+              tiers: CONFIG.tiers, bahtPerPoint: CONFIG.bahtPerPoint };
+  pays.forEach(function (p) { out.lifetimeSpend = money_(out.lifetimeSpend + p.spend); });
+  if (!user) return out;
+  // level: points earned in a run of jobs with less than a year between them; lapses a year after the last paid job
+  var YEAR = CONFIG.tierDays * 86400000, run = 0, last = 0;
+  pays.forEach(function (p) { if (last && p.at - last > YEAR) run = 0; run += p.points; last = p.at; });
+  if (last && Date.now() - last <= YEAR) {
+    out.tierPoints = run;
+    out.tier = tierFor_(run);
+    out.tierUntil = day_(new Date(last + YEAR), tz);
+  }
+  var higher = CONFIG.tiers.filter(function (t) { return t.points > out.tierPoints; })[0];
+  out.next = higher ? { code: higher.code, name: higher.name, points: higher.points, need: higher.points - out.tierPoints } : null;
+  // point balance: earned − redeemed since the last signup anniversary (the whole balance resets each year)
+  var since = new Date(user.createdAt);
+  if (isNaN(since)) since = new Date();
+  var start = new Date(since.getTime()), now = new Date();
+  while (true) {
+    var nx = new Date(start.getTime()); nx.setFullYear(nx.getFullYear() + 1);
+    if (nx.getTime() > now.getTime()) { out.cycleEnd = day_(nx, tz); break; }
+    start = nx;
+  }
+  var earned = 0;
+  pays.forEach(function (p) { if (p.at >= start.getTime()) earned += p.points; });
+  var used = 0;
+  rowsIfSheet_(SHEETS.redemptions, REDEEM_COLS).forEach(function (x) {
+    if (email_(x.email, true) !== email) return;
+    if (codeOf_(REDEEM_STATUSES, x.status, 'requested') === 'cancelled') return;
+    if (new Date(x.at).getTime() >= start.getTime()) used += Number(x.points) || 0;
+  });
+  out.points = Math.max(0, earned - used);
+  return out;
+}
+
+function rewardsList_(all) {
+  return rowsIfSheet_(SHEETS.rewards, REWARD_COLS).filter(function (r) { return r.id && (all || active_(r)); }).map(function (r) {
+    return { id: String(r.id), active: active_(r), nameTh: String(r.nameTh || ''), nameEn: String(r.nameEn || ''),
+             points: Math.max(0, parseInt(r.points, 10) || 0), stock: r.stock === '' || r.stock == null ? null : Math.max(0, parseInt(r.stock, 10) || 0),
+             note: String(r.note || '') };
+  });
+}
+function redemptionObj_(x, tz) {
+  return { id: String(x.id), at: day_(x.at, tz), email: String(x.email || ''), name: String(x.name || ''),
+           rewardId: String(x.rewardId || ''), rewardName: String(x.rewardName || ''), points: Number(x.points) || 0,
+           status: codeOf_(REDEEM_STATUSES, x.status, 'requested'), note: String(x.note || ''), doneAt: day_(x.doneAt, tz) };
+}
+
+function membershipView_(email) {
+  var tz = ss_().getSpreadsheetTimeZone();
+  var m = memberInfo_(email);
+  m.rewards = rewardsList_(false);
+  m.redemptions = rowsIfSheet_(SHEETS.redemptions, REDEEM_COLS).filter(function (x) { return email_(x.email, true) === email; })
+    .map(function (x) { return redemptionObj_(x, tz); }).reverse().slice(0, 30);
+  return m;
+}
+
+function myMembership_(req) {
+  var me = need_(req, ['customer', 'staff', 'admin']);
+  return { ok: true, membership: membershipView_(me.email) };
+}
+
+function redeemReward_(req) {
+  var me = need_(req, ['customer', 'staff', 'admin']);
+  var id = String(req.rewardId || '');
+  var note = text_(req.note, 400);
+  var made = null;
+  withLock_(function () {
+    var t = table_(SHEETS.rewards, REWARD_COLS);
+    var rw = t.rows.filter(function (r) { return String(r.id) === id && active_(r); })[0];
+    if (!rw) fail_('not_found');
+    var cost = Math.max(0, parseInt(rw.points, 10) || 0);
+    if (!cost) fail_('not_found');
+    if (rw.stock !== '' && rw.stock != null && !(parseInt(rw.stock, 10) > 0)) fail_('reward_out');
+    var m = memberInfo_(me.email);
+    if (!m.member) fail_('forbidden');
+    if (m.points < cost) fail_('points_short');
+    if (rw.stock !== '' && rw.stock != null) updateRow_(t, rw, { stock: parseInt(rw.stock, 10) - 1 });
+    var u = find_(table_(SHEETS.users, USER_COLS), 'email', me.email);
+    made = { id: 'RW-' + Utilities.getUuid().replace(/-/g, '').slice(0, 8).toUpperCase(), at: new Date(), email: me.email,
+             name: u ? String(u.name || '') : '', rewardId: id, rewardName: String(rw.nameTh || rw.nameEn || id), points: cost,
+             status: labelOf_(REDEEM_STATUSES, 'requested'), note: note };
+    appendRow_(table_(SHEETS.redemptions, REDEEM_COLS), made);
+  });
+  try {
+    MailApp.sendEmail({ to: providerEmail_(), name: CONFIG.serviceName, replyTo: me.email,
+      subject: 'คำขอแลกของสมนาคุณ ' + made.id + ' — ' + made.rewardName,
+      htmlBody: mailLayout_({ th: true, title: 'ลูกค้าขอแลกของสมนาคุณ',
+        intro: ['ตรวจสอบและส่งของ แล้วกด "ส่งแล้ว" ที่หน้า "ของสมนาคุณ" ในแดชบอร์ด'],
+        rows: [['เลขที่คำขอ', made.id], ['ของสมนาคุณ', made.rewardName], ['ใช้แต้ม', String(made.points)],
+               ['ลูกค้า', (made.name || '-') + ' · ' + made.email], ['ที่อยู่/หมายเหตุ', made.note || '-']],
+        button: { label: 'เปิดแดชบอร์ด', url: CONFIG.siteUrl + '/#account' } }) });
+  } catch (e) { console.error('redeem mail: ' + e); }
+  return { ok: true, membership: membershipView_(me.email) };
+}
+
+function adminRewards_(req) {
+  need_(req, ['admin']);
+  var tz = ss_().getSpreadsheetTimeZone();
+  return { ok: true, rewards: rewardsList_(true),
+           redemptions: rowsIfSheet_(SHEETS.redemptions, REDEEM_COLS).filter(function (x) { return x.id; })
+             .map(function (x) { return redemptionObj_(x, tz); }).reverse().slice(0, 300) };
+}
+
+function adminSaveReward_(req) {
+  need_(req, ['admin']);
+  var it = req.reward || {};
+  var nameTh = text_(it.nameTh, 120), nameEn = text_(it.nameEn, 120);
+  var points = parseInt(it.points, 10);
+  var stock = it.stock === '' || it.stock == null ? '' : parseInt(it.stock, 10);
+  if (!nameTh && !nameEn) fail_('reward_name');
+  if (!(points > 0) || points > 100000 || (stock !== '' && !(stock >= 0))) fail_('invalid_number');
+  withLock_(function () {
+    var t = table_(SHEETS.rewards, REWARD_COLS);
+    var obj = { active: it.active !== false, nameTh: nameTh, nameEn: nameEn, points: points, stock: stock, note: text_(it.note, 300) };
+    var row = it.id ? t.rows.filter(function (r) { return String(r.id) === String(it.id); })[0] : null;
+    if (row) updateRow_(t, row, obj);
+    else { obj.id = 'G' + Utilities.getUuid().replace(/-/g, '').slice(0, 6).toUpperCase(); appendRow_(t, obj); }
+  });
+  return adminRewards_(req);
+}
+
+function adminDeleteReward_(req) {
+  need_(req, ['admin']);
+  withLock_(function () {
+    deleteRows_(table_(SHEETS.rewards, REWARD_COLS), function (r) { return String(r.id) === String(req.id || ''); });
+  });
+  return adminRewards_(req);
+}
+
+function adminRedemption_(req) {
+  need_(req, ['admin']);
+  var status = String(req.status || '');
+  if (['sent', 'cancelled', 'requested'].indexOf(status) === -1) fail_('invalid_choice');
+  var x = null;
+  withLock_(function () {
+    var t = table_(SHEETS.redemptions, REDEEM_COLS);
+    x = t.rows.filter(function (r) { return String(r.id) === String(req.id || ''); })[0];
+    if (!x) fail_('not_found');
+    var was = codeOf_(REDEEM_STATUSES, x.status, 'requested');
+    if (was === status) return;
+    updateRow_(t, x, { status: labelOf_(REDEEM_STATUSES, status), doneAt: status === 'requested' ? '' : new Date() });
+    // cancelling gives the gift back to stock (the points return by themselves: cancelled rows don't count)
+    if (status === 'cancelled' || was === 'cancelled') {
+      var rt = table_(SHEETS.rewards, REWARD_COLS);
+      var rw = rt.rows.filter(function (r) { return String(r.id) === String(x.rewardId); })[0];
+      if (rw && rw.stock !== '' && rw.stock != null) updateRow_(rt, rw, { stock: Math.max(0, (parseInt(rw.stock, 10) || 0) + (status === 'cancelled' ? 1 : -1)) });
+    }
+  });
+  if (status === 'sent' && x && x.email) {
+    try {
+      var u = find_(table_(SHEETS.users, USER_COLS), 'email', email_(x.email, true));
+      var th = !u || u.lang !== 'en';
+      MailApp.sendEmail({ to: String(x.email), name: CONFIG.serviceName, replyTo: providerEmail_(),
+        subject: (th ? 'ส่งของสมนาคุณแล้ว ' : 'Your reward is on its way ') + '— ' + CONFIG.serviceName,
+        htmlBody: mailLayout_({ th: th, title: th ? 'เราส่งของสมนาคุณให้ท่านแล้ว' : 'Your reward is on its way',
+          intro: [esc_(th ? 'ขอบคุณที่เป็นสมาชิกของเรา' : 'Thank you for being a member.')],
+          rows: [[th ? 'ของสมนาคุณ' : 'Reward', String(x.rewardName)], [th ? 'ใช้แต้ม' : 'Points used', String(x.points)]],
+          button: { label: th ? 'ดูแต้มของฉัน' : 'See my points', url: CONFIG.siteUrl + '/#account' } }) });
+    } catch (e) { console.error('reward mail: ' + e); }
+  }
+  return adminRewards_(req);
+}
+
+// Admin overview: this month in the current mode
+function moneyStats_() {
+  var mode = beamMode_(), month = today_().slice(0, 7), tz = ss_().getSpreadsheetTimeZone();
+  var out = { mode: mode, ready: payReady_(), count: 0, gross: 0, net: 0, toPay: 0 };
+  rowsIfSheet_(SHEETS.payments, PAY_COLS).forEach(function (p) {
+    if (!p.receiptNo || modeCode_(p.mode) !== mode || day_(p.paidAt, tz).slice(0, 7) !== month) return;
+    var refunded = String(p.refundStatus) === 'succeeded' ? money_(p.refundAmount) : 0;
+    out.count++; out.gross = money_(out.gross + money_(p.amount) - refunded);
+    if (p.net !== '' && p.net != null) out.net = money_(out.net + money_(p.net) - refunded);
+  });
+  var today = today_();
+  rowsIfSheet_(SHEETS.quotes, QUOTE_COLS).forEach(function (r) {
+    var q = quoteObj_(r, tz);
+    if (q.status === 'active' && (!q.validUntil || q.validUntil >= today)) out.toPay++;
+  });
+  return out;
+}
+
+/* ======================================================================
    Setup (run once from the editor)
    ====================================================================== */
 
@@ -2506,8 +3561,16 @@ function setup() {
     if (c) users.getRange(2, c, users.getMaxRows() - 1, 1).setDataValidation(SpreadsheetApp.newDataValidation()
       .requireValueInList(d[1], true).setAllowInvalid(false).build());
   });
-  ensureSheet_(SHEETS.coupons, COUPON_COLS);
+  addMissingColumns_(ensureSheet_(SHEETS.coupons, COUPON_COLS), COUPON_COLS);
   ensureSheet_(SHEETS.couponUses, COUPON_USE_COLS);
+  // Phase 6: money sheets (filled by the website — read them, but leave the "ห้ามแก้" columns alone)
+  console.log('setup: Phase 6 sheets');
+  [[SHEETS.quotes, QUOTE_COLS], [SHEETS.payments, PAY_COLS], [SHEETS.rewards, REWARD_COLS], [SHEETS.redemptions, REDEEM_COLS]]
+    .forEach(function (d) { addMissingColumns_(ensureSheet_(d[0], d[1]), d[1]); });
+  var rwSheet = ss_().getSheetByName(SHEETS.rewards), rwCol = colIndex_(rwSheet, 'แสดง');
+  if (rwCol) rwSheet.getRange(2, rwCol, rwSheet.getMaxRows() - 1, 1).insertCheckboxes();
+  var props0 = PropertiesService.getScriptProperties();
+  if (!props0.getProperty('BEAM_HOOK_SECRET')) props0.setProperty('BEAM_HOOK_SECRET', (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, ''));
   var certSheet = ensureSheet_(SHEETS.certs, CERT_COLS);
   addMissingColumns_(certSheet, CERT_COLS);
   var certStatusCol = colIndex_(certSheet, 'สถานะ');
