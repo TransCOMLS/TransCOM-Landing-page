@@ -119,6 +119,10 @@ provider manages all jobs from one Google Sheet, with no paid server.
   → Beam hosted checkout; back with `&back=1` (`payCheck`, retries 2/4/8/16 s) or `&cancelled=1`; `/?receipt=<no>&t=<token>` =
   printable electronic receipt (`receipt`; amount in Thai words; print CSS shows only `.receipt`, which is always white "paper" —
   the one place with fixed colours besides the dark bands). Query kept only while on `#pay`. `window.Pay.open/receipt`.
+  `&doc=quote` (owner's request 2026-11-10, companies need a document) = printable quotation in the same layout
+  (`docHead`/`docBar` shared with the receipt): no. `QT-<BE year>-<job code>-<version>`, date, valid until, buyer, items,
+  discount, total + Thai words, note, QR to the pay link (or "paid — receipt …"). Linked from the quote email, the pay page,
+  the customer's job page and the admin job page; needs `payInfo` to return `seller` (Code.gs `sellerInfo_`).
 - `js/portal.js` — Phase 5: the signed-in dashboard in `#account` (`.dash`: sidebar `#dash-nav` +
   `#dash-view`; `#dash-settings` holds account.js's profile/manage cards). Menu and views per
   `profile.role`: customer (overview, orders open/closed/cancel, job detail + translated-file

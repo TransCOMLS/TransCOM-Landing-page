@@ -606,8 +606,8 @@
   }
   function payMethod(code) { var k = "pay.m." + code, v = t(k); return v === k ? (code || "") : v; }
   function payJs() { return window.Pay ? Promise.resolve() : App.loadScript("js/pay.js"); }
-  function openPay(jobNo, token) {
-    payJs().then(function () { window.Pay.open(jobNo, token); });
+  function openPay(jobNo, token, note) {
+    payJs().then(function () { window.Pay.open(jobNo, token, note); });
   }
   function openReceipt(p) {
     var tk = (/[?&]t=([0-9a-f]+)/.exec(p.receiptUrl || "") || [])[1];
@@ -684,6 +684,7 @@
       ]));
       var row = el("div", "actions");
       row.appendChild(button(t(open ? "pay.viewAndPay" : "pay.viewQuote"), open ? "btn btn-primary" : "btn btn-outline", function () { openPay(j.jobNo, j.payToken); }));
+      row.appendChild(button(t("qd.open"), "btn-link", function () { openPay(j.jobNo, j.payToken, "doc"); }));
       c.appendChild(row);
     }
     if ((j.payments || []).length) c.appendChild(paymentList(j.payments));
@@ -875,6 +876,10 @@
       links.appendChild(button(t("pay.openAsCustomer"), "btn-link", function () {
         var tk = (/[?&]t=([0-9a-f]+)/.exec(m.payUrl) || [])[1];
         openPay(j.jobNo, tk);
+      }));
+      links.appendChild(button(t("qd.open"), "btn-link", function () {
+        var tk = (/[?&]t=([0-9a-f]+)/.exec(m.payUrl) || [])[1];
+        openPay(j.jobNo, tk, "doc");
       }));
       var cq = button(t("pay.cancelQuote"), "btn-link danger");
       cq.addEventListener("click", function () {

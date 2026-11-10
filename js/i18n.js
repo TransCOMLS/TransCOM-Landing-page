@@ -994,7 +994,22 @@ window.I18N = {
     "pay.fail.CH_CARD_RESTRICTED": "บัตรนี้ใช้ชำระรายการนี้ไม่ได้ กรุณาใช้บัตรใบอื่น",
     "pay.fail.CH_CARD_INCORRECT_DETAILS": "ข้อมูลบัตรไม่ถูกต้อง (เลขบัตร วันหมดอายุ หรือ CVV) กรุณาตรวจแล้วลองใหม่",
     "pay.fail.CH_CARD_INCORRECT_PIN": "รหัส PIN ไม่ถูกต้อง กรุณาลองใหม่",
-    "pay.fail.CH_CARD_PIN_ATTEMPT_EXCEEDED": "ใส่ PIN ผิดเกินจำนวนครั้ง กรุณาใช้ช่องทางอื่นหรือติดต่อธนาคาร"
+    "pay.fail.CH_CARD_PIN_ATTEMPT_EXCEEDED": "ใส่ PIN ผิดเกินจำนวนครั้ง กรุณาใช้ช่องทางอื่นหรือติดต่อธนาคาร",
+    "qd.open": "ใบเสนอราคา (พิมพ์ / PDF)",
+    "qd.title": "ใบเสนอราคา",
+    "qd.back": "กลับไปหน้าชำระเงิน",
+    "qd.test": "ตัวอย่าง — โหมดทดสอบ",
+    "qd.docName": "ใบเสนอราคา",
+    "qd.docNameAlt": "Quotation",
+    "qd.validUntil": "ยืนราคาถึง",
+    "qd.buyer": "เสนอราคาแก่",
+    "qd.total": "ยอดรวมที่ต้องชำระ",
+    "qd.paid": "ชำระแล้ว — ใบเสร็จเลขที่ {no} วันที่ {date}",
+    "qd.qrAlt": "QR Code สำหรับเปิดหน้าชำระเงินออนไลน์",
+    "qd.howTitle": "วิธีชำระเงิน",
+    "qd.how": "สแกน QR หรือเปิดลิงก์ด้านล่าง เพื่อชำระเงินออนไลน์ผ่าน Beam Checkout ระบบออกใบเสร็จรับเงินอิเล็กทรอนิกส์ให้ทันทีหลังชำระ",
+    "qd.terms": "ใบเสนอราคานี้มีผลถึง {date} ราคาอาจเปลี่ยนหากจำนวนหน้าหรือเอกสารต่างจากที่แจ้ง ระยะเวลาแปลนับจากวันที่ได้รับชำระเงิน ตามข้อกำหนดและเงื่อนไขการรับบริการ",
+    "qd.electronic": "ใบเสนอราคาอิเล็กทรอนิกส์ ออกโดยระบบ ไม่ต้องลงลายมือชื่อ"
   },
 
   en: {
@@ -1986,6 +2001,21 @@ window.I18N = {
     "pay.fail.CH_CARD_RESTRICTED": "This card can't be used for this payment. Please use another card.",
     "pay.fail.CH_CARD_INCORRECT_DETAILS": "The card details are wrong (number, expiry or CVV). Please check and try again.",
     "pay.fail.CH_CARD_INCORRECT_PIN": "Wrong PIN. Please try again.",
-    "pay.fail.CH_CARD_PIN_ATTEMPT_EXCEEDED": "Too many wrong PINs. Please use another method or contact your bank."
+    "pay.fail.CH_CARD_PIN_ATTEMPT_EXCEEDED": "Too many wrong PINs. Please use another method or contact your bank.",
+    "qd.open": "Quotation (print / PDF)",
+    "qd.title": "Quotation",
+    "qd.back": "Back to payment",
+    "qd.test": "Sample — test mode",
+    "qd.docName": "Quotation",
+    "qd.docNameAlt": "ใบเสนอราคา",
+    "qd.validUntil": "Valid until",
+    "qd.buyer": "Quoted to",
+    "qd.total": "Total to pay",
+    "qd.paid": "Paid — receipt {no} on {date}",
+    "qd.qrAlt": "QR code that opens the online payment page",
+    "qd.howTitle": "How to pay",
+    "qd.how": "Scan the QR code or open the link below to pay online through Beam Checkout. An electronic receipt is issued as soon as you pay.",
+    "qd.terms": "This quotation is valid until {date}. The price may change if the pages or documents differ from what was described. Turnaround counts from the day payment is received, under our terms and conditions.",
+    "qd.electronic": "Electronic quotation issued by our system; no signature needed."
   }
 };
