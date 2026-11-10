@@ -176,7 +176,10 @@ provider manages all jobs from one Google Sheet, with no paid server.
   Phase 6 (section "money"): Quotes / Payments / Rewards / Redemptions sheets; actions payInfo, payPrice, payStart, payCheck,
   receipt (public, with hash tokens `payToken_` / `receiptToken_`), myPayments, myMembership, redeemReward, adminSaveQuote,
   adminCancelQuote, adminPayments, adminRefund, adminRewards, adminSaveReward, adminDeleteReward, adminRedemption.
-  `beam_()` = UrlFetchApp + Basic auth + idempotency key (retry once on 429/5xx). Webhook = `doPost` with `?hook=<BEAM_HOOK_SECRET>`
+  `beam_()` = UrlFetchApp + Basic auth + idempotency key (retry once on 429/5xx). Links always send `linkSettings`
+  (Beam refuses a link with none: the account had no defaults) from `CONFIG.payMethods` or Script Property `BEAM_METHODS`;
+  `createLink_` retries with card+PromptPay on a 400. `testBeam()` (run in the editor) checks keys + each method; failed calls
+  leave Beam's answer in Script Property `BEAM_LAST_ERROR`. Webhook = `doPost` with `?hook=<BEAM_HOOK_SECRET>`
   → `beamHook_` only re-fetches (`syncLink_`, `syncRefund_`, `syncFees_`); `recordPayment_` is idempotent per chargeId (receipt no.,
   quote paid, CouponUses, status paid, emails, fees). Trigger `checkPayments` every 15 min (missed payments, quote expiry, fees,
   pending refunds). Test mode (`BEAM_MODE` ≠ live) uses Playground and `TEST-RC-…` receipt numbers with their own counter.

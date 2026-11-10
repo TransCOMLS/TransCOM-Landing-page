@@ -57,6 +57,9 @@ var CONFIG = {
   quoteDays: 15,         // a quote (and its Beam payment link) can be paid for this many days
   bahtPerPoint: 100,     // members get 1 point per 100 THB paid
   tierDays: 365,         // a membership level lasts a year from the last paid job
+  // Payment methods offered on Beam's checkout page (owner 2026-11-09: all). Beam needs them listed on every link.
+  // Script Property BEAM_METHODS (e.g. "card,qrPromptPay") overrides this list if Beam refuses one for the account.
+  payMethods: ['card', 'qrPromptPay', 'eWallets', 'mobileBanking', 'cardInstallments', 'buyNowPayLater'],
   tiers: [               // level by points earned (redeeming gifts does not lower it) → discount on every translation
     { code: 'bronze',   name: 'Bronze',   points: 50,  percent: 5 },
     { code: 'silver',   name: 'Silver',   points: 100, percent: 10 },
@@ -2702,15 +2705,20 @@ function testBeam() {
   var r1 = UrlFetchApp.fetch(c.base + '/api/v1/payment-links/transcom-key-check', Object.assign({ method: 'get' }, opt));
   console.log('1) key check → HTTP ' + r1.getResponseCode() + ' ' + r1.getContentText().slice(0, 300) +
               (r1.getResponseCode() === 404 ? '   ✓ keys accepted' : r1.getResponseCode() === 401 ? '   ✗ wrong merchant ID / key, or a Playground key in live mode' : ''));
-  var body = { order: { currency: 'THB', netAmount: 100, description: CONFIG.serviceName + ' — test (will be disabled)', referenceId: 'TEST-LINK' },
-               collectPhoneNumber: false };
-  var r2 = UrlFetchApp.fetch(c.base + '/api/v1/payment-links', Object.assign({ method: 'post', payload: JSON.stringify(body) }, opt));
-  console.log('2) create payment link → HTTP ' + r2.getResponseCode() + ' ' + r2.getContentText().slice(0, 500));
-  var made = parse_(r2.getContentText());
-  if (made && made.id) {
-    var r3 = UrlFetchApp.fetch(c.base + '/api/v1/payment-links/' + encodeURIComponent(made.id) + '/disable', Object.assign({ method: 'patch' }, opt));
-    console.log('3) test link disabled → HTTP ' + r3.getResponseCode() + '   ✓ payment links work');
-  }
+  // 2) one 1-THB test link per payment method group, each disabled at once
+  var ok = [];
+  PAY_GROUPS.forEach(function (g) {
+    var body = { order: { currency: 'THB', netAmount: 100, description: CONFIG.serviceName + ' — test (disabled at once)', referenceId: 'TEST-LINK' },
+                 collectPhoneNumber: false, linkSettings: linkSettings_([g]) };
+    var r2 = UrlFetchApp.fetch(c.base + '/api/v1/payment-links', Object.assign({ method: 'post', payload: JSON.stringify(body) }, opt));
+    var made = parse_(r2.getContentText());
+    if (made && made.id) {
+      UrlFetchApp.fetch(c.base + '/api/v1/payment-links/' + encodeURIComponent(made.id) + '/disable', Object.assign({ method: 'patch' }, opt));
+      ok.push(g);
+      console.log('2) ' + g + ' → ✓ works (test link disabled)');
+    } else console.log('2) ' + g + ' → ✗ HTTP ' + r2.getResponseCode() + ' ' + r2.getContentText().slice(0, 300));
+  });
+  console.log('methods that work: ' + (ok.join(', ') || 'none') + '   · the website offers: ' + payGroups_().join(', '));
   console.log('last error seen by the website: ' + (PropertiesService.getScriptProperties().getProperty('BEAM_LAST_ERROR') || '-'));
 }
 
@@ -2737,8 +2745,45 @@ function beam_(method, path, body, idem) {
       PropertiesService.getScriptProperties().setProperty('BEAM_LAST_ERROR', new Date().toISOString() + ' ' + method.toUpperCase() + ' ' + path.split('?')[0] +
         ' → HTTP ' + code + ' ' + ec + ' ' + (res ? res.getContentText().slice(0, 300) : 'no response'));
     } catch (e) { /* diagnostics only */ }
-    fail_(code === 401 ? 'pay_not_ready' : 'pay_failed');
+    var err2 = new Error(code === 401 ? 'pay_not_ready' : 'pay_failed');
+    err2.code = code === 401 ? 'pay_not_ready' : 'pay_failed';
+    err2.status = code; err2.beamCode = ec; err2.beamMessage = String(err && err.error && err.error.errorMessage || err && err.message || '');
+    throw err2;
   }
+}
+
+// linkSettings for a list of groups (card, qrPromptPay, eWallets, mobileBanking, cardInstallments, buyNowPayLater)
+var PAY_GROUPS = ['card', 'qrPromptPay', 'eWallets', 'mobileBanking', 'cardInstallments', 'buyNowPayLater'];
+function linkSettings_(groups) {
+  var out = {};
+  PAY_GROUPS.forEach(function (g) {
+    var on = groups.indexOf(g) > -1;
+    out[g] = { isEnabled: on };
+    if (g === 'cardInstallments') ['installments3m', 'installments4m', 'installments6m', 'installments10m'].forEach(function (m) { out[g][m] = { isEnabled: on }; });
+  });
+  return out;
+}
+function payGroups_() {
+  var raw = String(PropertiesService.getScriptProperties().getProperty('BEAM_METHODS') || '').trim();
+  var list = raw ? raw.split(/[,\s]+/) : CONFIG.payMethods;
+  list = list.filter(function (g) { return PAY_GROUPS.indexOf(g) > -1; });
+  return list.length ? list : ['card', 'qrPromptPay'];
+}
+// Create a payment link; if Beam refuses the method list (a method not open on the account), try fewer methods
+function createLink_(body) {
+  var tries = [payGroups_(), ['card', 'qrPromptPay'], ['qrPromptPay'], ['card']], seen = {}, last = null;
+  for (var i = 0; i < tries.length; i++) {
+    var key = tries[i].join(',');
+    if (seen[key]) continue;
+    seen[key] = true;
+    body.linkSettings = linkSettings_(tries[i]);
+    try { return beam_('post', '/api/v1/payment-links', body, Utilities.getUuid()); }
+    catch (e) {
+      last = e;
+      if (e.status !== 400) throw e;              // only a validation error is worth retrying with fewer methods
+    }
+  }
+  throw last;
 }
 
 /* ---------- tokens: links in emails work without signing in ---------- */
@@ -2976,7 +3021,7 @@ function payStart_(req) {
   }
   if (q.linkId && q.mode === cfg.mode) disableLink_(q.linkId);
   var back = CONFIG.siteUrl + '/?pay=' + encodeURIComponent(jobNo) + '&t=' + payToken_(jobNo);
-  var made = beam_('post', '/api/v1/payment-links', {
+  var made = createLink_({
     order: {
       currency: 'THB',
       netAmount: satang_(price.amount),
@@ -2988,7 +3033,7 @@ function payStart_(req) {
     cancelUrl: back + '&cancelled=1',
     expiresAt: new Date(q.validUntil + 'T23:59:59+07:00').toISOString(),
     collectPhoneNumber: false
-  }, Utilities.getUuid());
+  });
   if (!made || !made.id || !made.url) fail_('pay_failed');
   withLock_(function () {
     var t = table_(SHEETS.quotes, QUOTE_COLS);
