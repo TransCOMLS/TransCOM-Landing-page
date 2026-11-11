@@ -703,9 +703,16 @@
     applyTheme(themePref());
   }
 
+  // English text lives in js/i18n-en.js: already there when the saved language is English (index.html),
+  // otherwise fetched the first time the visitor switches. On a failed fetch the page stays as it is.
+  function setLanguage(lang) {
+    if (I18N[lang] || lang === "th") return applyLanguage(lang);
+    loadScript("js/i18n-" + lang + ".js").then(function () { applyLanguage(lang); }, function () { /* offline: keep the current language */ });
+  }
+
   function initLanguageToggle() {
     $all(".lang-toggle [data-lang]").forEach(function (btn) {
-      btn.addEventListener("click", function () { applyLanguage(btn.getAttribute("data-lang")); });
+      btn.addEventListener("click", function () { setLanguage(btn.getAttribute("data-lang")); });
     });
   }
 
@@ -1263,7 +1270,9 @@
     initBusy();
     var saved = storageGet(LANG_KEY);
     renderContactLinks();
-    applyLanguage(saved === "en" ? "en" : "th");
+    // English is normally loaded already (index.html); if that load failed, show Thai and fetch it again
+    if (saved === "en" && !I18N.en) { applyLanguage("th"); setLanguage("en"); }
+    else applyLanguage(saved === "en" ? "en" : "th");
     initLanguageToggle();
     initTheme();
     initTabs();
@@ -1274,8 +1283,13 @@
     initJobForm();
     initTrackForm();
     guardForms();
-    // The terms text isn't needed for the first view: fetch it once the page has loaded
-    var later = function () { setTimeout(function () { ensureTerms().catch(function () { /* retried when opened */ }); }, 1500); };
+    // The terms text and the English text aren't needed for the first view: fetch them once the page has loaded,
+    // so a later switch to English is instant (the EN button also starts it on hover / touch / focus)
+    var preloadEn = function () { if (!I18N.en) loadScript("js/i18n-en.js").catch(function () { /* fetched again on the switch */ }); };
+    $all('.lang-toggle [data-lang="en"]').forEach(function (btn) {
+      ["pointerenter", "touchstart", "focus"].forEach(function (ev) { btn.addEventListener(ev, preloadEn, { once: true, passive: true }); });
+    });
+    var later = function () { setTimeout(function () { ensureTerms().catch(function () { /* retried when opened */ }); preloadEn(); }, 1500); };
     if (document.readyState === "complete") later(); else window.addEventListener("load", later);
   }
 
