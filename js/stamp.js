@@ -1,24 +1,30 @@
 /*
- * stamp.js — the electronic certification stamp (owner's design, 2026-11-09):
+ * stamp.js — the electronic certification stamp (owner's design 2026-11-09, layout changed 2026-11-11):
  *
- *        This Document has been E-Certified            (Thai: เอกสารนี้ได้รับการรับรองผ่านระบบอิเล็กทรอนิกส์)
- *            [ shop seal ]  [ QR ]
- *      Certification Code ( XXXX-XXXX-XXXX )             (Thai: รหัสรับรองเอกสาร ( … ))
+ *                     This Document has been E-Certified      (Thai: เอกสารนี้ได้รับการรับรองผ่านระบบอิเล็กทรอนิกส์)
+ *     ( shop seal )               [ QR ]
+ *                   Certification Code ( XXXX-XXXX-XXXX )     (Thai: รหัสรับรองเอกสาร ( … ))
  *
- * placed bottom-right on every page (config.certStamp.pages) of a translation PDF or image when staff upload it.
+ * The statement, QR and code are stacked and centred; the seal sits on their left, never touching them, and is
+ * shifted and tilted a little like a hand stamp (a few variants per document, repeating across pages; fixed
+ * per certification code, so the same file always gets the same look).
+ * Placed bottom-right on every page (config.certStamp.pages) of a translation PDF or image when staff upload it.
  * Only for certified jobs without a paper copy by post. Loaded on demand by portal.js together with js/qr.js;
  * PDFs also need js/vendor/pdf-lib.min.js (MIT). Text is drawn into the stamp picture, so no font is embedded.
  *
- *   Stamp.applies(job)            → true when the upload should be stamped
- *   Stamp.canvas(job, scale)      → Promise<canvas> (the stamp picture; 1 unit = 1 pt × scale)
- *   Stamp.stampFile(file, job)    → Promise<File> (PDF / JPG / PNG stamped; anything else returned as it is)
+ *   Stamp.applies(job)                 → true when the upload should be stamped
+ *   Stamp.canvas(job, scale, variant)  → Promise<canvas> (the stamp picture; 1 unit = 1 pt × scale)
+ *   Stamp.stampFile(file, job)         → Promise<File> (PDF / JPG / PNG stamped; anything else returned as it is)
  */
 (function () {
   "use strict";
 
   var App = window.App, CFG = App.config;
-  // Layout in points (1/72 inch): about 67 mm × 34 mm, 10 mm from the bottom, 14 mm from the right edge
-  var W = 190, H = 97, ROW_TOP = 17, BOX = 62, GAP = 8, RIGHT = 40, BOTTOM = 28, FONT = 9.5;
+  // Layout in points (1/72 inch): about 95 mm × 33 mm, 10 mm from the bottom, 14 mm from the right edge.
+  // Seal area (seal + room to shift) | gap | text block (statement, QR, code)
+  var SEAL = 78, JIG = 6, GAP = 12, TB = 168, QRS = 54, FONT = 9.5, TILT = 10;
+  var W = JIG + SEAL + JIG + GAP + TB, H = 94, TX = JIG + SEAL + JIG + GAP;
+  var RIGHT = 40, BOTTOM = 28, VARIANTS = 3;
   var sealPromise = null;
 
   function textFor(job) {
@@ -50,8 +56,17 @@
     return sealPromise;
   }
 
+  // Small repeatable "hand stamp" offsets: same code + variant → same look
+  function jitter(code, variant) {
+    var h = 2166136261;
+    var str = String(code) + ":" + (variant || 0);
+    for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    function rnd() { h = Math.imul(h ^ (h >>> 15), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); h ^= h >>> 16; return (h >>> 0) / 4294967296; }
+    return { dx: (rnd() * 2 - 1) * JIG, dy: (rnd() * 2 - 1) * JIG, tilt: (rnd() * 2 - 1) * TILT };
+  }
+
   // The stamp picture (transparent around the text; white behind the QR so it always scans)
-  function canvas(job, scale) {
+  function canvas(job, scale, variant) {
     scale = scale || 4;
     var fontReady = document.fonts && document.fonts.load ? document.fonts.load("600 " + Math.round(FONT * scale) + "px Sarabun").catch(function () {}) : Promise.resolve();
     return Promise.all([seal(), fontReady]).then(function (r) {
@@ -61,23 +76,28 @@
       cv.height = Math.round(H * scale);
       var g = cv.getContext("2d");
       g.scale(scale, scale);
-      var lines = textFor(job);
+      var lines = textFor(job), mid = TX + TB / 2, qy = 19;
+      // text block: statement, QR, code — centred on one axis
       g.fillStyle = "#111111";
       g.textAlign = "center";
       g.textBaseline = "alphabetic";
       g.font = "600 " + FONT + "px Sarabun, 'Noto Sans Thai', Tahoma, sans-serif";
-      fitText(g, lines[0], W / 2, 11.5, W);
-      fitText(g, lines[1], W / 2, ROW_TOP + BOX + 13, W);
-      // seal (left) + QR (right), centred as a pair
-      var left = (W - (BOX * 2 + GAP)) / 2;
-      g.drawImage(sealImg, left, ROW_TOP, BOX, BOX);
-      var q = window.QR.matrix(job.cert.url), quiet = 2, n = q.size + quiet * 2, mod = BOX / n, qx = left + BOX + GAP;
+      fitText(g, lines[0], mid, 12, TB);
+      fitText(g, lines[1], mid, qy + QRS + 14, TB);
+      var q = window.QR.matrix(job.cert.url), quiet = 2, n = q.size + quiet * 2, mod = QRS / n, qx = mid - QRS / 2;
       g.fillStyle = "#ffffff";
-      g.fillRect(qx, ROW_TOP, BOX, BOX);
+      g.fillRect(qx, qy, QRS, QRS);
       g.fillStyle = "#000000";
       for (var y = 0; y < q.size; y++) for (var x = 0; x < q.size; x++) {
-        if (q.dark(x, y)) g.fillRect(qx + (x + quiet) * mod, ROW_TOP + (y + quiet) * mod, mod + 0.02, mod + 0.02);
+        if (q.dark(x, y)) g.fillRect(qx + (x + quiet) * mod, qy + (y + quiet) * mod, mod + 0.02, mod + 0.02);
       }
+      // seal on the left: shifted / tilted a little, always clear of the text block (gap ≥ GAP)
+      var j = jitter(job.cert.code, variant);
+      g.save();
+      g.translate(JIG + SEAL / 2 + j.dx, H / 2 + j.dy);
+      g.rotate(j.tilt * Math.PI / 180);
+      g.drawImage(sealImg, -SEAL / 2, -SEAL / 2, SEAL, SEAL);
+      g.restore();
       return cv;
     });
   }
@@ -106,14 +126,17 @@
   // PDF: one picture embedded once, drawn bottom-right on each page (page rotation and crop box respected)
   function stampPdf(file, job) {
     var L = window.PDFLib;
-    return Promise.all([readBytes(file), canvas(job, 4).then(function (cv) { return toBlob(cv, "image/png"); }).then(function (b) { return b.arrayBuffer(); })])
-      .then(function (r) { return L.PDFDocument.load(r[0]).then(function (pdf) { return [pdf, r[1]]; }); })
-      .then(function (r) {
-        var pdf = r[0];
-        return pdf.embedPng(r[1]).then(function (img) {
-          var pages = pdf.getPages();
-          if ((CFG.certStamp || {}).pages === "last") pages = pages.slice(-1);
-          pages.forEach(function (page) {
+    var png = function (v) { return canvas(job, 4, v).then(function (cv) { return toBlob(cv, "image/png"); }).then(function (b) { return b.arrayBuffer(); }); };
+    return readBytes(file)
+      .then(function (bytes) { return L.PDFDocument.load(bytes); })
+      .then(function (pdf) {
+        var pages = pdf.getPages();
+        if ((CFG.certStamp || {}).pages === "last") pages = pages.slice(-1);
+        var count = Math.max(1, Math.min(VARIANTS, pages.length)), vs = [];
+        for (var v = 0; v < count; v++) vs.push(png(v).then(function (buf) { return pdf.embedPng(buf); }));
+        return Promise.all(vs).then(function (imgs) {
+          pages.forEach(function (page, i) {
+            var img = imgs[i % imgs.length];
             var box = page.getCropBox(), rot = ((page.getRotation().angle % 360) + 360) % 360;
             var vw = rot % 180 ? box.height : box.width;                 // size as the page is shown
             var vx = vw - RIGHT - W, vy = BOTTOM;                          // stamp corner as shown

@@ -114,8 +114,10 @@ provider manages all jobs from one Google Sheet, with no paid server.
   the person is sent to Track with it filled in. `js/qr.js` — own QR encoder (byte mode, level M, versions 1–6; matches
   the Python `qrcode` reference module-for-module), loaded on demand by portal.js `certCard` (job pages:
   QR, PNG download, copy link; staff set the document title, admin also certifier + status via `certUpdate`).
-- `js/stamp.js` — e-certification stamp (owner's design 2026-11-09): line 1, shop seal `img/seal.png` + check QR
-  side by side, line 2 with the code; wording from `config.certStamp` in the translation's language (en-th → Thai,
+- `js/stamp.js` — e-certification stamp (owner's design 2026-11-09; layout changed 2026-11-11): statement, check QR and
+  code stacked and centred; shop seal `img/seal.png` on their left, never overlapping them, shifted ±6 pt and tilted
+  ±10° like a hand stamp (3 variants cycling across pages, fixed per cert code; `Stamp.canvas(job, scale, variant)`);
+  about 95 × 33 mm, so staff leave that much blank at the bottom right; wording from `config.certStamp` in the translation's language (en-th → Thai,
   otherwise English); bottom-right, 10 mm up / 14 mm in, on every page (`certStamp.pages`). Applied in the staff
   uploader (checkbox, ticked) only when the job is certified, not withdrawn and has NO paper copy by post
   (paper copies get the rubber stamp by hand). PDFs via pdf-lib (crop box + page rotation handled), JPG/PNG via
