@@ -80,7 +80,7 @@
     var job = {
       name: d.name, email: d.email, line: d.line, phone: d.phone, langPair: d.langPair, category: d.category,
       pages: d.pages, neededBy: d.neededBy, certified: d.certified, nameSpelling: d.nameSpelling, notes: d.notes,
-      shipping: d.shipping, address: d.address, consent: d.consent, idConsent: d.idConsent,
+      shipping: d.shipping, address: d.address, consent: d.consent, idConsent: d.idConsent, bill: d.bill,
       files: files.filter(function (x) { return x.kind === "doc"; }).map(function (x) { return { name: x.name, size: x.file.size }; }),
       idFiles: files.filter(function (x) { return x.kind === "id"; }).map(function (x) { return { name: x.name, size: x.file.size }; })
     };

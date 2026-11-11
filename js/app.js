@@ -917,6 +917,12 @@
       if (!wantsShipping()) return [];
       return el.value.trim().length >= 15 ? [] : [t("err.address")];
     },
+    "f-billName": function (el) { return !wantsCompany() || el.value.trim().length >= 3 ? [] : [t("err.required")]; },
+    "f-billTaxId": function (el) {
+      if (!wantsCompany()) return [];
+      return /^\d{13}$/.test(el.value.replace(/[\s-]/g, "")) ? [] : [t("err.taxId")];
+    },
+    "f-billAddress": function (el) { return !wantsCompany() || el.value.trim().length >= 15 ? [] : [t("err.address")]; },
     "f-idConsent": function (el) { return !needsId() || el.checked ? [] : [t("err.idConsent")]; },
     "f-consent": function (el) { return el.checked ? [] : [t("err.consent")]; }
   };
@@ -1051,6 +1057,22 @@
     return !!(r && r.value === "yes");
   }
 
+  // Company details only when the documents should be in a company's name
+  function wantsCompany() { var c = $("#f-billCompany"); return !!(c && c.checked); }
+  function updateBillFields() {
+    var box = $("#bill-fields");
+    if (!box) return;
+    var on = wantsCompany();
+    box.hidden = !on;
+    ["f-billName", "f-billTaxId", "f-billAddress"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.required = on;
+      if (!on) setFieldError(el, null);
+      else if (touched[id]) validateField(id);
+    });
+    if (!on) refreshErrorSummary();
+  }
+
   // Delivery address only when the paper copy is posted
   function updateAddressField() {
     var box = $("#address-field");
@@ -1085,6 +1107,9 @@
     updateIdSection();
     $all('#job-form input[name="shipping"]').forEach(function (r) { r.addEventListener("change", updateAddressField); });
     updateAddressField();
+    var billBox = $("#f-billCompany");
+    if (billBox) billBox.addEventListener("change", updateBillFields);
+    updateBillFields();
 
     function refreshMinDate() { if (date) date.min = todayISO(); }
     refreshMinDate();
@@ -1145,6 +1170,7 @@
     renderFileList();
     updateIdSection();
     updateAddressField();
+    updateBillFields();
     showStatus($("#form-status"), "", "");
     var pre = $("#form-prefilled");
     if (pre) pre.hidden = true;
@@ -1168,6 +1194,8 @@
       notes: val("f-notes"),
       shipping: wantsShipping(),
       address: wantsShipping() ? val("f-address") : "",
+      bill: wantsCompany() ? { name: val("f-billName"), taxId: val("f-billTaxId").replace(/[\s-]/g, ""),
+                               branch: val("f-billBranch"), address: val("f-billAddress") } : null,
       consent: $("#f-consent").checked,
       lang: state.lang,
       files: selectedFiles.slice(),

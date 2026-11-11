@@ -371,6 +371,22 @@
     bar.appendChild(el("p", "note", t("rc.printHint")));
     box.appendChild(bar);
   }
+  // Buyer block: the company (name, tax ID, branch, address) + contact person, or just the person
+  function buyerBlock(doc, heading, bill, name, email, extra) {
+    var buyer = el("section", "receipt-buyer");
+    buyer.appendChild(el("h3", null, heading));
+    if (bill && bill.name) {
+      buyer.appendChild(el("p", "receipt-buyer-name", bill.name));
+      buyer.appendChild(el("p", null, t("rc.taxId") + " " + bill.taxId + " · " + (bill.branch || t("doc.headOffice"))));
+      if (bill.address) buyer.appendChild(el("p", null, bill.address));
+      if (name) buyer.appendChild(el("p", "muted", t("doc.contact") + " " + name + (email ? " · " + email : "")));
+    } else {
+      buyer.appendChild(el("p", "receipt-buyer-name", name || "-"));
+      if (email) buyer.appendChild(el("p", "muted", email));
+    }
+    if (extra) buyer.appendChild(el("p", "muted", extra));
+    doc.appendChild(buyer);
+  }
   function quoteNo(d) { return "QT-" + d.jobNo.replace(/^[A-Z]+-/, "") + "-" + d.quote.version; }
 
   // ---------- quotation document (print / save as PDF) ----------
@@ -400,14 +416,9 @@
     docHead(doc, d.seller, t("qd.docName"), t("qd.docNameAlt"), [
       [t("rc.no"), quoteNo(d)], [t("rc.date"), longDate(q.createdAt)], [t("qd.validUntil"), longDate(q.validUntil)], [t("track.jobNo"), d.jobNo]
     ]);
-    var buyer = el("section", "receipt-buyer");
-    buyer.appendChild(el("h3", null, t("qd.buyer")));
-    buyer.appendChild(el("p", null, d.name || "-"));
-    if (d.email) buyer.appendChild(el("p", "muted", d.email));
     var job = [catName(d.category), pairName(d.langPair)];
     if (d.pages) job.push(t("acct.pagesN", { pages: d.pages }));
-    buyer.appendChild(el("p", "muted", job.join(" · ")));
-    doc.appendChild(buyer);
+    buyerBlock(doc, t("qd.buyer"), d.bill, d.name, d.email, job.join(" · "));
     var tb = el("table", "quote-table receipt-table");
     var th = el("thead"), hr = el("tr");
     hr.appendChild(el("th", "num", "#")); hr.appendChild(el("th", null, t("pay.item"))); hr.appendChild(el("th", "num", t("pay.amount")));
@@ -461,11 +472,7 @@
     if (r.mode === "test") doc.appendChild(el("p", "receipt-test", t("rc.test")));
     docHead(doc, r.seller, t("rc.docName"), t("rc.docNameAlt"), [[t("rc.no"), r.receiptNo], [t("rc.date"), longDate(r.paidDay)], [t("track.jobNo"), r.jobNo]]);
 
-    var buyer = el("section", "receipt-buyer");
-    buyer.appendChild(el("h3", null, t("rc.buyer")));
-    buyer.appendChild(el("p", null, r.buyer.name || "-"));
-    if (r.buyer.email) buyer.appendChild(el("p", "muted", r.buyer.email));
-    doc.appendChild(buyer);
+    buyerBlock(doc, t("rc.buyer"), r.bill, r.buyer.name, r.buyer.email, "");
 
     var tb = el("table", "quote-table receipt-table");
     var th = el("thead"), hr = el("tr");

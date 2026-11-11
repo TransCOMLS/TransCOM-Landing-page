@@ -162,7 +162,11 @@ var JOB_COLS = [
   ['cancelRequest', 'คำขอยกเลิก'],       // customer's request, waiting for Admin
   ['internalNotes', 'บันทึกภายใน'],      // staff/admin only — customers never see this
   ['revisionRequest', 'คำขอแก้ไขล่าสุด'],  // the customer's latest "please correct" message
-  ['certCode', 'รหัสตรวจสอบการรับรอง']    // certified jobs: code printed as a QR on the translation (see Certificates)
+  ['certCode', 'รหัสตรวจสอบการรับรอง'],   // certified jobs: code printed as a QR on the translation (see Certificates)
+  ['billName', 'ออกเอกสารในนาม (บริษัท)'],     // owner 2026-11-11: quotation + receipt in a company's name
+  ['billTaxId', 'เลขผู้เสียภาษี (บริษัท)'],
+  ['billBranch', 'สาขา (บริษัท)'],
+  ['billAddress', 'ที่อยู่ออกเอกสาร (บริษัท)']
 ];
 
 // Home page content the owner edits in the Sheet (tick "แสดง" to publish).
@@ -1297,6 +1301,7 @@ function adminJob_(req) {
   var r = jobRow_(table_(SHEETS.jobs, JOB_COLS), req.jobNo);
   var j = staffView_(r, ss_().getSpreadsheetTimeZone());
   ['name', 'email', 'line', 'phone', 'address', 'assignee', 'cancelRequest', 'folder', 'lang'].forEach(function (k) { j[k] = String(r[k] || ''); });
+  j.bill = billOf_(r);
   var u = find_(table_(SHEETS.users, USER_COLS), 'email', email_(r.email, true));
   j.customerType = u ? typeCode_(u.customerType) : 'general';
   j.money = moneyFor_(r);
@@ -1339,6 +1344,14 @@ function adminUpdateJob_(req) {
     if (req.cancel === 'approve') setStatus_(jobNo, 'cancelled', null);
   }
   if (req.status && statusCode_(r.status) !== req.status) setStatus_(jobNo, String(req.status), me.email);
+  if (req.bill !== undefined) {
+    var bill = cleanBill_(req.bill);
+    withLock_(function () {
+      var t = table_(SHEETS.jobs, JOB_COLS), row = jobRow_(t, jobNo);
+      updateRow_(t, row, { billName: bill.name, billTaxId: bill.taxId, billBranch: bill.branch, billAddress: bill.address });
+    });
+    note_(r, me.email, bill.name ? 'แก้ข้อมูลออกเอกสาร: ' + bill.name : 'ออกเอกสารในนามลูกค้า (ลบข้อมูลบริษัท)');
+  }
   if (req.note) note_(r, me.email, req.note);
   return adminJob_({ token: req.token, jobNo: jobNo });
 }
@@ -1807,6 +1820,18 @@ function day_(v, tz) {
 var LANG_PAIR_RE = /^[a-z]{2}-[a-z]{2}$/;
 var CATEGORY_RE = /^[a-z]{2,20}$/;
 
+// Company details for the quotation / receipt (all blank = in the person's own name)
+function cleanBill_(b) {
+  if (!b || typeof b !== 'object') return { name: '', taxId: '', branch: '', address: '' };
+  var out = { name: text_(b.name, 160), taxId: String(b.taxId || '').replace(/[\s-]/g, ''), branch: text_(b.branch, 60), address: text_(b.address, 400) };
+  if (!out.name && !out.taxId && !out.address) return { name: '', taxId: '', branch: '', address: '' };
+  if (out.name.length < 3 || !/^\d{13}$/.test(out.taxId) || out.address.length < 15) fail_('invalid_bill');
+  return out;
+}
+function billOf_(r) {
+  return r && r.billName ? { name: String(r.billName), taxId: String(r.billTaxId || ''), branch: String(r.billBranch || ''), address: String(r.billAddress || '') } : null;
+}
+
 function createJob_(req) {
   if (req.hp) fail_('rejected');                       // honeypot field filled in by a bot
   var j = req.job || {};
@@ -1832,6 +1857,7 @@ function createJob_(req) {
   var shipping = j.shipping === true;
   var address = shipping ? text_(j.address, 400) : '';
   if (shipping && address.length < 15) fail_('invalid_address');
+  var bill = cleanBill_(j.bill);
 
   var requiresId = CONFIG.idCategories.indexOf(category) > -1;
   var docs = fileList_(j.files);
@@ -1855,7 +1881,8 @@ function createJob_(req) {
       jobNo: jobNo, submittedAt: new Date(), status: '', name: name, email: email, line: line, phone: phone,
       langPair: langPair, category: category, pages: pages, neededBy: neededBy, certified: j.certified === true,
       shipping: shipping, address: address, nameSpelling: text_(j.nameSpelling, 200).toUpperCase(),
-      notes: text_(j.notes, 2000), folder: folder.getUrl(), lang: lang, requiresId: requiresId, fileCount: 0
+      notes: text_(j.notes, 2000), folder: folder.getUrl(), lang: lang, requiresId: requiresId, fileCount: 0,
+      billName: bill.name, billTaxId: bill.taxId, billBranch: bill.branch, billAddress: bill.address
     });
     cache.put('jobs:' + email, String(sent + 1), 3600);
     var up = {
@@ -2132,6 +2159,7 @@ function sendNewJobMails_(r) {
     ['ชื่อ', r.name], ['อีเมล', r.email], ['LINE ID', r.line || '-'], ['โทรศัพท์', r.phone || '-'],
     ['การสะกดชื่อ', r.nameSpelling || '-'], ['ที่อยู่จัดส่ง', r.address || '-'], ['หมายเหตุ', r.notes || '-'],
     ['แนบบัตร (ทะเบียนราษฎร)', yesNo_(r.requiresId, true)],
+    ['ออกเอกสารในนาม', r.billName ? r.billName + ' · เลขผู้เสียภาษี ' + r.billTaxId + (r.billBranch ? ' · ' + r.billBranch : '') + ' · ' + r.billAddress : 'ชื่อลูกค้า'],
     ['ชีต Jobs', '<a href="' + esc_(ss_().getUrl()) + '" style="color:#006192">เปิดชีต Jobs</a>', true]
   ]);
   MailApp.sendEmail({
@@ -2459,6 +2487,7 @@ function purgeDueJobs() {
       if (id) { try { DriveApp.getFolderById(id).setTrashed(true); } catch (e) { console.error('trash ' + r.jobNo + ': ' + e); } }
       updateRow_(jobs, r, {
         name: '', email: '', line: '', phone: '', address: '', nameSpelling: '', notes: '', folder: '',
+        billName: '', billTaxId: '', billBranch: '', billAddress: '',
         purgedAt: now
       });
     });
@@ -2630,6 +2659,10 @@ var PAY_COLS = [
   ['refundAt', 'คืนเงินเมื่อ'],
   ['refundReason', 'เหตุผลการคืนเงิน'],
   ['refundId', 'Beam refundId (ห้ามแก้)'],
+  ['billName', 'ออกเอกสารในนาม (บริษัท)'],     // owner 2026-11-11: quotation + receipt in a company's name
+  ['billTaxId', 'เลขผู้เสียภาษี (บริษัท)'],
+  ['billBranch', 'สาขา (บริษัท)'],
+  ['billAddress', 'ที่อยู่ออกเอกสาร (บริษัท)'],
   ['chargeId', 'Beam chargeId (ห้ามแก้)'],
   ['linkId', 'Beam ลิงก์ (ห้ามแก้)'],
   ['mode', 'โหมด']
@@ -2982,6 +3015,7 @@ function payView_(jobNo) {
     pages: r.pages === '' || r.pages == null ? null : Number(r.pages),
     name: String(r.name || ''),
     email: email,
+    bill: billOf_(r),
     seller: sellerInfo_(),               // for the printable quotation (owner's request 2026-11-10: companies need a document)
     payUrl: payUrl_(jobNo),
     quote: q || (last && last.status !== 'active' ? last : null),
@@ -3171,7 +3205,9 @@ function recordPayment_(q, ch, linkId) {
       discount: keepDiscount ? q.discount : 0, couponCode: q.couponCode, couponDiscount: q.couponDiscount,
       amount: amount, method: String(ch.paymentMethod && ch.paymentMethod.paymentMethodType || ''),
       member: isMember, points: isMember ? Math.floor(amount / CONFIG.bahtPerPoint) : 0,
-      status: 'ชำระแล้ว', chargeId: String(ch.chargeId), linkId: String(linkId), mode: modeLabel_(mode)
+      status: 'ชำระแล้ว', chargeId: String(ch.chargeId), linkId: String(linkId), mode: modeLabel_(mode),
+      // kept with the payment: receipts outlive the job's personal data (purgeDueJobs)
+      billName: String(r.billName || ''), billTaxId: String(r.billTaxId || ''), billBranch: String(r.billBranch || ''), billAddress: String(r.billAddress || '')
     };
     appendRow_(pays, made);
     var t = table_(SHEETS.quotes, QUOTE_COLS);
@@ -3385,6 +3421,7 @@ function receipt_(req) {
   o.discountName = String(p.discountName || ''); o.discount = money_(p.discount);
   o.couponCode = String(p.couponCode || ''); o.couponDiscount = money_(p.couponDiscount);
   o.buyer = { name: String(p.name || ''), email: String(p.email || '') };
+  o.bill = billOf_(p);
   o.seller = sellerInfo_();
   return { ok: true, receipt: o };
 }

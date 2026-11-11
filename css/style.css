@@ -1661,3 +1661,8 @@ button.dash-bar-row:hover .dash-bar { background: var(--accent-line); }
   body.receipt-open .receipt { border: 0; box-shadow: none; max-width: none; padding: 0; }
   @page { size: A4; margin: 14mm; }
 }
+
+/* Company billing details (job form + admin) */
+.bill-box { margin: 0 0 6px; padding: 14px 14px 2px; border: 1px solid var(--accent-line); border-radius: var(--radius); background: var(--accent-soft); }
+.bill-admin { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 4px; }
+.receipt-buyer-name { font-weight: 700; }
