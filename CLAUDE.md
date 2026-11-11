@@ -342,9 +342,12 @@ The owner asked to stop after each phase and show the result before continuing.
   care with GitHub Pages HTTPS — owner's decision.
 
 ## Testing
-No build or test runner. Serve the folder (`python3 -m http.server`) and check every
-page in priority order — PC 1366, 1920, 1280, 1024; phone 390, 320; tablet 768 — in both languages: no horizontal scroll, no
-console errors, `node --check js/*.js` passes, and i18n keys match between th/en.
+`node tests/run.js` runs every suite (see `tests/README.md`): `tests/unit/` = Code.gs against a mocked Apps Script
+(`tests/lib/mock.js`), `tests/e2e/` = the site in Playwright Chromium on port 8765 with the same mock. 31 suites,
+~900 checks (2026-11-11). `tests/lib/browser.js` blocks the live Apps Script / Beam / site, and the runner fails any
+suite that tried. Suites print `PASS `/`FAIL ` lines; update a test in the same commit as an intended change, and add
+one for each new feature. Still check by eye: every page in priority order — PC 1366, 1920, 1280, 1024; phone 390, 320;
+tablet 768 — in both languages and themes; `node --check js/*.js`; i18n keys match between th/en.
 
 ## Artifacts copy
 The owner keeps a matching preview copy on claude.ai: https://claude.ai/artifact/WrtJLSJG77T717XyWkqMrF

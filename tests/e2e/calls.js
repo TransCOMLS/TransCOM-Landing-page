@@ -1,0 +1,22 @@
+const { chromium } = require('../lib/browser');
+const { load } = require('../lib/mock');
+const g = load(require('../lib/paths').CODE_GS); g.ctx.setup();
+const URL = 'https://script.google.com/macros/s/TEST/exec';
+const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) process.exitCode = 1; };
+(async () => { const b = await chromium.launch(); const ctx = await b.newContext();
+  await ctx.route('https://script.google.com/macros/s/AKfy**', r => r.abort());
+  await ctx.route('**/js/config.js*', async r => { const res = await r.fetch(); r.fulfill({ response: res, body: (await res.text()).replace(/appsScriptUrl: "[^"]*"/, `appsScriptUrl: "${URL}"`) }); });
+  const calls = [];
+  await ctx.route(URL, async r => { const q = JSON.parse(r.request().postData()); calls.push(q.action); r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(g.post(q)) }); });
+  const p = await ctx.newPage();
+  await p.goto('http://localhost:8765/#home'); await p.waitForTimeout(1500);
+  ok(JSON.stringify(calls) === '["boot"]', 'first visit of the day: 1 request (boot) ' + JSON.stringify(calls));
+  ok((await p.textContent('#visit-n')) === '1', 'visitor count shown');
+  calls.length = 0;
+  for (let i = 0; i < 3; i++) { await p.reload(); await p.waitForTimeout(800); }
+  ok(calls.length === 0, '3 more page loads within 10 minutes: 0 requests ' + JSON.stringify(calls));
+  ok((await p.textContent('#visit-n')) === '1', 'count still shown from the device copy');
+  await p.evaluate(() => { const c = JSON.parse(localStorage.getItem('tr_content')); c.at -= 11 * 60 * 1000; localStorage.setItem('tr_content', JSON.stringify(c)); });
+  await p.reload(); await p.waitForTimeout(1000);
+  ok(JSON.stringify(calls) === '["getContent"]', 'after 10 minutes: only offers/news refreshed ' + JSON.stringify(calls));
+  await b.close(); })();
