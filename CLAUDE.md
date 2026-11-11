@@ -12,8 +12,10 @@ provider manages all jobs from one Google Sheet, with no paid server.
   (DNS at Cloudflare, "DNS only"). Google Sites embedding was dropped on 2026-11-06 so the
   address bar follows the `#hash` page; the code still works inside an iframe.
 - Backend: Google Apps Script Web App (doPost/doGet) + Google Sheet + Google Drive.
-- Font: Google Fonts "Sarabun" — the web version of TH Sarabun New, the owner's chosen Thai
-  font — with a sans-serif fallback stack. Do not switch to other display fonts.
+- Font: "Sarabun" — the web version of TH Sarabun New, the owner's chosen Thai font — with a sans-serif
+  fallback stack. Do not switch to other display fonts. Self-hosted since 2026-11-11 (speed pass): the exact
+  woff2 files and unicode ranges Google Fonts serves (400/600/700 × thai, latin, latin-ext, vietnamese) in
+  `css/fonts/` with `OFL.txt`; the `@font-face` rules sit at the top of `css/style.css`. No Google Fonts link.
 
 ## Files
 - `index.html` — CSS/JS links carry `?v=<date+letter>` (cache-busting: GitHub Pages lets browsers keep
@@ -43,7 +45,10 @@ provider manages all jobs from one Google Sheet, with no paid server.
   `shippingFee` (paper copy by post, per job) adds a calculator option and, in the job form,
   a shipping choice with a required delivery address (`f-address`). LINE OA `@transcomls`
   is on (`contact.showLine: true`); `false` hides every LINE link (`[data-contact="line"]`).
-- `js/i18n.js` — `window.I18N.th` / `.en`, flat keys. Every key must exist in both.
+- `js/i18n.js` — `window.I18N.th`; `js/i18n-en.js` — `window.I18N.en` (split 2026-11-11 for speed: Thai visitors
+  skip the English file). Flat keys; every key must exist in both files. `index.html` writes the English script tag
+  right after i18n.js only when `tr_lang` is `en`; otherwise app.js `setLanguage()` loads it on the switch
+  (preloaded 1.5 s after load and on hover/touch/focus of the EN button).
   `{tokens}` are filled from config (`{serviceName}`, `{retentionDays}`, …).
 - `js/app.js` — IIFE; exposes `window.App` (`t`, `config`, `getLang`, `showTab`,
   `formatNumber`) and fires `langchange` / `tabchange` events on `document` for
@@ -313,7 +318,7 @@ provider manages all jobs from one Google Sheet, with no paid server.
 
 The owner asked to stop after each phase and show the result before continuing.
 
-## Speed (rough pass 2026-11-07; a fuller pass is planned)
+## Speed (rough pass 2026-11-07; fuller pass 2026-11-11)
 - `terms.js` and `portal.js` are not in `index.html`: `App.loadScript()` fetches terms for the terms page / pop-up or
   1.5 s after load, and the dashboard for signed-in people or the account page (portal.js catches up via
   `App.account` if `accountchange` already fired). Logos are rounded to 1 decimal (same look, ~45% smaller).
@@ -323,6 +328,16 @@ The owner asked to stop after each phase and show the result before continuing.
   `MailApp.getRemainingDailyQuota()` (`mailQuota`), the limit most likely to run out.
 - Code.gs caches checked sign-ins (`sess:<hash>`, 10 min; `dropSessions_` forgets them) and roles (`role:<email>`,
   5 min; `forgetRole_` on admin changes). A role typed straight into the sheet takes up to 5 min.
+- 2026-11-11 pass (owner: features and look must not change): every page's text comes from i18n via JS, so the
+  biggest gain was a smaller i18n on the critical path (English split off). Header logos are `loading="lazy"`
+  and the theme script in `<head>` preloads only the one the theme shows; the news avatar is lazy; Sarabun is
+  self-hosted (no connections to 2 Google hosts before first paint). Measured on a GitHub-Pages-like local
+  server (gzip), phone profile (slow 4G 1.6 Mbps/150 ms, 4× CPU), median of 5: home LCP 2.07 → 1.31 s, load
+  2.44 → 1.56 s, 265 → 215 KB; desktop LCP 0.46 → 0.32 s. 120 screenshots (15 pages × light/dark × th/en ×
+  1366/390) pixel-identical before/after. Tried and rejected: svgo on the logos (a few edge pixels change),
+  lazy pay.js/verify.js (~10 KB for risky start-up paths from email/QR links).
+- Not in the repo: Cloudflare is "DNS only"; turning on the proxy would add a CDN and longer caching, but needs
+  care with GitHub Pages HTTPS — owner's decision.
 
 ## Testing
 No build or test runner. Serve the folder (`python3 -m http.server`) and check every
@@ -333,7 +348,7 @@ console errors, `node --check js/*.js` passes, and i18n keys match between th/en
 The owner keeps a matching preview copy on claude.ai: https://claude.ai/artifact/WrtJLSJG77T717XyWkqMrF
 After each phase, republish it with the Artifact tool, passing that URL as `url` (read it first).
 Publish `index.html` with its `<!DOCTYPE>`, `<html>`, `<head>`/`<body>` tags and the charset/viewport
-metas removed (title, font links, the stylesheet link and the theme script stay), plus `css/style.css`, the
-`js/*.js` files (config, i18n, terms, app, account, submit, track, verify, portal, home, qr, stamp,
-vendor/pdf-lib.min.js) and `img/seal.png` and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
+metas removed (title, the stylesheet link and the theme script stay), plus `css/style.css`, the 12
+`css/fonts/*.woff2` files, the `js/*.js` files (config, i18n, i18n-en, terms, app, account, submit, track, verify,
+pay, portal, home, qr, stamp, vendor/pdf-lib.min.js) and `img/seal.png` and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
 inline for that copy only.
