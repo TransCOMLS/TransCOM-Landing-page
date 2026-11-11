@@ -1,0 +1,71 @@
+const { chromium } = require('../lib/browser');
+const { load } = require('../lib/mock');
+const out = require('../lib/paths').out(__filename);
+const g = load(require('../lib/paths').CODE_GS); g.ctx.setup();
+const P = g.post, URL = 'https://script.google.com/macros/s/TEST/exec';
+const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) process.exitCode = 1; };
+P({ action: 'requestCode', email: 'owner@example.com' }); const admin = P({ action: 'verifyCode', email: 'owner@example.com', code: g.lastCode() }).token;
+Object.assign(g.props, { BEAM_MERCHANT_ID_TEST: 'm', BEAM_API_KEY_TEST: 'k', RECEIPT_TAX_ID: '1234567890123', RECEIPT_ADDRESS: 'เลขที่ 1 หมู่ที่ 1 ตำบลตัวอย่าง อำเภอตัวอย่าง จังหวัดตัวอย่าง 10000' });
+const H = () => g.sheets.Jobs.data[0];
+ok(['ออกเอกสารในนาม (บริษัท)', 'เลขผู้เสียภาษี (บริษัท)', 'สาขา (บริษัท)', 'ที่อยู่ออกเอกสาร (บริษัท)'].every(h => H().includes(h)) && g.sheets.Payments.data[0].includes('ออกเอกสารในนาม (บริษัท)'), 'setup adds company columns to Jobs and Payments');
+// server validation
+const base = { name: 'สมชาย ใจดี', email: 'hr@co.example', langPair: 'th-en', category: 'business', pages: 2, neededBy: '2099-01-01', consent: true, files: [{ name: 'a.pdf', size: 3 }], idFiles: [] };
+ok(P({ action: 'createJob', job: Object.assign({}, base, { bill: { name: 'บริษัท ก', taxId: '123', address: 'x' } }) }).error === 'invalid_bill', 'server refuses incomplete company details');
+(async () => {
+  const b = await chromium.launch();
+  const ctx = await b.newContext({ viewport: { width: 1366, height: 900 } });
+  await ctx.addInitScript(() => { try { localStorage.setItem('tr_lang', 'th'); } catch (e) {} });
+  await ctx.route('https://script.google.com/macros/s/AKfy**', r => r.abort());
+  await ctx.route('**/js/config.js*', async r => { const res = await r.fetch(); r.fulfill({ response: res, body: (await res.text()).replace(/appsScriptUrl: "[^"]*"/, `appsScriptUrl: "${URL}"`) }); });
+  await ctx.route(URL, r => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(P(JSON.parse(r.request().postData()))) }));
+  const p = await ctx.newPage(); p.errs = []; p.on('pageerror', e => p.errs.push(e.message)); p.on('console', m => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && p.errs.push(m.text()));
+  await p.goto('http://localhost:8765/#submit');
+  ok(await p.isHidden('#bill-fields'), 'company fields hidden until ticked');
+  await p.fill('#f-name', 'สมชาย ใจดี'); await p.fill('#f-email', 'hr@co.example');
+  await p.selectOption('#f-langPair', 'th-en'); await p.selectOption('#f-category', 'business');
+  await p.fill('#f-pages', '2'); await p.fill('#f-neededBy', '2099-01-01');
+  await p.setInputFiles('#f-files', { name: 'contract.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4') });
+  await p.check('#f-billCompany');
+  ok(await p.isVisible('#bill-fields'), 'ticking shows the company fields');
+  await p.check('#f-consent');
+  await p.click('#job-form button[type=submit]');
+  await p.waitForTimeout(300);
+  ok((await p.textContent('#f-billTaxId-err')).includes('13') && !(await p.isHidden('#f-billName-err')), 'company fields required once ticked');
+  await p.fill('#f-billName', 'บริษัท ตัวอย่าง จำกัด (มหาชน)'); await p.fill('#f-billTaxId', '0-1055-12345-67-8');
+  await p.fill('#f-billAddress', '99 ถนนสาทร แขวงสีลม เขตบางรัก กรุงเทพฯ 10500');
+  await p.screenshot({ path: out + '/form-bill.png', fullPage: false, clip: { x: 0, y: 0, width: 1366, height: 900 } });
+  await p.locator('#bill-fields').scrollIntoViewIfNeeded(); await p.screenshot({ path: out + '/form-bill.png' });
+  await p.click('#job-form button[type=submit]');
+  await p.waitForSelector('#submit-done:not([hidden])', { timeout: 15000 });
+  const jobNo = (await p.textContent('#submit-done-no')).trim();
+  const row = g.sheets.Jobs.data.find(r => r[0] === jobNo), c = h => row[H().indexOf(h)];
+  ok(c('ออกเอกสารในนาม (บริษัท)') === 'บริษัท ตัวอย่าง จำกัด (มหาชน)' && c('เลขผู้เสียภาษี (บริษัท)') === '0105512345678', 'saved on the job (tax ID cleaned to 13 digits)');
+  ok(g.mail.some(m => /งานใหม่/.test(m.subject) && m.htmlBody.includes('บริษัท ตัวอย่าง จำกัด')), 'owner email shows the company');
+  // quote → quotation doc
+  P({ action: 'adminSaveQuote', token: admin, jobNo, items: [{ text: 'แปลสัญญา', amount: 1000 }] });
+  const t = /[?&]t=([0-9a-f]{32})/.exec(g.mail.filter(m => m.to === 'hr@co.example').pop().htmlBody.replace(/&amp;/g, '&'))[1];
+  await p.goto(`http://localhost:8765/?pay=${jobNo}&t=${t}&doc=quote`);
+  await p.waitForSelector('.quotation');
+  const q = await p.textContent('.quotation .receipt-buyer');
+  ok(q.includes('บริษัท ตัวอย่าง จำกัด (มหาชน)') && q.includes('0105512345678') && q.includes('สำนักงานใหญ่') && q.includes('ถนนสาทร') && q.includes('ผู้ติดต่อ: สมชาย ใจดี'), 'quotation: company, tax ID, head office, address, contact person');
+  await p.screenshot({ path: out + '/quotation-company.png', fullPage: true });
+  // admin changes branch, then pay → receipt keeps company
+  ok(P({ action: 'adminUpdateJob', token: admin, jobNo, bill: { name: 'บริษัท ตัวอย่าง จำกัด (มหาชน)', taxId: '0105512345678', branch: 'สาขาที่ 00002', address: '99 ถนนสาทร แขวงสีลม เขตบางรัก กรุงเทพฯ 10500' } }).job.bill.branch === 'สาขาที่ 00002', 'admin edits company details');
+  ok(P({ action: 'adminUpdateJob', token: admin, jobNo, bill: { name: 'x', taxId: '1' } }).error === 'invalid_bill', 'admin edit validated');
+  P({ action: 'payStart', jobNo, t }); g.beam.pay(Object.keys(g.beam.links).pop()); g.ctx.checkPayments();
+  const rm = g.mail.filter(m => m.to === 'hr@co.example').pop().htmlBody.replace(/&amp;/g, '&');
+  const rl = /href="https:\/\/www\.prathaitranslation\.com\/(\?receipt=[^"]+)"/.exec(rm)[1];
+  await p.goto('http://localhost:8765/' + rl);
+  await p.waitForSelector('.receipt .receipt-buyer');
+  const rt = await p.textContent('.receipt .receipt-buyer');
+  ok(rt.includes('บริษัท ตัวอย่าง จำกัด (มหาชน)') && rt.includes('สาขาที่ 00002'), 'receipt in the company name (branch as edited)');
+  await p.screenshot({ path: out + '/receipt-company.png', fullPage: true });
+  // purge clears job copy but receipt keeps it
+  const JR = g.sheets.Jobs.data.find(r => r[0] === jobNo); JR[H().indexOf('กำหนดลบข้อมูล')] = new Date(Date.now() - 864e5); g.ctx.purgeDueJobs();
+  ok(!JR[H().indexOf('ออกเอกสารในนาม (บริษัท)')], 'purge clears the company on the job');
+  ok(P({ action: 'receipt', no: decodeURIComponent(/receipt=([^&]+)/.exec(rl)[1]), t: /t=([0-9a-f]{32})/.exec(rl)[1] }).receipt.bill.name.includes('ตัวอย่าง'), 'receipt still shows the company after the purge');
+  // person without company: unchanged
+  ok(P({ action: 'createJob', job: base }).ok, 'no company → works as before');
+  ok(!p.errs.length, 'no console errors ' + p.errs.join(' | '));
+  await b.close();
+})().catch(e => { console.error(e); process.exit(1); });

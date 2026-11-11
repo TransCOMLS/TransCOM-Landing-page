@@ -1,0 +1,26 @@
+const { load } = require('../lib/mock');
+const g = load(require('../lib/paths').CODE_GS); const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) process.exitCode = 1; };
+g.ctx.setup();
+ok(g.sheets.Promotions && g.sheets.News, 'setup creates Promotions + News');
+let r = g.post({ action: 'getContent' });
+ok(r.ok && r.promotions.length === 0 && r.news.length === 0, 'example rows are not shown (unticked)');
+const P = g.sheets.Promotions, N = g.sheets.News, ph = P.data[0], nh = N.data[0];
+const row = (h, o) => h.map(k => o[k] === undefined ? '' : o[k]);
+P.appendRow(row(ph, { 'แสดง': true, 'ป้าย (ไทย)': 'ลด 10%', 'หัวข้อ (ไทย)': '=cmd', 'หัวข้อ (EN)': 'Ten off', 'ปุ่มไปหน้า': 'calculator', 'สิ้นสุด': new Date('2026-12-30T17:00:00Z') }));
+P.appendRow(row(ph, { 'แสดง': true, 'หัวข้อ (ไทย)': 'bad link', 'ปุ่มไปหน้า': 'javascript:alert(1)' }));
+N.appendRow(row(nh, { 'แสดง': 'TRUE', 'วันที่': new Date('2026-11-02T17:00:00Z'), 'หัวข้อ (ไทย)': 'ข่าว' }));
+g.cache.clear(); r = g.post({ action: 'getContent' });
+ok(r.promotions.length === 2 && r.promotions[0].tag.th === 'ลด 10%' && r.promotions[0].cta === 'calculator', 'active promotions returned');
+ok(r.promotions[0].end === '2026-12-31', 'dates in the sheet time zone (Bangkok)');
+ok(r.promotions[1].cta === '', 'unknown button target dropped');
+ok(r.news.length === 1 && r.news[0].date === '2026-11-03', 'news returned with local date');
+P.appendRow(row(ph, { 'แสดง': true, 'หัวข้อ (ไทย)': 'later' }));
+ok(g.post({ action: 'getContent' }).promotions.length === 2, 'cached for 5 minutes');
+{ const g2 = load(require('../lib/paths').CODE_GS); g2.ctx.setup(); const N2 = g2.sheets.News, h = N2.data[0];
+  const row2 = o => h.map(k => o[k] === undefined ? '' : o[k]);
+  N2.appendRow(row2({ 'แสดง': true, 'วันที่': '2026-11-01', 'หัวข้อ (ไทย)': 'drive', 'รูปภาพ (ลิงก์)': 'https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view?usp=sharing', 'ปุ่มไปหน้า': 'news' }));
+  N2.appendRow(row2({ 'แสดง': true, 'วันที่': '2026-11-02', 'หัวข้อ (ไทย)': 'bad', 'รูปภาพ (ลิงก์)': 'javascript:alert(1)' }));
+  N2.appendRow(row2({ 'แสดง': true, 'วันที่': '2026-11-03', 'หัวข้อ (ไทย)': 'web', 'รูปภาพ (ลิงก์)': 'https://example.com/a.jpg' }));
+  const r2 = g2.post({ action: 'getContent' }).news;
+  ok(r2[0].image === 'https://drive.google.com/thumbnail?id=1AbCdEfGhIjKlMnOp&sz=w1080' && r2[0].cta === 'news', 'Drive share link -> image link');
+  ok(r2[1].image === '' && r2[2].image === 'https://example.com/a.jpg', 'only https images'); }

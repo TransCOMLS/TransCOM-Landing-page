@@ -705,9 +705,11 @@
 
   // English text lives in js/i18n-en.js: already there when the saved language is English (index.html),
   // otherwise fetched the first time the visitor switches. On a failed fetch the page stays as it is.
+  var wantedLang = null;   // the visitor's latest choice: a slow English download must not undo a later switch back
   function setLanguage(lang) {
+    wantedLang = lang;
     if (I18N[lang] || lang === "th") return applyLanguage(lang);
-    loadScript("js/i18n-" + lang + ".js").then(function () { applyLanguage(lang); }, function () { /* offline: keep the current language */ });
+    loadScript("js/i18n-" + lang + ".js").then(function () { if (wantedLang === lang) applyLanguage(lang); }, function () { /* offline: keep the current language */ });
   }
 
   function initLanguageToggle() {
