@@ -828,6 +828,42 @@
     }
   }
 
+  // Admin: company details for the quotation / receipt (owner's request 2026-11-11) — view and edit
+  function billCard(c, j, reopen) {
+    var b = j.bill || null;
+    var wrap = el("div", "bill-admin");
+    wrap.appendChild(el("h4", "h5 dash-sub", t("form.billTitle")));
+    wrap.appendChild(el("p", b ? null : "note", b ? b.name + " · " + t("rc.taxId") + " " + b.taxId + " · " + (b.branch || t("doc.headOffice")) : t("form.billNone")));
+    if (b && b.address) wrap.appendChild(el("p", "note", b.address));
+    var det = el("details", "quote-form");
+    det.appendChild(el("summary", null, t(b ? "form.billEdit" : "form.billAdd")));
+    var name = input("text", b ? b.name : "", { maxlength: "160", autocomplete: "organization" });
+    var tax = input("text", b ? b.taxId : "", { maxlength: "17", inputmode: "numeric" });
+    var br = input("text", b ? b.branch : "", { maxlength: "60" });
+    var ad = el("textarea"); ad.rows = 2; ad.maxLength = 400; ad.value = b ? b.address : "";
+    det.appendChild(fieldBox("form.billName", name));
+    var g = el("div", "grid-2");
+    g.appendChild(fieldBox("form.billTaxId", tax, "form.billTaxIdHint"));
+    g.appendChild(fieldBox("form.billBranch", br, "form.billBranchHint"));
+    det.appendChild(g);
+    det.appendChild(fieldBox("form.billAddress", ad));
+    var st = el("div", "form-status"); st.hidden = true;
+    var save = button(t("acct.save"), "btn btn-primary btn-sm");
+    save.addEventListener("click", function () {
+      busy(save, true);
+      api("adminUpdateJob", { jobNo: j.jobNo, bill: { name: name.value.trim(), taxId: tax.value.replace(/[\s-]/g, ""), branch: br.value.trim(), address: ad.value.trim() } })
+        .then(reopen, function (err) { status(st, "error", errText(err)); busy(save, false); });
+    });
+    var row = el("div", "actions"); row.appendChild(save);
+    if (b) row.appendChild(button(t("form.billRemove"), "btn-link danger", function () {
+      api("adminUpdateJob", { jobNo: j.jobNo, bill: {} }).then(reopen, function (err) { status(st, "error", errText(err)); });
+    }));
+    det.appendChild(row); det.appendChild(st);
+    det.appendChild(el("p", "note", t("form.billAdminNote")));
+    wrap.appendChild(det);
+    c.appendChild(wrap);
+  }
+
   // ===== admin: quote form + payments on the job page =====
   function suggestItems(j) {
     var cat = App.findCategory ? App.findCategory(j.category) : null;
@@ -1367,6 +1403,7 @@
         ["form.name", j.name], ["form.email", mail], ["form.phone", tel], ["form.line", j.line],
         ["dash.customerType", t("dash.type." + j.customerType)], ["form.address", j.address]
       ]));
+      billCard(c, j, reopen);
       // job details
       var d = card(box, "dash.jobDetails");
       d.appendChild(details([

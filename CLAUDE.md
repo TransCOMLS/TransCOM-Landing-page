@@ -123,6 +123,11 @@ provider manages all jobs from one Google Sheet, with no paid server.
   (`docHead`/`docBar` shared with the receipt): no. `QT-<BE year>-<job code>-<version>`, date, valid until, buyer, items,
   discount, total + Thai words, note, QR to the pay link (or "paid — receipt …"). Linked from the quote email, the pay page,
   the customer's job page and the admin job page; needs `payInfo` to return `seller` (Code.gs `sellerInfo_`).
+  Company billing (owner 2026-11-11): job form checkbox `#f-billCompany` → `#bill-fields` (`f-billName`, `f-billTaxId` 13 digits,
+  `f-billBranch` blank = head office, `f-billAddress`); `jobsubmit` detail `bill`. Code.gs `cleanBill_` (`invalid_bill`), Jobs +
+  Payments columns billName/billTaxId/billBranch/billAddress (Payments copy at payment time, so receipts survive the purge;
+  purge clears the job's copy), `billOf_` → `payInfo.bill`, `receipt.bill`, `adminJob.bill`; admin edits with
+  `adminUpdateJob {bill}` (portal.js `billCard`). Documents show the company + tax ID + branch + address, then "Contact: name".
 - `js/portal.js` — Phase 5: the signed-in dashboard in `#account` (`.dash`: sidebar `#dash-nav` +
   `#dash-view`; `#dash-settings` holds account.js's profile/manage cards). Menu and views per
   `profile.role`: customer (overview, orders open/closed/cancel, job detail + translated-file
