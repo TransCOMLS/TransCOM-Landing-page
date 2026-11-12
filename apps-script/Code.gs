@@ -85,7 +85,8 @@ function categoryName_(code, th) {
 var SHEETS = { users: 'Users', jobs: 'Jobs', sessions: '_sessions', promotions: 'Promotions', news: 'News',
               dashboard: 'Dashboard', glossary: 'Glossary', discounts: 'Discounts',
               coupons: 'Coupons', couponUses: 'CouponUses', certs: 'Certificates',
-              quotes: 'Quotes', payments: 'Payments', rewards: 'Rewards', redemptions: 'Redemptions' };
+              quotes: 'Quotes', payments: 'Payments', rewards: 'Rewards', redemptions: 'Redemptions',
+              themes: 'Themes' };
 
 // Column headers (Thai, for the owner) and the keys the code uses.
 // Columns are found by header text, so the owner may reorder them.
@@ -194,6 +195,26 @@ var NEWS_COLS = [
   ['image', 'รูปภาพ (ลิงก์)'],     // square picture; a Google Drive share link works too
   ['cta', 'ปุ่มไปหน้า'],
   ['id', 'รหัสโพสต์']
+];
+
+// Festive themes (owner's request 2026-11-12): a background picture + two colours the website builds its
+// palette from. Admin manages them on the website; a ticked theme shows between its dates (blank = any day).
+var THEME_COLS = [
+  ['active', 'เปิดใช้'],
+  ['name', 'ชื่อธีม'],
+  ['start', 'เริ่ม'],
+  ['end', 'สิ้นสุด'],
+  ['image', 'ภาพพื้นหลัง (ลิงก์)'],
+  ['accent', 'สีหลัก'],
+  ['accent2', 'สีรอง'],
+  ['id', 'รหัสธีม']
+];
+// Seeded once by setup(): colours only, switched off; the owner adds pictures and dates
+var THEME_PRESETS = [
+  ['ปีใหม่ (New Year)', '#1e3a8a', '#d4a017'],
+  ['ตรุษจีน (Chinese New Year)', '#b91c1c', '#d4a017'],
+  ['สงกรานต์ (Songkran)', '#0e7490', '#ec4899'],
+  ['ลอยกระทง (Loy Krathong)', '#312e81', '#f59e0b']
 ];
 
 // Discount codes (Admin manages them on the website). Applied on quotes from Phase 6;
@@ -351,6 +372,9 @@ var ACTIONS = {
   adminSavePost: adminSavePost_,
   adminDeletePost: adminDeletePost_,
   adminUploadImage: adminUploadImage_,
+  adminThemes: adminThemes_,
+  adminSaveTheme: adminSaveTheme_,
+  adminDeleteTheme: adminDeleteTheme_,
   adminChangeEmail: adminChangeEmail_,
   // certification check (QR) — public lookup + staff/admin edits
   boot: boot_,              // home page: visitor count + offers/news in one request (saves executions)
@@ -1667,6 +1691,68 @@ function adminDeletePost_(req) {
   return adminPosts_(req);
 }
 
+/* ---------- festive themes ---------- */
+function hexColor_(v) {
+  var s = String(v || '').trim().toLowerCase();
+  return /^#[0-9a-f]{6}$/.test(s) ? s : '';
+}
+function themeOut_(r, tz) {
+  return {
+    id: String(r.id), active: active_(r), name: String(r.name || ''),
+    start: day_(r.start, tz), end: day_(r.end, tz),
+    image: String(r.image || ''), imageUrl: imageUrl_(r.image, 1920),
+    accent: hexColor_(r.accent) || '#01417b', accent2: hexColor_(r.accent2) || '#006192'
+  };
+}
+
+function adminThemes_(req) {
+  need_(req, ['admin']);
+  var tz = ss_().getSpreadsheetTimeZone(), out = [];
+  if (!ss_().getSheetByName(SHEETS.themes)) return { ok: true, themes: [] };
+  withLock_(function () {
+    var t = table_(SHEETS.themes, THEME_COLS);
+    t.rows.forEach(function (r) {
+      if (!String(r.name || '').trim()) return;
+      if (!r.id) updateRow_(t, r, { id: Utilities.getUuid().slice(0, 8) });
+      out.push(themeOut_(r, tz));
+    });
+  });
+  return { ok: true, themes: out };
+}
+
+function adminSaveTheme_(req) {
+  need_(req, ['admin']);
+  var p = req.theme || {};
+  var dateOk = function (d) { return !d || /^\d{4}-\d{2}-\d{2}$/.test(d); };
+  var obj = { active: p.active === true, name: text_(p.name, 60), accent: hexColor_(p.accent), accent2: hexColor_(p.accent2) };
+  if (!obj.name) fail_('theme_name');
+  if (!obj.accent || !obj.accent2) fail_('theme_color');
+  if (!dateOk(p.start) || !dateOk(p.end) || (p.start && p.end && p.end < p.start)) fail_('invalid_date');
+  obj.start = p.start || ''; obj.end = p.end || '';
+  var img = String(p.image || '').trim();
+  if (img && !/^https:\/\/[^\s"'<>()\\]+$/.test(img)) fail_('post_image');
+  obj.image = img;
+  withLock_(function () {
+    var t = table_(SHEETS.themes, THEME_COLS);
+    var row = p.id ? t.rows.filter(function (r) { return String(r.id) === String(p.id); })[0] : null;
+    if (p.id && !row) fail_('not_found');
+    if (row) updateRow_(t, row, obj);
+    else { obj.id = Utilities.getUuid().slice(0, 8); appendRow_(t, obj); }
+  });
+  CacheService.getScriptCache().remove('content');    // visitors get it within a few minutes
+  return adminThemes_(req);
+}
+
+function adminDeleteTheme_(req) {
+  need_(req, ['admin']);
+  withLock_(function () {
+    var t = table_(SHEETS.themes, THEME_COLS);
+    deleteRows_(t, function (r) { return String(r.id) === String(req.id || '-'); });
+  });
+  CacheService.getScriptCache().remove('content');
+  return adminThemes_(req);
+}
+
 // Post pictures go to a public folder ("anyone with the link can view")
 function imagesFolder_() {
   var props = PropertiesService.getScriptProperties();
@@ -1784,7 +1870,11 @@ function getContent_() {
         image: imageUrl_(r.image),
         cta: CTA_PAGES.indexOf(str_(r.cta)) > -1 ? str_(r.cta) : ''
       };
-    }).filter(function (n) { return n.title.th || n.title.en; })
+    }).filter(function (n) { return n.title.th || n.title.en; }),
+    themes: rowsIfSheet_(SHEETS.themes, THEME_COLS).filter(function (r) { return active_(r) && String(r.name || '').trim(); }).map(function (r) {
+      var o = themeOut_(r, tz);
+      return { id: o.id, start: o.start, end: o.end, image: o.imageUrl, accent: o.accent, accent2: o.accent2 };
+    })
   };
   cache.put('content', JSON.stringify(out), 300);   // 5 minutes
   return out;
@@ -1799,10 +1889,10 @@ function longStr_(v) { return String(v == null ? '' : v).trim().slice(0, 4000); 
 
 // https links only; a Google Drive share link becomes a direct image link
 // (the file must be shared as "Anyone with the link")
-function imageUrl_(v) {
+function imageUrl_(v, width) {
   var s = str_(v);
   var m = /drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=\w+&)?id=)([\w-]{10,})/.exec(s);
-  if (m) return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w1080';
+  if (m) return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w' + (width || 1080);
   return /^https:\/\/[^\s"'<>]+$/.test(s) ? s : '';
 }
 function day_(v, tz) {
@@ -3761,6 +3851,15 @@ function setup() {
       var col = colIndex_(sh, 'แสดง');
       if (col) sh.getRange(2, col, sh.getMaxRows() - 1, 1).insertCheckboxes();
     });
+  // Festive themes: 4 examples (switched off) the first time
+  var themesNew = !ss_().getSheetByName(SHEETS.themes);
+  var themes = ensureSheet_(SHEETS.themes, THEME_COLS);
+  addMissingColumns_(themes, THEME_COLS);
+  if (themesNew) THEME_PRESETS.forEach(function (p, i) {
+    themes.appendRow([false, p[0], '', '', '', p[1], p[2], 'preset' + (i + 1)]);
+  });
+  var tcol = colIndex_(themes, 'เปิดใช้');
+  if (tcol) themes.getRange(2, tcol, themes.getMaxRows() - 1, 1).insertCheckboxes();
   console.log('setup: Dashboard + Glossary');
   buildDashboard_();
   buildGlossary_();

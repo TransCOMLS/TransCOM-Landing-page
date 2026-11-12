@@ -1391,9 +1391,109 @@
     if (b.ok) b.ok.addEventListener("click", function () { busy.close(); });
   }
 
+  /* ---------- festive themes (owner 2026-11-12) ----------
+     A theme = background picture + two colours. The palette for both light and dark mode is derived here,
+     with text contrast kept at WCAG AA (≥ 4.5:1 for text, ≥ 3:1 for lines/icons). The finished CSS is kept in
+     `tr_festive` with the theme's dates so the <head> script can paint it before first paint next time.
+     Status colours, receipts/quotes (always white paper) and the footer (logo knock-out colour) are left alone. */
+  var festive = (function () {
+    var STYLE_ID = "festive-theme", KEY = "tr_festive", BG_LIGHT = "#ffffff", BG_DARK = "#111a2c", PAGE_DARK = "#0b1220";
+    function rgb(hex) { var n = parseInt(String(hex).slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+    function hex(c) { return "#" + c.map(function (v) { v = Math.max(0, Math.min(255, Math.round(v))); return (v < 16 ? "0" : "") + v.toString(16); }).join(""); }
+    function lum(c) { return c.map(function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }).reduce(function (a, v, i) { return a + v * [0.2126, 0.7152, 0.0722][i]; }, 0); }
+    function contrast(a, b) { var x = lum(rgb(a)), y = lum(rgb(b)); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+    function mix(a, b, w) { var p = rgb(a), q = rgb(b); return hex(p.map(function (v, i) { return v * (1 - w) + q[i] * w; })); }
+    function rgba(a, al) { return "rgba(" + rgb(a).join(", ") + ", " + al + ")"; }
+    // move towards black (on light) or white (on dark) until the contrast is enough
+    function readable(c, bg, min) {
+      var target = lum(rgb(bg)) > 0.5 ? "#000000" : "#ffffff", out = c;
+      for (var i = 1; i <= 20 && contrast(out, bg) < min; i++) out = mix(c, target, i * 0.05);
+      return out;
+    }
+    function okColor(c) { return /^#[0-9a-f]{6}$/i.test(String(c || "")); }
+    function okUrl(u) { return /^https:\/\/[^\s"'<>()\\]+$/.test(String(u || "")); }
+
+    function palette(accent, accent2) {
+      var A = readable(accent, BG_LIGHT, 5), B = readable(accent2, BG_LIGHT, 3);
+      var Ad = readable(accent, BG_DARK, 5), Bd = readable(accent2, BG_DARK, 3);
+      // top band: shades of the main colour only (a darkened second colour turns muddy), white text ≥ 5:1 everywhere
+      var heroA = readable(accent, "#ffffff", 5);
+      var hero = "linear-gradient(135deg, " + heroA + " 0%, " + mix(heroA, "#000000", 0.3) + " 55%, " + mix(accent, "#050a14", 0.8) + " 100%)";
+      return {
+        light: {
+          "--accent": A, "--accent-dark": mix(A, "#000000", 0.25), "--accent-soft": mix(accent, BG_LIGHT, 0.92),
+          "--accent-ring": rgba(A, 0.28), "--accent-bright": B, "--accent-line": mix(accent, BG_LIGHT, 0.8),
+          "--promo-tint": mix(accent, BG_LIGHT, 0.93), "--bg": mix(accent, BG_LIGHT, 0.96), "--hero-grad": hero, "--on-band": heroA,
+          "--page-grad": "radial-gradient(1100px 560px at -5% -10%, " + rgba(accent2, 0.14) + ", transparent 60%), radial-gradient(900px 520px at 105% 0%, " +
+            rgba(accent, 0.11) + ", transparent 60%), linear-gradient(180deg, " + mix(accent, BG_LIGHT, 0.93) + " 0%, " + mix(accent, BG_LIGHT, 0.97) + " 420px, #ffffff 1200px)",
+          "--festive-veil": "rgba(255, 255, 255, 0.62)"
+        },
+        dark: {
+          "--accent": Ad, "--accent-dark": mix(Ad, "#ffffff", 0.25), "--accent-soft": mix(accent, BG_DARK, 0.8),
+          "--accent-ring": rgba(Ad, 0.4), "--accent-bright": Bd, "--accent-line": mix(accent, BG_DARK, 0.72),
+          "--promo-tint": mix(accent, PAGE_DARK, 0.8), "--hero-grad": hero, "--on-band": heroA,
+          "--page-grad": "radial-gradient(1100px 560px at -5% -10%, " + rgba(accent2, 0.26) + ", transparent 60%), radial-gradient(900px 520px at 105% 0%, " +
+            rgba(accent, 0.34) + ", transparent 60%), linear-gradient(180deg, " + mix(accent, PAGE_DARK, 0.85) + " 0%, " + PAGE_DARK + " 520px)",
+          "--festive-veil": "rgba(11, 18, 32, 0.74)"
+        }
+      };
+    }
+    function block(sel, vars) { return sel + " {" + Object.keys(vars).map(function (k) { return " " + k + ": " + vars[k] + ";"; }).join("") + " }"; }
+    function css(theme, preview) {
+      var p = palette(theme.accent, theme.accent2);
+      var out = block(':root[data-theme="light"], :root:not([data-theme])', p.light) + "\n" + block(':root[data-theme="dark"]', p.dark);
+      // a picture still on the admin's device (data: URL) may be previewed, never stored for visitors
+      if (okUrl(theme.image) || (preview && /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(String(theme.image || "")))) {
+        // the picture behind everything, under a veil so text on the page stays readable; never printed
+        out += '\nbody::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; ' +
+          'background: linear-gradient(var(--festive-veil), var(--festive-veil)), url("' + theme.image + '") center / cover no-repeat; }' +
+          "\n@media print { body::before { display: none; } }";
+      }
+      return out;
+    }
+    // the theme for today: switched-on themes come from the server; the latest start date wins when two overlap
+    function pick(themes, day) {
+      day = day || todayISO();
+      return (themes || []).filter(function (th) {
+        return th && okColor(th.accent) && okColor(th.accent2) && (!th.start || th.start <= day) && (!th.end || th.end >= day);
+      }).sort(function (a, b) { return String(b.start || "").localeCompare(String(a.start || "")); })[0] || null;
+    }
+    function styleEl(create) {
+      var s = document.getElementById(STYLE_ID);
+      if (!s && create) { s = document.createElement("style"); s.id = STYLE_ID; document.head.appendChild(s); }
+      return s;
+    }
+    var current = "";
+    // apply(theme) for every visitor (remembered for the next visit); apply(theme, { preview: true }) on this page only
+    function apply(theme, opts) {
+      var preview = !!(opts && opts.preview);
+      var text = theme && okColor(theme.accent) && okColor(theme.accent2) ? css(theme, preview) : "";
+      if (!preview) {
+        if (text) storageSet(KEY, JSON.stringify({ css: text, start: theme.start || "", end: theme.end || "", id: theme.id || "" }));
+        else storageRemove(KEY);
+      }
+      if (text === current) return;
+      current = text;
+      if (text) styleEl(true).textContent = text;
+      else { var s = styleEl(false); if (s) s.remove(); }
+    }
+    // back to what visitors see (after an admin's preview)
+    function restore() {
+      var saved = null;
+      try { saved = JSON.parse(storageGet(KEY) || "null"); } catch (e) { saved = null; }
+      var day = todayISO();
+      var text = saved && saved.css && (!saved.start || saved.start <= day) && (!saved.end || saved.end >= day) ? saved.css : "";
+      current = text;
+      if (text) styleEl(true).textContent = text;
+      else { var s = styleEl(false); if (s) s.remove(); }
+    }
+    return { palette: palette, css: css, pick: pick, apply: apply, restore: restore, contrast: contrast, readable: readable };
+  })();
+
   window.App = {
     t: t,
     config: CFG,
+    festive: festive,
     getLang: function () { return state.lang; },
     showTab: showTab,
     formatNumber: formatNumber,

@@ -170,7 +170,8 @@
       { view: "a-overview", key: "dash.overview" },
       { group: "dash.g.work", items: [{ view: "a-jobs", arg: "all", key: "dash.allJobs" }, { view: "s-jobs", key: "dash.myJobs" }] },
       { group: "dash.g.admin", items: [{ view: "a-users", key: "dash.users" }, { view: "a-discounts", key: "dash.discounts" },
-                                       { view: "a-coupons", key: "dash.coupons" }, { view: "a-posts", arg: "news", key: "dash.posts" }] },
+                                       { view: "a-coupons", key: "dash.coupons" }, { view: "a-posts", arg: "news", key: "dash.posts" },
+                                       { view: "a-themes", key: "dash.themes" }] },
       { group: "dash.g.money", items: [{ view: "a-payments", key: "dash.payments" }, { view: "a-rewards", key: "dash.rewards" }] },
       { group: "dash.g.account", items: [{ view: "settings", key: "dash.profile" }] }
     ]
@@ -1931,6 +1932,196 @@
           if (!window.confirm(t("dash.pst.confirmDelete"))) return;
           busy(del, true);
           api("adminDeletePost", { kind: kind, id: p.id }).then(function () { show("a-posts", kind); }, function (err) { alertBox(del, errText(err)); busy(del, false); });
+        });
+        acts.appendChild(del);
+        body.appendChild(acts);
+        li.appendChild(body);
+        ul.appendChild(li);
+      });
+      lc.appendChild(ul);
+    });
+  };
+
+  // ----- festive themes (owner 2026-11-12): background picture + colours taken from it -----
+  // The picture is shrunk to ≤ 1920 px (JPEG) before upload, and its two strongest colours are found here,
+  // on the admin's own copy, so no picture ever has to be read back from Google Drive.
+  function themePicture(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        var k = Math.min(1, 1920 / Math.max(img.naturalWidth, img.naturalHeight));
+        var cv = document.createElement("canvas");
+        cv.width = Math.max(1, Math.round(img.naturalWidth * k)); cv.height = Math.max(1, Math.round(img.naturalHeight * k));
+        var g = cv.getContext("2d");
+        g.fillStyle = "#ffffff"; g.fillRect(0, 0, cv.width, cv.height);
+        g.drawImage(img, 0, 0, cv.width, cv.height);
+        var small = document.createElement("canvas"); small.width = 96; small.height = 96;
+        small.getContext("2d").drawImage(cv, 0, 0, 96, 96);
+        var colors = strongColors(small.getContext("2d").getImageData(0, 0, 96, 96).data);
+        resolve({ data: cv.toDataURL("image/jpeg", 0.82).split(",")[1], preview: cv.toDataURL("image/jpeg", 0.6), colors: colors });
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject({ code: "bad_file" }); };
+      img.src = url;
+    });
+  }
+  // two most present saturated hues (24 bins of 15°), each as the average colour of its pixels; null for a grey picture
+  function strongColors(px) {
+    var bins = [];
+    for (var i = 0; i < 24; i++) bins.push({ w: 0, r: 0, g: 0, b: 0, h: i * 15 });
+    for (var j = 0; j < px.length; j += 4) {
+      var r = px[j] / 255, gg = px[j + 1] / 255, b = px[j + 2] / 255;
+      var mx = Math.max(r, gg, b), mn = Math.min(r, gg, b), l = (mx + mn) / 2, d = mx - mn;
+      if (!d) continue;
+      var sat = d / (1 - Math.abs(2 * l - 1));
+      if (sat < 0.22 || l < 0.12 || l > 0.9) continue;
+      var h = mx === r ? ((gg - b) / d + 6) % 6 : mx === gg ? (b - r) / d + 2 : (r - gg) / d + 4;
+      var bin = bins[Math.floor(h * 60 / 15) % 24], w = sat * (1 - Math.abs(l - 0.5));
+      bin.w += w; bin.r += px[j] * w; bin.g += px[j + 1] * w; bin.b += px[j + 2] * w;
+    }
+    var ranked = bins.filter(function (x) { return x.w > 0.5; }).sort(function (a, b) { return b.w - a.w; });
+    if (!ranked.length) return null;
+    function hx(x) { return "#" + [x.r, x.g, x.b].map(function (v) { v = Math.round(v / x.w); return (v < 16 ? "0" : "") + v.toString(16); }).join(""); }
+    var first = ranked[0];
+    var second = ranked.filter(function (x) { var dd = Math.abs(x.h - first.h); return Math.min(dd, 360 - dd) >= 45 && x.w > first.w * 0.08; })[0];
+    return [hx(first), second ? hx(second) : hx(first)];
+  }
+  function themeState(th, shown) {
+    var today = isoDay(new Date());
+    if (!th.active) return ["", "dash.thm.state.off"];
+    if (th.end && today > th.end) return ["bad", "dash.thm.state.ended"];
+    if (th.start && today < th.start) return ["warn", "dash.thm.state.scheduled"];
+    return shown && shown.id === th.id ? ["ok", "dash.thm.state.live"] : ["warn", "dash.thm.state.waiting"];
+  }
+  function themeSwatch(th) {
+    var p = App.festive.palette(th.accent, th.accent2);
+    var sw = el("span", "dash-theme-swatch"); sw.setAttribute("aria-hidden", "true");
+    sw.style.background = th.imageUrl ? "linear-gradient(rgba(0,0,0,.15), rgba(0,0,0,.15)), url(\"" + th.imageUrl + "\") center / cover" : p.light["--hero-grad"];
+    [p.light["--accent"], p.light["--accent-bright"], p.dark["--accent"]].forEach(function (c) { var dot = el("span"); dot.style.background = c; sw.appendChild(dot); });
+    return sw;
+  }
+
+  VIEWS["a-themes"] = function (box, editId) {
+    heading(box, "dash.themes");
+    box.appendChild(el("p", "note", t("dash.thm.intro")));
+    var holder = el("div"); box.appendChild(holder);
+    load(holder, "adminThemes", {}, function (res) {
+      var themes = res.themes, shown = App.festive.pick(themes.filter(function (x) { return x.active; }));
+      holder.appendChild(el("p", "dash-theme-now", t("dash.thm.now", { name: shown ? shown.name : t("dash.thm.normal") })));
+      var editing = themes.filter(function (x) { return x.id === editId; })[0];
+      var f = card(holder, editing ? "dash.thm.edit" : "dash.thm.new");
+      var name = input("text", editing ? editing.name : "", { maxlength: "60" });
+      f.appendChild(fieldBox("dash.thm.name", name));
+      // picture
+      var image = editing ? editing.image : "", picPreview = editing ? editing.imageUrl : "";
+      var pic = el("div", "field dash-pic");
+      pic.appendChild(el("span", "label-like", t("dash.thm.image")));
+      var row0 = el("div", "dash-pic-row");
+      var prev = el("div", "dash-pic-preview dash-theme-pic"); var pimg = el("img"); pimg.alt = ""; prev.appendChild(pimg);
+      function setPic(url) { pimg.src = url || ""; prev.hidden = !url; clearPic.hidden = !url; }
+      row0.appendChild(prev);
+      var side = el("div", "dash-pic-side");
+      var upId = "thm-" + Math.random().toString(36).slice(2, 7);
+      var fileIn = input("file", null, { accept: "image/png,image/jpeg,image/webp" }); fileIn.id = upId; fileIn.className = "file-input";
+      var upl = el("label", "btn btn-outline btn-sm", t("dash.pst.upload")); upl.htmlFor = upId;
+      var clearPic = button(t("dash.thm.removeImage"), "btn-link", function () { image = ""; setPic(""); picStatus.textContent = t("dash.thm.noImage"); });
+      var picStatus = el("p", "hint", t("dash.thm.imageHint"));
+      side.appendChild(fileIn); side.appendChild(upl); side.appendChild(clearPic); side.appendChild(picStatus);
+      row0.appendChild(side); pic.appendChild(row0); f.appendChild(pic);
+      setPic(picPreview);
+      // colours
+      var accent = input("color", editing ? editing.accent : "#01417b"), accent2 = input("color", editing ? editing.accent2 : "#006192");
+      var g = el("div", "grid-2");
+      g.appendChild(fieldBox("dash.thm.accent", accent)); g.appendChild(fieldBox("dash.thm.accent2", accent2));
+      f.appendChild(g);
+      var strip = el("div", "dash-theme-strip"); f.appendChild(strip);
+      f.appendChild(el("p", "hint", t("dash.thm.colorsHint")));
+      var lastColors = null;
+      var again = button(t("dash.thm.fromImage"), "btn-link", function () { if (lastColors) { accent.value = lastColors[0]; accent2.value = lastColors[1]; drawStrip(); } });
+      again.hidden = true; f.appendChild(again);
+      function drawStrip() {
+        strip.textContent = "";
+        var p = App.festive.palette(accent.value, accent2.value);
+        [["light", "--hero-grad", "dash.thm.sw.hero"], ["light", "--accent", "dash.thm.sw.light"], ["light", "--accent-bright", "dash.thm.sw.line"], ["dark", "--accent", "dash.thm.sw.dark"]].forEach(function (x) {
+          var c = el("span", "dash-theme-chip"); var dot = el("span", "dash-theme-dot"); dot.style.background = p[x[0]][x[1]];
+          c.appendChild(dot); c.appendChild(el("span", null, t(x[2]))); strip.appendChild(c);
+        });
+      }
+      accent.addEventListener("input", drawStrip); accent2.addEventListener("input", drawStrip); drawStrip();
+      fileIn.addEventListener("change", function () {
+        var file = fileIn.files && fileIn.files[0];
+        fileIn.value = "";
+        if (!file) return;
+        if (file.size > 25 * 1048576) { picStatus.textContent = t("dash.err.too_large"); return; }
+        App.busy.open({ title: t("dash.pst.uploading"), text: t("busy.wait") });
+        themePicture(file).then(function (pp) {
+          lastColors = pp.colors;
+          if (pp.colors) { accent.value = pp.colors[0]; accent2.value = pp.colors[1]; again.hidden = false; }
+          drawStrip(); setPic(pp.preview);
+          return api("adminUploadImage", { name: "theme-" + Date.now() + ".jpg", data: pp.data }).then(function (r) {
+            image = r.image;
+            picStatus.textContent = t(pp.colors ? "dash.thm.colorsFound" : "dash.thm.gray");
+            App.busy.done({ title: t("busy.uploadedTitle"), text: file.name });
+          });
+        }).catch(function (err) { App.busy.close(); setPic(picPreview); picStatus.textContent = errText(err); });
+      });
+      // dates + on/off
+      var start = input("date", editing ? editing.start : ""), end = input("date", editing ? editing.end : "");
+      var g2 = el("div", "grid-2");
+      g2.appendChild(fieldBox("dash.cp.start", start, "dash.cp.blankAny")); g2.appendChild(fieldBox("dash.cp.end", end, "dash.cp.blankAny"));
+      f.appendChild(g2);
+      var active = checkbox("dash.thm.on", editing ? editing.active : false);
+      var cbs = el("div", "dash-checks"); cbs.appendChild(active); f.appendChild(cbs);
+      var st = el("div", "form-status"); st.hidden = true;
+      function draft() {
+        return { id: editing ? editing.id : "", name: name.value.trim(), image: image, imageUrl: pimg.getAttribute("src") || "",
+                 accent: accent.value, accent2: accent2.value, start: start.value, end: end.value, active: active.input.checked };
+      }
+      var save = button(t(editing ? "acct.save" : "dash.thm.save"), "btn btn-primary");
+      save.addEventListener("click", function () {
+        var d = draft();
+        busy(save, true);
+        api("adminSaveTheme", { theme: d }).then(function () { App.festive.restore(); show("a-themes"); }, function (err) { status(st, "error", errText(err)); busy(save, false); });
+      });
+      // try it on this device only: the picture as shown in the preview box
+      var tryIt = button(t("dash.thm.preview"), "btn btn-outline");
+      var stopTry = button(t("dash.thm.previewOff"), "btn-link"); stopTry.hidden = true;
+      tryIt.addEventListener("click", function () {
+        var d = draft(); App.festive.apply({ accent: d.accent, accent2: d.accent2, image: d.imageUrl }, { preview: true });
+        status(st, "", t("dash.thm.previewOn")); stopTry.hidden = false;
+      });
+      stopTry.addEventListener("click", function () { App.festive.restore(); stopTry.hidden = true; st.hidden = true; });
+      var row = el("div", "actions"); row.appendChild(save); row.appendChild(tryIt); row.appendChild(stopTry);
+      if (editing) row.appendChild(button(t("acct.cancel"), "btn-link", function () { App.festive.restore(); show("a-themes"); }));
+      f.appendChild(row); f.appendChild(st);
+      // list
+      var lc = card(holder, "dash.thm.list");
+      lc.appendChild(el("p", "note", t("dash.thm.listHint")));
+      if (!themes.length) { empty(lc, "dash.thm.empty"); return; }
+      var ul = el("ul", "dash-posts");
+      themes.forEach(function (th) {
+        var li = el("li", "dash-post");
+        li.appendChild(themeSwatch(th));
+        var body = el("div", "dash-post-body");
+        var head = el("div", "dash-coupon-head");
+        head.appendChild(el("span", "dash-post-title", th.name));
+        var stt = themeState(th, shown);
+        head.appendChild(el("span", "flag " + (stt[0] ? "flag-" + stt[0] : ""), t(stt[1])));
+        body.appendChild(head);
+        body.appendChild(el("p", "dash-coupon-meta", (th.start ? day(th.start) : "…") + " – " + (th.end ? day(th.end) : "…") + (th.image ? "" : " · " + t("dash.thm.noImage"))));
+        var acts = el("div", "acct-links");
+        acts.appendChild(button(t("dash.edit"), "btn btn-outline btn-sm", function () { show("a-themes", th.id); }));
+        var tog = button(t(th.active ? "dash.thm.turnOff" : "dash.thm.turnOn"), "btn-link");
+        tog.addEventListener("click", function () {
+          busy(tog, true);
+          api("adminSaveTheme", { theme: Object.assign({}, th, { active: !th.active }) }).then(function () { show("a-themes"); }, function (err) { alertBox(tog, errText(err)); busy(tog, false); });
+        });
+        acts.appendChild(tog);
+        var del = button(t("dash.remove"), "btn-link danger");
+        del.addEventListener("click", function () {
+          if (!window.confirm(t("dash.thm.confirmDelete"))) return;
+          busy(del, true);
+          api("adminDeleteTheme", { id: th.id }).then(function () { show("a-themes"); }, function (err) { alertBox(del, errText(err)); busy(del, false); });
         });
         acts.appendChild(del);
         body.appendChild(acts);

@@ -78,6 +78,13 @@ provider manages all jobs from one Google Sheet, with no paid server.
   with 5 checks, payment failure reason from Beam `failureCode` → `pay.fail.*`, cancelled) and portal.js `load()` (pop-up
   only when a view takes over 0.7 s; ✗ on error). The track form normalises job numbers (`normJobNo`: spaces, no dashes,
   lower case; server `normJobNo_` too).
+- `App.festive` (app.js, owner's request 2026-11-12): festive theme = background picture + 2 colours. `palette(accent,
+  accent2)` derives light + dark tokens (`--accent`, `--accent-dark/-soft/-ring/-bright/-line`, `--promo-tint`, `--bg`,
+  `--hero-grad` = shades of the main colour only, `--page-grad`, `--on-band` = text of white buttons on the dark bands,
+  `--festive-veil`), contrast kept ≥ 4.5:1 for text (5:1 target) and ≥ 3:1 for lines (`readable()`); the picture is
+  `body::before` (fixed, under the veil, not printed). Injected as `<style id="festive-theme">`; the finished CSS + dates
+  are kept in `tr_festive` and the `<head>` script paints it before first paint. Status colours, receipts/quotes,
+  stamp, post covers and the footer are not themed. `apply(theme, {preview:true})` = this page only; `restore()`.
 - `js/terms.js` — `window.TERMS.th` / `.en`: terms and conditions text (legal; edited by
   the owner — do not reword without being asked). `**bold**` is rendered as <strong>.
   Source: the owner's Claude doc "ข้อกำหนดและเงื่อนไขการรับบริการ TransCOM",
@@ -92,6 +99,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
   (`config.news`): square posts (owner's https image, or a generated navy cover with the
   title) that open `#post-dialog`, which always shows the post picture (beside the text on ≥768px).
   Each post has `active` (true = shown, false = draft); the owner picks what goes live.
+  Festive themes (owner 2026-11-12): getContent also returns switched-on `themes` ({id, start, end, image, accent,
+  accent2}); home.js keeps them in `tr_content` and calls `App.festive.apply(App.festive.pick(themes))` (today within
+  the dates; latest start wins).
   The News menu item is always shown; with no active posts the page shows an empty message.
   When Apps Script is connected, offers/news come from the "Promotions" / "News" sheets
   (action `getContent`, 5-min cache) if they have ticked rows. Only real offers — no
@@ -227,7 +237,12 @@ provider manages all jobs from one Google Sheet, with no paid server.
   (keep it in step with contact details in config.js); `robots.txt` + `sitemap.xml` at the root.
   Footer visitor pill `#visit-count` (home.js `loadVisits`, once per device per day via `tr_visit`;
   `config.showVisitorCount`). Admin dashboard also has "โค้ดส่วนลด" (`a-coupons`) and "ประชาสัมพันธ์"
-  (`a-posts`, news/promo tabs, picture upload) views in portal.js.
+  (`a-posts`, news/promo tabs, picture upload) views in portal.js, and "ธีมเทศกาล" (`a-themes`, 2026-11-12): picture
+  shrunk to ≤ 1920 px JPEG and its two strongest hues found on the admin's device (`themePicture`/`strongColors`, so
+  nothing is read back from Drive), uploaded with `adminUploadImage`, colour pickers, samples, preview on this
+  device, dates + on/off, list with states. Code.gs: "Themes" sheet (`THEME_COLS`, `THEME_PRESETS` seeded once by
+  setup — New Year, Chinese New Year, Songkran, Loy Krathong, switched off), actions adminThemes / adminSaveTheme
+  (`theme_name`, `theme_color`, https picture only) / adminDeleteTheme; saving clears the content cache.
 - `img/logo.svg` (header, on white) and `img/logo-white.svg` (footer, on `--footer-bg`):
   the owner's logo, cropped to its content. Colours `#01417b` / `#006192` set `--accent`
   and `--accent-bright`.
@@ -248,7 +263,8 @@ provider manages all jobs from one Google Sheet, with no paid server.
   with white cards; navy accent (`--accent`). Check both themes when changing styles.
 - `localStorage` only via the try/catch helpers in `app.js` (`App.storage`; keys `tr_lang`,
   `tr_session`, `tr_theme`, `tr_visit`, `tr_login`; speed caches `tr_content` (last getContent),
-  `tr_visits` (last count), `tr_account` (last profile + jobs, tagged with the token, removed on sign-out)) — plus the try/catch theme read in the `<head>` script.
+  `tr_visits` (last count), `tr_account` (last profile + jobs, tagged with the token, removed on sign-out)), `tr_festive`
+  (festive theme CSS + dates) — plus the try/catch theme read in the `<head>` script.
 - Thai copy: formal but concise; years in Thai text use พ.ศ. (job no. `TR-2569-K7F3QD`).
 - Placeholders in `[brackets]` in config.js are filled in by the owner — keep them.
 

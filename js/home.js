@@ -387,6 +387,7 @@
     var cached = null;
     try { cached = JSON.parse(App.storage.get(CONTENT_KEY) || "null"); } catch (e) { cached = null; }
     if (cached && applySheetContent(cached)) renderAll();
+    if (cached && cached.themes) App.festive.apply(App.festive.pick(cached.themes));   // dates are checked against today
     var last = parseInt(App.storage.get("tr_visits") || "0", 10);
     if (last > 0) showVisits(last);
 
@@ -396,8 +397,9 @@
     if (!needVisit && !needContent) return;
 
     function keepContent(res) {
-      App.storage.set(CONTENT_KEY, JSON.stringify({ at: Date.now(), promotions: res.promotions || [], news: res.news || [] }));
+      App.storage.set(CONTENT_KEY, JSON.stringify({ at: Date.now(), promotions: res.promotions || [], news: res.news || [], themes: res.themes || [] }));
       if (applySheetContent(res)) renderAll();
+      App.festive.apply(App.festive.pick(res.themes));   // festive theme switched on by the admin (or back to normal)
     }
     function keepVisits(res) {
       App.storage.set("tr_visit", today);
