@@ -964,6 +964,8 @@ html.modal-open, html.modal-open body { overflow: hidden; }
 .quick-quote h2 { color: var(--accent); margin-bottom: 12px; }
 .quick-quote .field { margin-bottom: 12px; }
 .grid-qq { display: grid; grid-template-columns: minmax(0, 1fr) 96px; gap: 0 12px; }
+/* a label that wraps ("Number of pages" in English on a phone) must not push its box lower: labels sit on the box */
+.grid-qq .field { display: flex; flex-direction: column; justify-content: flex-end; }
 .qq-result { margin: 4px 0 14px; padding: 12px 14px; border-radius: var(--radius); background: var(--accent-soft); min-height: 64px; }
 .qq-empty { margin: 0; color: var(--muted); font-size: 0.9375rem; }
 .qq-prices { margin: 0; display: grid; gap: 6px; }
