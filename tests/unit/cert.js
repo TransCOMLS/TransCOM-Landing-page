@@ -7,6 +7,7 @@ ok(g.sheets.Jobs.data[0].includes('รหัสตรวจสอบการร
 const signIn = e => { P({ action: 'requestCode', email: e }); return P({ action: 'verifyCode', email: e, code: g.lastCode() }).token; };
 const admin = signIn('owner@example.com'), cust = signIn('nida@example.com'), staff = signIn('staff@example.com');
 P({ action: 'adminSetUser', token: admin, email: 'staff@example.com', role: 'staff' });
+g.translator(staff, 'สตาฟ ทดสอบ');
 const day = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
 function job(certified, email) {
   const c = P({ action: 'createJob', lang: 'th', job: { name: 'นิดา ใจดี', email: email || 'nida@example.com', langPair: 'th-en', category: 'civil', pages: 2, neededBy: day(5), consent: true, certified, requiresId: true, idConsent: true, files: [{ name: 'a.pdf', size: 3 }], idFiles: [{ name: 'id.jpg', size: 3 }] } });
@@ -31,12 +32,16 @@ ok(!JSON.stringify(v).includes('นิดา') && !JSON.stringify(v).includes('n
 ok(P({ action: 'verifyCert', code: 'AAAA-BBBB-CCCC' }).error === 'not_found' && P({ action: 'verifyCert', code: 'xyz' }).error === 'invalid_code', 'unknown code → not_found; bad format → invalid_code');
 // staff: assigned → doc title; not assigned → not_found
 P({ action: 'adminUpdateJob', token: admin, jobNo: j1, assignee: 'staff@example.com' });
+P({ action: 'translatorRespond', token: staff, jobNo: j1, accept: true });
 ok(P({ action: 'staffJob', token: staff, jobNo: j1 }).job.cert.code === code, 'assigned staff sees the code');
 let u = P({ action: 'certUpdate', token: staff, jobNo: j1, docTitle: 'สูติบัตร', status: 'valid' });
 ok(u.ok && u.cert.docTitle === 'สูติบัตร' && u.cert.status === 'pending', 'staff sets the document title (status change ignored for staff)');
 ok(P({ action: 'certUpdate', token: cust, jobNo: j1, docTitle: 'x' }).error === 'forbidden', 'customers cannot edit');
 // flow: paid → inProgress → review → customer confirms → certified with that date
-['paid', 'inProgress', 'review'].forEach(s => P({ action: 'adminUpdateJob', token: admin, jobNo: j1, status: s }));
+['paid', 'inProgress'].forEach(s => P({ action: 'adminUpdateJob', token: admin, jobNo: j1, status: s }));
+P({ action: 'uploadTranslation', token: staff, jobNo: j1, name: 'x-EN.pdf', data: 'WFla' });
+P({ action: 'staffUpdate', token: staff, jobNo: j1, step: 'ready', confirm: true });
+P({ action: 'adminUpdateJob', token: admin, jobNo: j1, status: 'review' });
 ok(P({ action: 'verifyCert', code }).cert.status === 'pending', 'still pending while the customer checks');
 const mj = P({ action: 'myJob', token: cust, jobNo: j1 });
 ok(mj.job.cert && mj.job.cert.code === code && mj.job.cert.docTitle === undefined, 'customer job page shows code + link (not the editable fields)');

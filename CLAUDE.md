@@ -42,6 +42,10 @@ provider manages all jobs from one Google Sheet, with no paid server.
   "special rate"; `civilDocuments` lists the 18 documents (TH/EN); `idRetentionDays: 15`.
   Prices are per-page ranges `[min, max]` (a single number also works); use
   `App.priceRange(cat, urgency)` / `App.formatRange(min, max)`, never `cat.normal` directly.
+  `languagePairs` (owner 2026-11-18): th-en/en-th `active: true`; 20 prepared pairs th⇄zh/ja/ko/fr/de/es/ru/vi/lo/my are
+  `active: false` — hidden from forms (app.js `renderSelectOptions`, except a value already saved), names still shown on old jobs;
+  Code.gs `LANG_PAIRS` (code → [th, en, open]) must match (a unit test checks) and `createJob` refuses closed pairs; the stamp
+  wording is Thai only when the target is Thai. README "เปิดรับคู่ภาษาเพิ่ม" tells the owner how to open one.
   `shippingFee` (paper copy by post, per job) adds a calculator option and, in the job form,
   a shipping choice with a required delivery address (`f-address`). LINE OA `@transcomls`
   is on (`contact.showLine: true`); `false` hides every LINE link (`[data-contact="line"]`).
@@ -196,7 +200,7 @@ provider manages all jobs from one Google Sheet, with no paid server.
   `img/email/header.jpg` served from the live site (`CONFIG.siteUrl`; must be on `main`), status
   badge, 6-step progress (`mailSteps_`), details table, one button, navy footer with contacts
   (`CONFIG.contactPhone/lineId/contactEmail` — keep in step with js/config.js). Language pairs and
-  categories show as names (`LANG_PAIR_NAMES`, `CATEGORY_NAMES`). Customer receipt + provider notice (`PROVIDER_EMAIL` or the script owner);
+  categories show as names (`LANG_PAIRS`, `CATEGORY_NAMES`). Customer receipt + provider notice (`PROVIDER_EMAIL` or the script owner);
   Phase 6 (section "money"): Quotes / Payments / Rewards / Redemptions sheets; actions payInfo, payPrice, payStart, payCheck,
   receipt (public, with hash tokens `payToken_` / `receiptToken_`), myPayments, myMembership, redeemReward, adminSaveQuote,
   adminCancelQuote, adminPayments, adminRefund, adminRewards, adminSaveReward, adminDeleteReward, adminRedemption.
@@ -322,6 +326,25 @@ provider manages all jobs from one Google Sheet, with no paid server.
         Coupons combine with the member discount only if the coupon allows it (per-coupon flag).
       - Fill the dashboard's Quotes, Pay and Payment history views.
 
+- [x] Phase 7 — freelance translators (owner 2026-11-18). Code.gs section "Phase 7": sheets Translators (TRANSLATOR_COLS,
+      statuses applied/approved/rejected/suspended), Payouts; Jobs columns assignedAt, acceptedAt, translatorDue,
+      translatorConfirmedAt, approvedAt, returnCount, revisionCount, translatorBase, translatorAdjust(+Note), translatorReminders.
+      CONFIG.translator {docsVersion, rate 70, whtPercent 3, whtMin 1000, payDay 10, acceptHours 2, dueBufferDays 1};
+      CONFIG.certificationFee/shippingFee (keep in step with config.js). Actions translatorMe/Apply/Accept/Profile/Claim/Respond/
+      Earnings, adminTranslators/TranslatorUpdate/Payouts/PayoutMark; hourly
+      trigger `translatorChecks` (accept 2 h → admin; due tomorrow → translator; late → both; once each). Rules: staff (not admin)
+      work only when approved + current docs accepted (`needTranslator_`: translator_profile / contract_required); files only
+      after accepting AND the customer paid (paid/inProgress/review), none once delivered or reassigned (`translatorAccess_`,
+      also in jobFile_); open list = quoted/paid, unassigned, translator's pairs, first claim wins; "ready" needs `confirm:true`;
+      status review on a translator's job needs readyAt (admin `review: approve|return`). Pay = rate % of translatorBase (or quote
+      subtotal − certification − shipping) + adjust; monthly by deliveredAt; tax when the month's total > 1,000; Payouts row freezes.
+      `js/translator-docs.js` = window.TRANSLATOR_DOCS {version, sections[7]} (Thai; from the owner's doc
+      https://claude.ai/artifact/JJFJz9qNMxTKtKD5nUGGyS, adapted to the web flow; «fields» filled in from the profile). portal.js:
+      customer menu "สมัครเป็นผู้แปล" (t-apply); staff t-earnings/t-manual/t-profile + trGate (profile → contract);
+      s-jobs respond box + open list; s-job confirm tick + locked-file notices; admin a-translators/a-payouts and
+      `adminTranslatorCard` on a-job. A glossary + dictionary page for translators was built and dropped (owner 2026-11-18:
+      hard to control) — standard terms go in a job's internal notes (docs 3.6). Tests: unit/translators.js, e2e/translators.js, mock `g.translator(token, name)`.
+
 The owner asked to stop after each phase and show the result before continuing.
 
 ## Speed (rough pass 2026-11-07; fuller pass 2026-11-11)
@@ -347,8 +370,8 @@ The owner asked to stop after each phase and show the result before continuing.
 
 ## Testing
 `node tests/run.js` runs every suite (see `tests/README.md`): `tests/unit/` = Code.gs against a mocked Apps Script
-(`tests/lib/mock.js`), `tests/e2e/` = the site in Playwright Chromium on port 8765 with the same mock. 31 suites,
-~900 checks (2026-11-11). `tests/lib/browser.js` blocks the live Apps Script / Beam / site, and the runner fails any
+(`tests/lib/mock.js`), `tests/e2e/` = the site in Playwright Chromium on port 8765 with the same mock. 33 suites,
+~1,030 checks (2026-11-18). `tests/lib/browser.js` blocks the live Apps Script / Beam / site, and the runner fails any
 suite that tried. Suites print `PASS `/`FAIL ` lines; update a test in the same commit as an intended change, and add
 one for each new feature. Still check by eye: every page in priority order — PC 1366, 1920, 1280, 1024; phone 390, 320;
 tablet 768 — in both languages and themes; `node --check js/*.js`; i18n keys match between th/en.
@@ -359,5 +382,5 @@ After each phase, republish it with the Artifact tool, passing that URL as `url`
 Publish `index.html` with its `<!DOCTYPE>`, `<html>`, `<head>`/`<body>` tags and the charset/viewport
 metas removed (title, the stylesheet link and the theme script stay), plus `css/style.css`, the 12
 `css/fonts/*.woff2` files, the `js/*.js` files (config, i18n, i18n-en, terms, app, account, submit, track, verify,
-pay, portal, home, qr, stamp, vendor/pdf-lib.min.js) and `img/seal.png` and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
+pay, portal, home, qr, stamp, translator-docs, vendor/pdf-lib.min.js) and `img/seal.png` and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
 inline for that copy only.

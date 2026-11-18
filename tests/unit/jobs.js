@@ -5,7 +5,7 @@ const P = g.post;
 g.ctx.setup();
 ok(g.triggers.includes('onJobEdit') && g.triggers.includes('purgeDueJobs'), 'setup installs the edit + daily triggers');
 g.ctx.setup();
-ok(g.triggers.length === new Set(g.triggers).size && g.triggers.includes('checkPayments') && g.triggers.length === 3, 'running setup again does not duplicate triggers (edit, daily purge, 15-min payment check)');
+ok(g.triggers.length === new Set(g.triggers).size && g.triggers.includes('checkPayments') && g.triggers.includes('translatorChecks') && g.triggers.length === 4, 'running setup again does not duplicate triggers (edit, daily purge, 15-min payment check, hourly translator reminders)');
 ok(Object.values(g.drive.folders).some(f => f.name === 'TransCOM – งานแปล'), 'setup creates the private jobs folder');
 
 const future = new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10);
@@ -23,6 +23,13 @@ ok(P({ action: 'createJob', job: Object.assign(base(), { neededBy: '2020-01-01' 
 ok(P({ action: 'createJob', job: Object.assign(base(), { files: [] }) }).error === 'files_required', 'files required');
 ok(P({ action: 'createJob', job: Object.assign(base(), { category: 'civil' }) }).error === 'id_required', 'civil needs ID files + ack');
 ok(P({ action: 'createJob', job: Object.assign(base(), { shipping: true, address: 'short' }) }).error === 'invalid_address', 'address required for post');
+// prepared language pairs (owner 2026-11-18): known but closed until switched on
+ok(P({ action: 'createJob', job: Object.assign(base(), { langPair: 'th-zh' }) }).error === 'invalid_choice', 'prepared pair th-zh not open for new jobs');
+ok(P({ action: 'createJob', job: Object.assign(base(), { langPair: 'xx-yy' }) }).error === 'invalid_choice', 'unknown pair rejected');
+ok(g.ctx.langPairName_('ja-th', true) === 'ญี่ปุ่น → ไทย' && g.ctx.langPairName_('th-en', false) === 'Thai → English', 'pair names for emails, incl. prepared pairs');
+{ global.window = {}; eval(require('fs').readFileSync(require('path').join(require('../lib/paths').ROOT, 'js', 'config.js'), 'utf8'));
+  const web = window.APP_CONFIG.languagePairs, srv = g.ctx.LANG_PAIRS;
+  ok(web.length === Object.keys(srv).length && web.every(x => srv[x.id] && srv[x.id][2] === (x.active !== false)), 'config.js and Code.gs list the same pairs with the same on/off'); }
 ok(P({ action: 'createJob', hp: 'spam', job: base() }).error === 'rejected', 'honeypot rejects bots');
 ok(P({ action: 'createJob', job: Object.assign(base(), { files: Array.from({ length: 11 }, (_, i) => ({ name: i + '.pdf', size: 1 })) }) }).error === 'too_many_files', 'max 10 files');
 

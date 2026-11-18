@@ -24,6 +24,12 @@ let failNextUpload = 0, calls = [];
   p.on('console', m => m.type() === 'error' && !/Failed to load resource|ERR_CONNECTION_RESET/.test(m.text()) && errors.push(m.text()));
   await p.goto('http://localhost:8765/#submit');
   await p.click('.lang-toggle [data-lang=th]');
+  { const opts = await p.$$eval('#f-langPair option', o => o.map(x => x.value).filter(Boolean));
+    ok(opts.join() === 'th-en,en-th', 'job form offers only the open pairs (prepared ones hidden): ' + opts.join()); }
+  await p.evaluate(() => App.loadScript('js/qr.js').then(() => App.loadScript('js/stamp.js')));
+  { const st = await p.evaluate(() => [['zh-th', 'th'], ['th-ja', 'en'], ['th-en', 'en'], ['en-th', 'th']].every(([pair, want]) => {
+      const lines = Stamp.text({ langPair: pair, cert: { code: 'X' } }); return (want === 'th') === /[ก-๙]/.test(lines.join(' ')); }));
+    ok(st, 'stamp wording follows the target language (Thai target → Thai, else English)'); }
 
   const fill = async () => {
     await p.fill('#f-name', 'นิดา ใจดี'); await p.fill('#f-email', 'nida@example.com');
