@@ -1526,10 +1526,44 @@
     return wrap;
   }
 
+  // Look a word up in public dictionaries (opens in a new tab). Only the typed word leaves the site — never customer text.
+  var DICTS = [
+    { key: "tr.dict.cambridgeTh", url: function (w) { return "https://dictionary.cambridge.org/search/direct/?datasetsearch=english-thai&q=" + encodeURIComponent(w); } },
+    { key: "tr.dict.cambridgeEn", url: function (w) { return "https://dictionary.cambridge.org/search/direct/?datasetsearch=english&q=" + encodeURIComponent(w); } },
+    // The Royal Society dictionary has no search-by-link: open it and copy the word, ready to paste
+    { key: "tr.dict.orst", url: function () { return "https://dictionary.orst.go.th/"; }, copy: true }
+  ];
+  function dictCard(box) {
+    var c = card(box, "tr.dict.title");
+    c.appendChild(el("p", "note", t("tr.dict.note")));
+    var q = input("search", "", { "aria-label": t("tr.dict.placeholder"), placeholder: t("tr.dict.placeholder"), autocomplete: "off" });
+    c.appendChild(q);
+    var row = el("div", "dict-links");
+    var hint = el("p", "hint", ""); hint.hidden = true; hint.setAttribute("role", "status");
+    var links = DICTS.map(function (d) {
+      var a = el("a", "btn btn-outline btn-sm", t(d.key));
+      a.target = "_blank"; a.rel = "noopener noreferrer";
+      a.appendChild(el("span", "sr-only", t("a11y.newTab")));
+      a.addEventListener("click", function (e) {
+        var w = q.value.trim();
+        if (!w) { e.preventDefault(); q.focus(); hint.hidden = false; hint.textContent = t("tr.dict.typeFirst"); return; }
+        if (d.copy && navigator.clipboard) navigator.clipboard.writeText(w).then(function () { hint.hidden = false; hint.textContent = t("tr.dict.copied", { w: w }); }, function () {});
+      });
+      row.appendChild(a);
+      return { a: a, d: d };
+    });
+    function update() { var w = q.value.trim(); links.forEach(function (x) { x.a.href = x.d.url(w); }); if (w) hint.hidden = true; }
+    q.addEventListener("input", update);
+    q.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); if (q.value.trim()) links[0].a.click(); } });
+    update();
+    c.appendChild(row); c.appendChild(hint);
+  }
+
   VIEWS["t-glossary"] = function (box) {
     heading(box, "tr.glossary");
     trGate(box, function () {
-      var c = card(box);
+      dictCard(box);
+      var c = card(box, "tr.dict.shop");
       var q = input("search", "", { "aria-label": t("tr.searchTerms"), placeholder: t("tr.searchTerms") });
       c.appendChild(q);
       var out = el("div");

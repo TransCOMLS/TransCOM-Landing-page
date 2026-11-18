@@ -111,6 +111,15 @@ P({ action: 'adminSaveQuote', token: admin, jobNo, items: [{ text: 'ค่าแ
     ok(await overflow(p) === 0, name + ' page shows, no horizontal scroll');
     await p.screenshot({ path: out + '/' + name + '-1366.png', fullPage: true });
   }
+  await nav(p, 'คำศัพท์'); await p.waitForSelector('#dash-view .dict-links a');
+  await p.fill('#dash-view .dict-links >> xpath=.. >> input[type=search]', 'birth certificate');
+  const hrefs = await p.$$eval('#dash-view .dict-links a', a => a.map(x => x.href + '|' + x.target));
+  ok(/cambridge\.org\/search\/direct\/\?datasetsearch=english-thai&q=birth%20certificate\|_blank/.test(hrefs[0]) && /datasetsearch=english&q=birth/.test(hrefs[1]) && /dictionary\.orst\.go\.th\/\|_blank/.test(hrefs[2]), 'dictionary links: Cambridge EN–TH / EN with the word, Royal Society site, new tab');
+  await p.fill('#dash-view .dict-links >> xpath=.. >> input[type=search]', '');
+  await p.click('#dash-view .dict-links a >> nth=0');
+  ok(/พิมพ์คำก่อน/.test(await p.textContent('#dash-view .dict-links + .hint')), 'empty word: asked to type first, nothing opens');
+  await p.fill('#dash-view .dict-links >> xpath=.. >> input[type=search]', 'certificate');
+  await p.screenshot({ path: out + '/glossary-dict-1366.png', fullPage: true });
   ok(!p.errs.length, 'translator pages: no console errors ' + p.errs.join(' | '));
   await ctx.close();
 
