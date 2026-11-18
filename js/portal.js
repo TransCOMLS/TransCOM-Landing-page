@@ -1291,7 +1291,7 @@
     var tr = me.translator || {};
     return {
       "ชื่อ-นามสกุลผู้แปล": tr.name, "เลขบัตรประชาชน": tr.idNumber, "ที่อยู่ตามใบสมัคร": tr.address,
-      "อีเมลบัญชีผู้แปล": tr.email, "คู่ภาษาตามใบสมัคร": (tr.pairs || []).map(pairName).join(", "),
+      "อีเมลบัญชีผู้แปล": tr.email, "คู่ภาษาตามใบสมัคร": langList(tr.pairs),
       "วันที่ผู้แปลกดยอมรับ": day(when), "วันเวลาที่ยอมรับ": when ? day(when) : t("tr.whenAccepted"),
       "เลขฉบับสัญญา": window.TRANSLATOR_DOCS.version
     };
@@ -1329,21 +1329,90 @@
   }
 
   /* ---- application / profile form ---- */
-  function pairChoices(selected) {
+  // Languages a translator works with (both directions with Thai); languages not open for jobs yet are folded away
+  function langOpen(code) {
+    return (CFG.languagePairs || []).some(function (p) { return (p.id === "th-" + code || p.id === code + "-th") && p.active !== false; });
+  }
+  function langsOf(pairs) {
+    var out = [];
+    (pairs || []).forEach(function (p) { p.split("-").forEach(function (c) { if (c !== "th" && out.indexOf(c) === -1) out.push(c); }); });
+    return out;
+  }
+  function langName(code) {
+    var l = (CFG.translatorLanguages || []).filter(function (x) { return x.code === code; })[0];
+    return l ? (l[App.getLang()] || l.th) : code;
+  }
+  function langList(pairs) { return langsOf(pairs).map(function (c) { return t("tr.withThai", { lang: langName(c) }); }).join(", "); }
+  function langChoices(pairs) {
+    var have = langsOf(pairs);
     var wrap = el("div");
     var box = el("div", "choice-grid");
     var more = el("details", "tr-more"), moreBox = el("div", "choice-grid");
-    more.appendChild(el("summary", null, t("tr.preparedPairs")));
-    (CFG.languagePairs || []).forEach(function (p) {
-      var l = el("label", "choice choice-sm");
-      var i = el("input"); i.type = "checkbox"; i.value = p.id; i.checked = (selected || []).indexOf(p.id) > -1;
-      if (i.checked && p.active === false) more.open = true;
-      l.appendChild(i); l.appendChild(el("span", null, p[App.getLang()] || p.th));
-      (p.active === false ? moreBox : box).appendChild(l);
+    more.appendChild(el("summary", null, t("tr.preparedLangs")));
+    (CFG.translatorLanguages || []).forEach(function (l) {
+      var lab = el("label", "choice choice-sm");
+      var i = el("input"); i.type = "checkbox"; i.value = l.code; i.checked = have.indexOf(l.code) > -1;
+      var open = langOpen(l.code);
+      if (i.checked && !open) more.open = true;
+      lab.appendChild(i); lab.appendChild(el("span", null, l[App.getLang()] || l.th));
+      (open ? box : moreBox).appendChild(lab);
     });
     wrap.appendChild(box);
     if (moreBox.childNodes.length) { more.appendChild(moreBox); wrap.appendChild(more); }
     return wrap;
+  }
+
+  // English test: pick the test, type the score → checked against CEFR B1 at once
+  function testField(tr) {
+    var tests = CFG.translatorTests || [];
+    var wrap = el("div", "tr-test");
+    var type = el("select");
+    var ph = el("option", null, t("common.select")); ph.value = ""; type.appendChild(ph);
+    tests.forEach(function (x) { var o = el("option", null, x.name || t("tr.test.other")); o.value = x.id; type.appendChild(o); });
+    var scoreBox = el("div");
+    var result = el("p", "tr-test-result"); result.setAttribute("role", "status");
+    var g = el("div", "grid-2");
+    g.appendChild(fieldBox("tr.test.type", type));
+    g.appendChild(scoreBox);
+    wrap.appendChild(g); wrap.appendChild(result);
+    var score = null;
+    function def() { return tests.filter(function (x) { return x.id === type.value; })[0]; }
+    function check() {
+      var d = def(), v = score ? String(score.value).trim() : "";
+      result.className = "tr-test-result"; result.textContent = "";
+      if (!d || !v) return null;
+      if (d.id === "other") { result.classList.add("is-review"); result.textContent = t("tr.test.review"); return "review"; }
+      var ok = d.levels ? d.levels.indexOf(v) >= d.levels.indexOf(d.b1)
+                        : (Number(v) >= d.min && Number(v) <= d.max && Number(v) >= d.b1);
+      if (!d.levels && (Number(v) < d.min || Number(v) > d.max || !isFinite(Number(v)))) { result.classList.add("is-bad"); result.textContent = t("tr.test.range", { min: d.min, max: d.max }); return "bad"; }
+      result.classList.add(ok ? "is-ok" : "is-bad");
+      result.textContent = ok ? t("tr.test.pass") : t("tr.test.fail", { need: d.levels ? "B1" : d.b1 });
+      return ok ? "pass" : "bad";
+    }
+    function drawScore(val) {
+      scoreBox.textContent = "";
+      var d = def();
+      if (!d) { score = null; return; }
+      if (d.levels) {
+        score = el("select");
+        var p0 = el("option", null, t("common.select")); p0.value = ""; score.appendChild(p0);
+        d.levels.forEach(function (lv) { var o = el("option", null, lv); o.value = lv; score.appendChild(o); });
+        scoreBox.appendChild(fieldBox("tr.test.level", score));
+      } else if (d.id === "other") {
+        score = input("text", "", { maxlength: "120" });
+        scoreBox.appendChild(fieldBox("tr.test.otherWhat", score, "tr.test.otherHint"));
+      } else {
+        score = input("number", "", { min: String(d.min), max: String(d.max), step: String(d.step || 1), inputmode: "decimal" });
+        scoreBox.appendChild(fieldBox("tr.test.score", score, null));
+        scoreBox.appendChild(el("p", "hint", t("tr.test.scoreHint", { min: d.min, max: d.max, b1: d.b1 })));
+      }
+      if (val != null) score.value = val;
+      score.addEventListener("input", check); score.addEventListener("change", check);
+      check();
+    }
+    type.addEventListener("change", function () { drawScore(null); });
+    if (tr && tr.testType) { type.value = tr.testType; drawScore(tr.testScore); }
+    return { el: wrap, type: type, value: function () { return score ? String(score.value).trim() : ""; }, check: check };
   }
   function catChoices(selected) {
     var box = el("div", "choice-grid");
@@ -1371,7 +1440,7 @@
       name: input("text", tr ? tr.name : p.name || "", { autocomplete: "name" }),
       idNumber: input("text", tr ? tr.idNumber : "", { inputmode: "numeric", maxlength: "17" }),
       address: el("textarea"), phone: input("tel", tr ? tr.phone : p.phone || "", { autocomplete: "tel" }),
-      level: input("text", tr ? tr.level : ""), experience: el("textarea"),
+      experience: el("textarea"),
       bankName: input("text", tr ? tr.bankName : ""), bankAccount: input("text", tr ? tr.bankAccount : "", { inputmode: "numeric" }),
       bankAccountName: input("text", tr ? tr.bankAccountName : "")
     };
@@ -1384,10 +1453,11 @@
     c.appendChild(fieldBox("tr.f.address", f.address));
     var g2 = el("div", "grid-2");
     g2.appendChild(fieldBox("tr.f.phone", f.phone));
-    g2.appendChild(fieldBox("tr.f.level", f.level, "tr.f.levelHint"));
     c.appendChild(g2);
-    var pairs = pairChoices(tr ? tr.pairs : []), cats = catChoices(tr ? tr.categories : []);
-    c.appendChild(group("tr.f.pairs", pairs, "tr.f.pairsHint"));
+    var langs = langChoices(tr ? tr.pairs : []), cats = catChoices(tr ? tr.categories : []);
+    c.appendChild(group("tr.f.langs", langs, "tr.f.langsHint"));
+    var test = testField(tr);
+    c.appendChild(group("tr.f.level", test.el, "tr.f.levelHint"));
     c.appendChild(group("tr.f.categories", cats));
     c.appendChild(fieldBox("tr.f.experience", f.experience));
     var g3 = el("div", "grid-2");
@@ -1396,7 +1466,7 @@
     c.appendChild(g3);
     c.appendChild(fieldBox("tr.f.bankAccountName", f.bankAccountName));
     var files = {};
-    [["cv", "tr.f.cv", true], ["sample", "tr.f.sample", true], ["id", "tr.f.idCopy", false], ["bank", "tr.f.bankCopy", false]].forEach(function (d) {
+    [["cv", "tr.f.cv", true], ["sample", "tr.f.sample", true], ["test", "tr.f.testProof", true], ["id", "tr.f.idCopy", false], ["bank", "tr.f.bankCopy", false]].forEach(function (d) {
       var i = input("file", null, { accept: ".pdf,.jpg,.jpeg,.png,.docx" });
       if (d[2]) i.multiple = true;
       files[d[0]] = i;
@@ -1409,9 +1479,16 @@
     var go = button(t(tr ? "acct.save" : "tr.applyBtn"), "btn btn-primary");
     go.addEventListener("click", function () {
       var app = { name: f.name.value.trim(), idNumber: f.idNumber.value, address: f.address.value.trim(), phone: f.phone.value.trim(),
-                  level: f.level.value.trim(), experience: f.experience.value.trim(), bankName: f.bankName.value.trim(),
+                  experience: f.experience.value.trim(), bankName: f.bankName.value.trim(),
                   bankAccount: f.bankAccount.value.trim(), bankAccountName: f.bankAccountName.value.trim(),
-                  pairs: checked(pairs), categories: checked(cats), consent: consent.input.checked };
+                  languages: checked(langs), categories: checked(cats), testType: test.type.value, testScore: test.value(),
+                  consent: consent.input.checked };
+      if (!app.languages.length) { status(st, "error", t("dash.err.pairs_required")); return; }
+      if (!app.testType || !app.testScore) { status(st, "error", t("dash.err.test_required")); return; }
+      var tc = test.check();
+      if (tc === "bad") { status(st, "error", t("dash.err.below_b1")); return; }
+      var testNew = !tr || tr.testType !== app.testType || tr.testScore !== app.testScore;
+      if (testNew && !(files.test.files || []).length) { status(st, "error", t("dash.err.test_proof_required")); return; }
       if (!app.consent) { status(st, "error", t("tr.err.consent")); return; }
       var list = [];
       Object.keys(files).forEach(function (k) { Array.prototype.forEach.call(files[k].files || [], function (fl) { list.push({ kind: k, file: fl }); }); });
@@ -1436,7 +1513,7 @@
       if (!tr) { box.appendChild(el("p", "note", t("tr.applyIntro"))); applyForm(box, null); return; }
       var c = card(box);
       c.appendChild(el("p", "notice " + (tr.status === "rejected" || tr.status === "suspended" ? "notice-warn" : "notice-soft"), t("tr.state." + tr.status)));
-      c.appendChild(details([["tr.f.name", tr.name], ["tr.f.pairs", tr.pairs.map(pairName).join(", ")], ["tr.appliedAt", day(tr.appliedAt)]]));
+      c.appendChild(details([["tr.f.name", tr.name], ["tr.f.langs", langList(tr.pairs)], ["tr.f.level", tr.level], ["tr.appliedAt", day(tr.appliedAt)]]));
       if (tr.status === "applied" || tr.status === "rejected") applyForm(box, tr);
     });
   };
@@ -1453,8 +1530,8 @@
       var c = card(box, "tr.workSettings");
       var avail = checkbox("tr.available", tr.available);
       c.appendChild(avail);
-      var pairs = pairChoices(tr.pairs), cats = catChoices(tr.categories);
-      c.appendChild(group("tr.f.pairs", pairs, "tr.f.pairsHint"));
+      var langs = langChoices(tr.pairs), cats = catChoices(tr.categories);
+      c.appendChild(group("tr.f.langs", langs, "tr.f.langsHint"));
       c.appendChild(group("tr.f.categories", cats));
       var phone = input("tel", tr.phone), bn = input("text", tr.bankName), ba = input("text", tr.bankAccount), bh = input("text", tr.bankAccountName);
       var g = el("div", "grid-2");
@@ -1466,7 +1543,7 @@
       var save = button(t("acct.save"), "btn btn-primary");
       save.addEventListener("click", function () {
         busy(save, true);
-        api("translatorProfile", { profile: { available: avail.input.checked, pairs: checked(pairs), categories: checked(cats), phone: phone.value.trim(),
+        api("translatorProfile", { profile: { available: avail.input.checked, languages: checked(langs), categories: checked(cats), phone: phone.value.trim(),
           bankName: bn.value.trim(), bankAccount: ba.value.trim(), bankAccountName: bh.value.trim() } })
           .then(function (res) { state.tr = res; busy(save, false); status(st, "success", t("acct.saved")); },
                 function (err) { status(st, "error", errText(err)); busy(save, false); });
@@ -1665,10 +1742,11 @@
         top.appendChild(el("span", "flag " + (tr.status === "approved" ? "flag-ok" : tr.status === "applied" ? "flag-warn" : "flag-bad"), t("tr.st." + tr.status)));
         if (tr.status === "approved" && !tr.docsOk) top.appendChild(el("span", "flag flag-warn", t("tr.a.docsPending")));
         if (tr.status === "approved" && !tr.available) top.appendChild(el("span", "flag", t("tr.a.away")));
+        if (tr.testResult === "review") top.appendChild(el("span", "flag flag-warn", t("tr.a.testReview")));
         c.appendChild(top);
         var folder = tr.folder ? el("a", null, t("tr.a.openFolder")) : "";
         if (folder) { folder.href = tr.folder; folder.target = "_blank"; folder.rel = "noopener"; }
-        c.appendChild(details([["form.email", tr.email], ["tr.f.phone", tr.phone], ["tr.f.pairs", tr.pairs.map(pairName).join(", ")],
+        c.appendChild(details([["form.email", tr.email], ["tr.f.phone", tr.phone], ["tr.f.langs", langList(tr.pairs)],
           ["tr.f.categories", tr.categories.map(catName).join(", ")], ["tr.f.level", tr.level], ["tr.f.experience", tr.experience],
           ["tr.appliedAt", day(tr.appliedAt)], ["tr.docs", tr.docsVersion ? t("tr.docsAccepted", { v: tr.docsVersion, date: day(tr.acceptedAt) }) : ""],
           ["tr.a.files", folder]]));

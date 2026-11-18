@@ -50,6 +50,32 @@ window.APP_CONFIG = {
     { id: "my-th", th: "เมียนมา → ไทย", en: "Burmese → Thai", active: false }
   ],
 
+  // ภาษาที่ผู้แปลเลือกได้ในใบสมัคร (แปลไป-กลับกับภาษาไทย) — ภาษาที่ยังไม่เปิดรับงาน (คู่ภาษา active: false) แสดงแยกไว้
+  // Languages a translator can pick (both directions with Thai); the job pairs come from languagePairs above
+  translatorLanguages: [
+    { code: "en", th: "อังกฤษ", en: "English" },
+    { code: "zh", th: "จีน", en: "Chinese" },
+    { code: "ja", th: "ญี่ปุ่น", en: "Japanese" },
+    { code: "ko", th: "เกาหลี", en: "Korean" },
+    { code: "fr", th: "ฝรั่งเศส", en: "French" },
+    { code: "de", th: "เยอรมัน", en: "German" },
+    { code: "es", th: "สเปน", en: "Spanish" },
+    { code: "ru", th: "รัสเซีย", en: "Russian" },
+    { code: "vi", th: "เวียดนาม", en: "Vietnamese" },
+    { code: "lo", th: "ลาว", en: "Lao" },
+    { code: "my", th: "เมียนมา", en: "Burmese" }
+  ],
+  // ผลสอบภาษาอังกฤษในใบสมัครผู้แปล: ขั้นต่ำ CEFR B1 ตามตารางเทียบของผู้จัดสอบ (ต้องตรงกับ CONFIG.translator.tests ใน Code.gs)
+  // English test on the translator application — minimum CEFR B1 (keep in step with Code.gs)
+  translatorTests: [
+    { id: "ielts", name: "IELTS", min: 0, max: 9, step: 0.5, b1: 4 },
+    { id: "toefl", name: "TOEFL iBT", min: 0, max: 120, step: 1, b1: 42 },
+    { id: "toeic", name: "TOEIC (Listening & Reading)", min: 10, max: 990, step: 5, b1: 550 },
+    { id: "cambridge", name: "Cambridge English Scale", min: 80, max: 230, step: 1, b1: 140 },
+    { id: "cefr", name: "CEFR", levels: ["A1", "A2", "B1", "B2", "C1", "C2"], b1: "B1" },
+    { id: "other", name: "" }
+  ],
+
   // ประเภทเอกสารและราคาต่อหน้า / Categories and price per page (THB)
   // ราคาเป็นช่วง [ต่ำสุด, สูงสุด] ต่อหน้า (หรือใส่ตัวเลขเดียวถ้าราคาคงที่)
   // requiresId: ต้องแนบบัตรประชาชน/เอกสารที่ราชการออกให้ (ราคาพิเศษ — แสดงป้าย "ราคาพิเศษ")

@@ -20,15 +20,25 @@ function job(pair, days, opts) {
   return c.jobNo;
 }
 const app = (name, extra) => Object.assign({ name, idNumber: '1-1017-00000-01-2', address: '12 ถนนสุขุมวิท แขวงคลองเตย กรุงเทพฯ', phone: '0899999999',
-  pairs: ['th-en', 'en-th'], categories: ['civil', 'official'], level: 'IELTS 7.0', bankName: 'กสิกรไทย', bankAccount: '012-3-45678-9', bankAccountName: name, consent: true }, extra || {});
+  languages: ['en'], categories: ['civil', 'official'], testType: 'ielts', testScore: 7, bankName: 'กสิกรไทย', bankAccount: '012-3-45678-9', bankAccountName: name, consent: true }, extra || {});
 
 // ---- apply (customer account) → admin approves
-ok(P({ action: 'translatorApply', token: tA, application: app('อนันต์ แปลดี', { idNumber: '123' }), files: [{ kind: 'cv', name: 'cv.pdf', data: 'QUJD' }] }).error === 'invalid_id_number', 'ID number must be 13 digits');
+ok(P({ action: 'translatorApply', token: tA, application: app('อนันต์ แปลดี', { idNumber: '123' }), files: [{ kind: 'cv', name: 'cv.pdf', data: 'QUJD' }, { kind: 'test', name: 'ielts.pdf', data: 'QUJD' }] }).error === 'invalid_id_number', 'ID number must be 13 digits');
 ok(P({ action: 'translatorApply', token: tA, application: app('อนันต์ แปลดี'), files: [] }).error === 'files_required', 'CV / documents required');
-ok(P({ action: 'translatorApply', token: tA, application: app('อนันต์ แปลดี', { pairs: ['xx-yy'] }), files: [{ kind: 'cv', name: 'cv.pdf', data: 'QUJD' }] }).error === 'pairs_required', 'at least one known language pair');
+// English test (owner 2026-11-19): picked test + score, checked against CEFR B1; proof file required
+const cvOnly = [{ kind: 'cv', name: 'cv.pdf', data: 'QUJD' }], withProof = cvOnly.concat([{ kind: 'test', name: 'score.pdf', data: 'QUJD' }]);
+const tryTest = (type, score, files) => P({ action: 'translatorApply', token: tA, application: app('อนันต์ แปลดี', { testType: type, testScore: score }), files: files || withProof }).error;
+ok(tryTest('', '') === 'test_required', 'test type required');
+ok(tryTest('toeic', 545) === 'below_b1' && tryTest('ielts', 3.5) === 'below_b1' && tryTest('toefl', 41) === 'below_b1' && tryTest('cambridge', 139) === 'below_b1' && tryTest('cefr', 'A2') === 'below_b1', 'below B1 refused (TOEIC 545, IELTS 3.5, TOEFL 41, Cambridge 139, CEFR A2)');
+ok(tryTest('toeic', 1200) === 'invalid_score' && tryTest('ielts', 'x') === 'invalid_score' && tryTest('cefr', 'D1') === 'invalid_score', 'out-of-range or nonsense scores refused');
+ok(tryTest('toeic', 925, cvOnly) === 'test_proof_required', 'proof of the score required');
+ok(JSON.stringify(g.ctx.CONFIG.translator.tests) === JSON.stringify((() => { global.window = {}; eval(require('fs').readFileSync(require('path').join(require('../lib/paths').ROOT, 'js', 'config.js'), 'utf8'));
+  const o = {}; window.APP_CONFIG.translatorTests.forEach(x => { o[x.id] = x.levels ? { levels: x.levels, b1: x.b1 } : x.id === 'other' ? {} : { min: x.min, max: x.max, b1: x.b1 }; }); return o; })()), 'test thresholds match between config.js and Code.gs');
+ok(P({ action: 'translatorApply', token: tA, application: app('อนันต์ แปลดี', { languages: ['xx'] }), files: [{ kind: 'cv', name: 'cv.pdf', data: 'QUJD' }, { kind: 'test', name: 'ielts.pdf', data: 'QUJD' }] }).error === 'pairs_required', 'at least one known language pair');
 let n = g.mail.length;
-let me = P({ action: 'translatorApply', token: tA, application: app('อนันต์ แปลดี'), files: [{ kind: 'cv', name: 'cv.pdf', data: 'QUJD' }, { kind: 'id', name: 'id.jpg', data: 'QUJD' }] });
+let me = P({ action: 'translatorApply', token: tA, application: app('อนันต์ แปลดี'), files: [{ kind: 'cv', name: 'cv.pdf', data: 'QUJD' }, { kind: 'test', name: 'ielts.pdf', data: 'QUJD' }, { kind: 'id', name: 'id.jpg', data: 'QUJD' }] });
 ok(me.ok && me.translator.status === 'applied' && me.translator.idNumber === '1101700000012' && me.translator.bankAccount === '012-3-45678-9' && me.role === 'customer', 'application saved (status applied, still a customer)');
+ok(me.translator.pairs.join() === 'th-en,en-th' && me.translator.testType === 'ielts' && me.translator.testResult === 'pass' && /IELTS 7 — ผ่านเกณฑ์ B1/.test(me.translator.level), 'English picked → both directions; IELTS 7 recorded as passing B1');
 ok(g.mail.slice(n).some(m => /ใบสมัครผู้แปลใหม่/.test(m.subject)), 'admin emailed about the application');
 ok(Object.values(g.drive.folders).some(f => f.name === 'TransCOM – ผู้แปล (ส่วนตัว)') && g.drive.files.some(f => /^cv - cv\.pdf$/.test(f.name)), 'files kept in a private translator folder');
 ok(P({ action: 'staffJobs', token: tA }).error === 'forbidden', 'an applicant cannot open staff pages');
@@ -54,8 +64,8 @@ ok(cm.length === 2 && cm.every(m => m.attachments && m.attachments[0].type === '
 // existing staff (added by admin before Phase 7): fill the same form → approved at once
 P({ action: 'adminSetUser', token: admin, email: 'bee@example.com', role: 'staff' });
 ok(P({ action: 'staffJobs', token: tB }).error === 'translator_profile', 'old staff without a profile: asked for it first');
-me = P({ action: 'translatorApply', token: tB, application: app('บี ภาษาเก่ง', { pairs: ['en-th'] }), files: [{ kind: 'cv', name: 'cv.pdf', data: 'QUJD' }] });
-ok(me.translator.status === 'approved', 'existing staff: profile approved straight away');
+me = P({ action: 'translatorApply', token: tB, application: app('บี ภาษาเก่ง', { languages: ['zh'], testType: 'other', testScore: 'HSK 5' }), files: [{ kind: 'cv', name: 'cv.pdf', data: 'QUJD' }, { kind: 'test', name: 'ielts.pdf', data: 'QUJD' }] });
+ok(me.translator.status === 'approved' && me.translator.testResult === 'review' && me.translator.pairs.join() === 'th-zh,zh-th', 'existing staff: approved at once; "other" test waits for a look at the proof; prepared language stored');
 P({ action: 'translatorAccept', token: tB, version: V, name: 'บี ภาษาเก่ง', html });
 
 // ---- open list (priced, not given to anyone; only my language pairs) + claim
@@ -65,7 +75,7 @@ ok(sj.ok && sj.open.length === 0, 'received (not priced) jobs are not on the ope
 [j1, j2, j3].forEach(j => P({ action: 'adminSaveQuote', token: admin, jobNo: j, items: [{ text: 'ค่าแปล 2 หน้า', amount: 600 }, { text: 'ค่ารับรองคำแปล', amount: 300 }] }));
 sj = P({ action: 'staffJobs', token: tA });
 ok(sj.open.map(j => j.jobNo).sort().join() === [j1, j2, j3].sort().join(), 'quoted jobs appear on the open list');
-ok(P({ action: 'staffJobs', token: tB }).open.length === 0, 'a translator only sees pairs they take (bee: en-th)');
+ok(P({ action: 'staffJobs', token: tB }).open.length === 0, 'a translator only sees languages they take (bee: Chinese)');
 ok(sj.open[0].pay && sj.open[0].pay.base === 900 && sj.open[0].pay.amount === 630, 'pay shown up front: 70% of the quote subtotal (certified flag off → no deduction)');
 n = g.mail.length;
 sj = P({ action: 'translatorClaim', token: tA, jobNo: j1 });
@@ -172,10 +182,10 @@ ok(q.done === 1 && q.returns === 1 && q.revisions === 1, 'quality: delivered job
 ok(P({ action: 'translatorMe', token: tA }).quality.done === 1, 'translator sees their own figures');
 
 // ---- profile, availability, suspend
-me = P({ action: 'translatorProfile', token: tA, profile: { available: false, pairs: ['th-en'] } });
-ok(!me.translator.available && me.translator.pairs.join() === 'th-en', 'translator updates pairs + availability');
+me = P({ action: 'translatorProfile', token: tA, profile: { available: false, languages: ['en', 'ja'] } });
+ok(!me.translator.available && me.translator.pairs.join() === 'th-en,en-th,th-ja,ja-th', 'translator updates languages + availability');
 ok(P({ action: 'staffJobs', token: tA }).open.length === 0 && P({ action: 'translatorClaim', token: tA, jobNo: j2 }).error === 'not_available', 'not available: no open list, no claiming');
-ok(P({ action: 'translatorProfile', token: tA, profile: { pairs: [] } }).error === 'pairs_required', 'at least one pair kept');
+ok(P({ action: 'translatorProfile', token: tA, profile: { languages: [] } }).error === 'pairs_required', 'at least one language kept');
 P({ action: 'adminTranslatorUpdate', token: admin, email: 'bee@example.com', decision: 'suspend', note: 'ทดสอบ' });
 ok(P({ action: 'getAccount', token: tB }).profile.role === 'customer' && P({ action: 'staffJobs', token: tB }).error === 'forbidden', 'suspended: back to customer, no staff pages');
 const staffOpts = P({ action: 'adminJob', token: admin, jobNo: j3 }).staff;

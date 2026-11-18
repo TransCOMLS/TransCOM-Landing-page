@@ -1728,3 +1728,7 @@ button.dash-bar-row:hover .dash-bar { background: var(--accent-line); }
 .tr-more > summary { cursor: pointer; min-height: var(--tap); display: flex; align-items: center; color: var(--accent); font-weight: 600; }
 .tr-more > .choice-grid { margin-top: 6px; }
 .field-group + .field, .field-group + .field-group { margin-top: 14px; }
+.tr-test-result { margin: 6px 0 0; font-weight: 600; min-height: 1.5em; }
+.tr-test-result.is-ok { color: var(--success); }
+.tr-test-result.is-bad { color: var(--error); }
+.tr-test-result.is-review { color: var(--warn-text); }
