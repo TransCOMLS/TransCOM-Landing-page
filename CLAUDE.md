@@ -74,7 +74,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
   ignored and leaving the page asks first; `done()` shows a tick, then it closes by itself
   (owner's choice, ~1.8 s); `close()` on errors (the form keeps its data). Owner's request 2026-11-10: `fail({title,text})`
   = red ✗ + short reason + OK button (`#busy-ok`); `open({guard:false})` = plain loading without the leave-page question;
-  `release()` drops the guard but keeps the pop-up (going on to Beam). Used by pay.js (going to Beam, confirming on return
+  `release()` drops the guard but keeps the pop-up (going on to Beam). `open({beam:true})` (owner 2026-11-18, used by pay.js on the way to Beam) adds
+  `#busy-beam`: "Pay securely with" + Beam's wordmark (inline SVG, the "Beam" letters from Beam's own docs site, `currentColor`) and two
+  assurances (`pay.beam.*`); hidden again on done/fail and every other pop-up. Used by pay.js (going to Beam, confirming on return
   with 5 checks, payment failure reason from Beam `failureCode` → `pay.fail.*`, cancelled) and portal.js `load()` (pop-up
   only when a view takes over 0.7 s; ✗ on error). The track form normalises job numbers (`normJobNo`: spaces, no dashes,
   lower case; server `normJobNo_` too).
@@ -226,7 +228,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
   `apple-touch-icon.png`), Open Graph/Twitter (`img/og-image.jpg` 1200×630) and JSON-LD `ProfessionalService`
   (keep it in step with contact details in config.js); `robots.txt` + `sitemap.xml` at the root.
   Footer visitor pill `#visit-count` (home.js `loadVisits`, once per device per day via `tr_visit`;
-  `config.showVisitorCount`). Admin dashboard also has "โค้ดส่วนลด" (`a-coupons`) and "ประชาสัมพันธ์"
+  `config.showVisitorCount`). DBD Registered trustmark (granted 2026-11-17 for www.prathaitranslation.com): DBD's 3-line `<a><img></a>` code
+  sits in the footer `.dbd-badge` exactly as sent — DBD forbids any change and any `<script>` wrapper; style it only
+  from CSS (white plate on the dark footer). Tests answer `dbdregistered.dbd.go.th` with a local stand-in picture. Admin dashboard also has "โค้ดส่วนลด" (`a-coupons`) and "ประชาสัมพันธ์"
   (`a-posts`, news/promo tabs, picture upload) views in portal.js.
 - `img/logo.svg` (header, on white) and `img/logo-white.svg` (footer, on `--footer-bg`):
   the owner's logo, cropped to its content. Colours `#01417b` / `#006192` set `--accent`
