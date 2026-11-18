@@ -1483,6 +1483,15 @@ button.dash-bar-row:hover .dash-bar { background: var(--accent-line); }
 .busy-progress { display: block; width: 100%; height: 8px; margin: 10px 0 4px; accent-color: var(--accent-bright); }
 .busy-text { margin: 10px 0 0; color: var(--muted); font-size: 0.9375rem; }
 .busy-actions { margin-top: 18px; }
+/* On the way to Beam: "Pay securely with [Beam]" + two short assurances */
+.busy-beam { margin-top: 18px; padding: 16px 16px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-soft); text-align: left; }
+.busy-beam[hidden] { display: none; }
+.busy-beam-by { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 10px; margin: 0 0 10px !important; font-weight: 600; color: var(--text); }
+.busy-beam-logo { height: 22px; width: auto; fill: currentColor; flex: none; }
+.busy-beam-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; font-size: 0.875rem; color: var(--muted); }
+.busy-beam-list li { position: relative; padding-left: 24px; }
+.busy-beam-list li::before { content: ""; position: absolute; left: 2px; top: 0.3em; width: 14px; height: 14px; border-radius: 50%; background: var(--success-soft); box-shadow: inset 0 0 0 1.5px var(--success); }
+.busy-beam-list li::after { content: ""; position: absolute; left: 7px; top: calc(0.3em + 3px); width: 3px; height: 6px; border: solid var(--success); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
 @keyframes busy-spin { to { transform: rotate(360deg); } }
 @keyframes busy-pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @keyframes busy-draw { to { stroke-dashoffset: 0; } }

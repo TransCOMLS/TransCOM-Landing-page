@@ -296,7 +296,7 @@
     go.addEventListener("click", function () {
       go.disabled = true;
       App.showStatus(st, "", "");
-      App.busy.open({ title: t("pay.busy.goTitle"), text: t("pay.busy.goText") });
+      App.busy.open({ title: t("pay.busy.goTitle"), text: t("pay.busy.goText"), beam: true });
       App.busy.step(t("pay.redirecting"));
       api("payStart", { jobNo: state.jobNo, t: state.t, coupon: state.price ? state.price.couponCode : "" }).then(function (res) {
         if (res.paid) { App.busy.close(); state.data = res.pay; draw(); return; }

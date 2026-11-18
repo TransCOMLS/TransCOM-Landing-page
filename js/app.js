@@ -1306,7 +1306,7 @@
   var busyState = { on: false, resolve: null };
   function busyEls() {
     return { dlg: $("#busy-dialog"), title: $("#busy-title"), step: $("#busy-step"), bar: $("#busy-progress"),
-             text: $("#busy-text"), actions: $("#busy-actions"), ok: $("#busy-ok") };
+             text: $("#busy-text"), actions: $("#busy-actions"), ok: $("#busy-ok"), beam: $("#busy-beam") };
   }
   function busyLeaveGuard(e) { if (busyState.on) { e.preventDefault(); e.returnValue = ""; return ""; } }
   var busy = {
@@ -1321,6 +1321,7 @@
       b.step.textContent = "";
       b.bar.hidden = true;
       b.actions.hidden = true;
+      if (b.beam) b.beam.hidden = !o.beam;   // Beam panel: only on the way to Beam's payment page
       if (!b.dlg.open) {
         document.documentElement.classList.add("modal-open");
         if (typeof b.dlg.showModal === "function") b.dlg.showModal(); else b.dlg.setAttribute("open", "");
@@ -1340,6 +1341,7 @@
       busyState.on = false;
       b.dlg.classList.remove("is-done");
       b.dlg.classList.add("is-failed");
+      if (b.beam) b.beam.hidden = true;
       b.title.textContent = o.title || "";
       b.text.textContent = o.text || "";
       b.step.textContent = "";
@@ -1361,6 +1363,7 @@
       if (!b.dlg) return Promise.resolve();
       b.dlg.classList.remove("is-failed");
       b.dlg.classList.add("is-done");
+      if (b.beam) b.beam.hidden = true;
       b.title.textContent = o.title || "";
       b.text.textContent = o.text || "";
       b.step.textContent = "";
