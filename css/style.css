@@ -684,7 +684,7 @@ a.contact-item:hover { border-color: var(--accent); }
 .footer-inner { display: grid; gap: 24px; padding-top: 32px; padding-bottom: 24px; }
 .site-footer p { margin: 0; }
 .footer-name { margin-bottom: 12px !important; }
-.footer-logo { display: block; width: auto; height: 56px; }
+.footer-logo { display: block; width: auto; height: 76px; max-width: 100%; }   /* no tagline under it (owner 2026-11-18): logo larger */
 .footer-title { margin: 0 0 6px; font-size: 1rem; color: #fff; }
 .footer-col ul { list-style: none; margin: 0; padding: 0; }
 .footer-link {
@@ -709,6 +709,7 @@ a.contact-item:hover { border-color: var(--accent); }
 .site-footer :focus-visible { outline-color: rgba(255, 255, 255, 0.7); }
 @media (min-width: 640px) {
   .footer-inner { grid-template-columns: 1.4fr 1fr 1fr; gap: 32px; }
+  .footer-logo { height: 92px; }
 }
 
 .noscript { margin: 16px; padding: 12px; background: var(--error-soft); color: var(--error); border-radius: var(--radius); }
