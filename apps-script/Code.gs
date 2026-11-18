@@ -98,7 +98,7 @@ var SHEETS = { users: 'Users', jobs: 'Jobs', sessions: '_sessions', promotions: 
               dashboard: 'Dashboard', glossary: 'Glossary', discounts: 'Discounts',
               coupons: 'Coupons', couponUses: 'CouponUses', certs: 'Certificates',
               quotes: 'Quotes', payments: 'Payments', rewards: 'Rewards', redemptions: 'Redemptions',
-              translators: 'Translators', payouts: 'Payouts', glossaryProposals: 'GlossaryProposals' };
+              translators: 'Translators', payouts: 'Payouts' };
 
 // Column headers (Thai, for the owner) and the keys the code uses.
 // Columns are found by header text, so the owner may reorder them.
@@ -431,14 +431,10 @@ var ACTIONS = {
   translatorClaim: translatorClaim_,
   translatorRespond: translatorRespond_,
   translatorEarnings: translatorEarnings_,
-  glossarySearch: glossarySearch_,
-  glossarySuggest: glossarySuggest_,
   adminTranslators: adminTranslators_,
   adminTranslatorUpdate: adminTranslatorUpdate_,
   adminPayouts: adminPayouts_,
-  adminPayoutMark: adminPayoutMark_,
-  adminGlossary: adminGlossary_,
-  adminGlossaryDecide: adminGlossaryDecide_
+  adminPayoutMark: adminPayoutMark_
 };
 
 /* ======================================================================
@@ -3841,6 +3837,7 @@ function moneyStats_() {
    Pay = rate % (default 70) of the translation fee (job "ค่าแปล (ฐานคิดผู้แปล)", or the quote subtotal minus the
    certification + shipping fees) + adjustments; monthly by deliveredAt, 3 % tax withheld when the month's total
    is over 1,000 THB; admin marks a month paid (Payouts sheet keeps the frozen figures).
+   (A glossary/dictionary page for translators was tried and dropped at the owner's request, 2026-11-18.)
    ====================================================================== */
 
 var TRANSLATOR_COLS = [
@@ -3886,18 +3883,6 @@ var PAYOUT_COLS = [
   ['paidBy', 'บันทึกโดย'],
   ['ref', 'อ้างอิงการโอน']
 ];
-var GLOSSARY_PROPOSAL_COLS = [
-  ['id', 'รหัส'],
-  ['status', 'สถานะ'],                     // รอพิจารณา / อนุมัติ / ไม่อนุมัติ
-  ['th', 'คำศัพท์ (ไทย)'],
-  ['en', 'English'],
-  ['group', 'หมวด'],
-  ['notes', 'หมายเหตุ / ที่มา'],
-  ['by', 'เสนอโดย'],
-  ['at', 'เสนอเมื่อ'],
-  ['decidedBy', 'พิจารณาโดย']
-];
-var PROPOSAL_STATUSES = [{ code: 'pending', th: 'รอพิจารณา' }, { code: 'approved', th: 'อนุมัติ' }, { code: 'rejected', th: 'ไม่อนุมัติ' }];
 var TRANSLATOR_FOLDER = 'TransCOM – ผู้แปล (ส่วนตัว)';
 var WORK_STATUSES = ['paid', 'inProgress', 'review'];      // a translator may open the files at these steps
 var BOARD_STATUSES = ['quoted', 'paid'];                   // priced, not yet given to anyone → open list
@@ -4222,50 +4207,6 @@ function translatorRespond_(req) {
   return staffJobs_(req);
 }
 
-/* ---------- glossary ---------- */
-
-function glossarySearch_(req) {
-  needTranslator_(req);
-  var q = String(req.q || '').trim().toLowerCase();
-  var rows = table_(SHEETS.glossary, GLOSSARY_COLS).rows.filter(function (r) { return r.th || r.en; }).map(function (r) {
-    return { th: String(r.th || ''), en: String(r.en || ''), group: String(r.group || ''), notes: String(r.notes || '') };
-  });
-  if (q) rows = rows.filter(function (r) { return [r.th, r.en, r.group, r.notes].some(function (v) { return v.toLowerCase().indexOf(q) > -1; }); });
-  return { ok: true, terms: rows.slice(0, 200), total: rows.length };
-}
-function glossarySuggest_(req) {
-  var me = needTranslator_(req);
-  var s = { th: text_(req.th, 200), en: text_(req.en, 200), group: text_(req.group, 60), notes: text_(req.notes, 300) };
-  if (!s.th || !s.en) fail_('term_required');
-  withLock_(function () {
-    appendRow_(table_(SHEETS.glossaryProposals, GLOSSARY_PROPOSAL_COLS), Object.assign({ id: Utilities.getUuid().slice(0, 8),
-      status: PROPOSAL_STATUSES[0].th, by: me.email, at: new Date() }, s));
-  });
-  return { ok: true };
-}
-function adminGlossary_(req) {
-  need_(req, ['admin']);
-  var tz = ss_().getSpreadsheetTimeZone();
-  var list = rowsIfSheet_(SHEETS.glossaryProposals, GLOSSARY_PROPOSAL_COLS).filter(function (r) { return r.id; }).map(function (r) {
-    return { id: String(r.id), status: codeOf_(PROPOSAL_STATUSES, r.status, 'pending'), th: String(r.th || ''), en: String(r.en || ''),
-             group: String(r.group || ''), notes: String(r.notes || ''), by: String(r.by || ''), at: day_(r.at, tz) };
-  }).reverse();
-  return { ok: true, proposals: list };
-}
-function adminGlossaryDecide_(req) {
-  var me = need_(req, ['admin']);
-  var approve = req.approve === true;
-  withLock_(function () {
-    var t = table_(SHEETS.glossaryProposals, GLOSSARY_PROPOSAL_COLS);
-    var row = t.rows.filter(function (r) { return String(r.id) === String(req.id); })[0];
-    if (!row || codeOf_(PROPOSAL_STATUSES, row.status, 'pending') !== 'pending') fail_('not_found');
-    var term = { th: text_(req.th || row.th, 200), en: text_(req.en || row.en, 200), group: text_(req.group || row.group, 60), notes: String(row.notes || '') };
-    updateRow_(t, row, { status: codeLabel_(PROPOSAL_STATUSES, approve ? 'approved' : 'rejected'), decidedBy: me.email });
-    if (approve) appendRow_(table_(SHEETS.glossary, GLOSSARY_COLS), term);
-  });
-  return adminGlossary_(req);
-}
-
 /* ---------- pay ---------- */
 
 function monthOf_(v, tz) { return day_(v, tz).slice(0, 7); }
@@ -4467,8 +4408,8 @@ function setup() {
   console.log('setup: Phase 6 sheets');
   [[SHEETS.quotes, QUOTE_COLS], [SHEETS.payments, PAY_COLS], [SHEETS.rewards, REWARD_COLS], [SHEETS.redemptions, REDEEM_COLS]]
     .forEach(function (d) { addMissingColumns_(ensureSheet_(d[0], d[1]), d[1]); });
-  // Phase 7: translators, monthly pay, glossary proposals
-  [[SHEETS.translators, TRANSLATOR_COLS], [SHEETS.payouts, PAYOUT_COLS], [SHEETS.glossaryProposals, GLOSSARY_PROPOSAL_COLS]]
+  // Phase 7: translators, monthly pay
+  [[SHEETS.translators, TRANSLATOR_COLS], [SHEETS.payouts, PAYOUT_COLS]]
     .forEach(function (d) { addMissingColumns_(ensureSheet_(d[0], d[1]), d[1]); });
   var trSheet = ss_().getSheetByName(SHEETS.translators), trCol = colIndex_(trSheet, 'สถานะ');
   if (trCol) trSheet.getRange(2, trCol, Math.max(trSheet.getMaxRows() - 1, 1), 1).setDataValidation(SpreadsheetApp.newDataValidation()

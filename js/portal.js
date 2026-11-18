@@ -164,7 +164,7 @@
     ],
     staff: [
       { view: "s-jobs", key: "dash.myJobs" },
-      { group: "tr.g.translator", items: [{ view: "t-earnings", key: "tr.earnings" }, { view: "t-glossary", key: "tr.glossary" },
+      { group: "tr.g.translator", items: [{ view: "t-earnings", key: "tr.earnings" },
                                           { view: "t-manual", key: "tr.manual" }, { view: "t-profile", key: "tr.profile" }] },
       { group: "dash.g.account", items: [{ view: "settings", key: "dash.profile" }] }
     ],
@@ -174,8 +174,7 @@
       { group: "dash.g.admin", items: [{ view: "a-users", key: "dash.users" }, { view: "a-discounts", key: "dash.discounts" },
                                        { view: "a-coupons", key: "dash.coupons" }, { view: "a-posts", arg: "news", key: "dash.posts" }] },
       { group: "dash.g.money", items: [{ view: "a-payments", key: "dash.payments" }, { view: "a-rewards", key: "dash.rewards" }] },
-      { group: "tr.g.admin", items: [{ view: "a-translators", key: "tr.a.translators" }, { view: "a-payouts", key: "tr.a.payouts" },
-                                     { view: "a-glossary", key: "tr.a.glossary" }] },
+      { group: "tr.g.admin", items: [{ view: "a-translators", key: "tr.a.translators" }, { view: "a-payouts", key: "tr.a.payouts" }] },
       { group: "dash.g.account", items: [{ view: "settings", key: "dash.profile" }] }
     ]
   };
@@ -1526,81 +1525,6 @@
     return wrap;
   }
 
-  // Look a word up in public dictionaries (opens in a new tab). Only the typed word leaves the site — never customer text.
-  var DICTS = [
-    { key: "tr.dict.cambridgeTh", url: function (w) { return "https://dictionary.cambridge.org/search/direct/?datasetsearch=english-thai&q=" + encodeURIComponent(w); } },
-    { key: "tr.dict.cambridgeEn", url: function (w) { return "https://dictionary.cambridge.org/search/direct/?datasetsearch=english&q=" + encodeURIComponent(w); } },
-    // The Royal Society dictionary has no search-by-link: open it and copy the word, ready to paste
-    { key: "tr.dict.orst", url: function () { return "https://dictionary.orst.go.th/"; }, copy: true }
-  ];
-  function dictCard(box) {
-    var c = card(box, "tr.dict.title");
-    c.appendChild(el("p", "note", t("tr.dict.note")));
-    var q = input("search", "", { "aria-label": t("tr.dict.placeholder"), placeholder: t("tr.dict.placeholder"), autocomplete: "off" });
-    c.appendChild(q);
-    var row = el("div", "dict-links");
-    var hint = el("p", "hint", ""); hint.hidden = true; hint.setAttribute("role", "status");
-    var links = DICTS.map(function (d) {
-      var a = el("a", "btn btn-outline btn-sm", t(d.key));
-      a.target = "_blank"; a.rel = "noopener noreferrer";
-      a.appendChild(el("span", "sr-only", t("a11y.newTab")));
-      a.addEventListener("click", function (e) {
-        var w = q.value.trim();
-        if (!w) { e.preventDefault(); q.focus(); hint.hidden = false; hint.textContent = t("tr.dict.typeFirst"); return; }
-        if (d.copy && navigator.clipboard) navigator.clipboard.writeText(w).then(function () { hint.hidden = false; hint.textContent = t("tr.dict.copied", { w: w }); }, function () {});
-      });
-      row.appendChild(a);
-      return { a: a, d: d };
-    });
-    function update() { var w = q.value.trim(); links.forEach(function (x) { x.a.href = x.d.url(w); }); if (w) hint.hidden = true; }
-    q.addEventListener("input", update);
-    q.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); if (q.value.trim()) links[0].a.click(); } });
-    update();
-    c.appendChild(row); c.appendChild(hint);
-  }
-
-  VIEWS["t-glossary"] = function (box) {
-    heading(box, "tr.glossary");
-    trGate(box, function () {
-      dictCard(box);
-      var c = card(box, "tr.dict.shop");
-      var q = input("search", "", { "aria-label": t("tr.searchTerms"), placeholder: t("tr.searchTerms") });
-      c.appendChild(q);
-      var out = el("div");
-      c.appendChild(out);
-      var timer = null;
-      function run() {
-        api("glossarySearch", { q: q.value.trim() }).then(function (res) {
-          out.textContent = "";
-          if (!res.terms.length) { empty(out, "tr.noTerms"); return; }
-          var wrap = el("div", "doc-table-wrap"), tb = el("table", "doc-table");
-          var hr = el("tr"); ["tr.g.th", "tr.g.en", "tr.g.group", "tr.g.notes"].forEach(function (k) { hr.appendChild(el("th", null, t(k))); }); tb.appendChild(hr);
-          res.terms.forEach(function (x) { var tr = el("tr"); [x.th, x.en, x.group, x.notes].forEach(function (v) { tr.appendChild(el("td", null, v)); }); tb.appendChild(tr); });
-          wrap.appendChild(tb); out.appendChild(wrap);
-          if (res.total > res.terms.length) out.appendChild(el("p", "hint", t("tr.moreTerms", { n: res.total })));
-        }, function (err) { out.textContent = errText(err); });
-      }
-      q.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(run, 300); });
-      run();
-      var s = card(box, "tr.suggest");
-      s.appendChild(el("p", "note", t("tr.suggestNote")));
-      var th = input("text"), en = input("text"), gp = input("text"), nt = input("text");
-      var g = el("div", "grid-2");
-      g.appendChild(fieldBox("tr.g.th", th)); g.appendChild(fieldBox("tr.g.en", en));
-      g.appendChild(fieldBox("tr.g.group", gp)); g.appendChild(fieldBox("tr.g.notes", nt));
-      s.appendChild(g);
-      var st = el("div", "form-status"); st.hidden = true;
-      var send = button(t("tr.suggestBtn"), "btn btn-outline");
-      send.addEventListener("click", function () {
-        busy(send, true);
-        api("glossarySuggest", { th: th.value.trim(), en: en.value.trim(), group: gp.value.trim(), notes: nt.value.trim() }).then(function () {
-          th.value = en.value = gp.value = nt.value = ""; busy(send, false); status(st, "success", t("tr.suggested"));
-        }, function (err) { status(st, "error", errText(err)); busy(send, false); });
-      });
-      var row = el("div", "actions"); row.appendChild(send); s.appendChild(row); s.appendChild(st);
-    });
-  };
-
   VIEWS["t-manual"] = function (box) {
     heading(box, "tr.manual");
     trGate(box, function (me) {
@@ -1811,42 +1735,6 @@
     });
   };
 
-  VIEWS["a-glossary"] = function (box) {
-    heading(box, "tr.a.glossary");
-    load(box, "adminGlossary", {}, function (res) {
-      var pending = res.proposals.filter(function (p) { return p.status === "pending"; });
-      var c = card(box, "tr.a.pendingTerms");
-      if (!pending.length) empty(c, "tr.a.noPendingTerms");
-      pending.forEach(function (p) {
-        var item = el("div", "dash-subcard");
-        var th = input("text", p.th), en = input("text", p.en), gp = input("text", p.group);
-        var g = el("div", "grid-2");
-        g.appendChild(fieldBox("tr.g.th", th)); g.appendChild(fieldBox("tr.g.en", en)); g.appendChild(fieldBox("tr.g.group", gp));
-        item.appendChild(g);
-        item.appendChild(el("p", "hint", (p.notes ? p.notes + " · " : "") + t("tr.a.by", { who: p.by, date: day(p.at) })));
-        var st = el("div", "form-status"); st.hidden = true;
-        var row = el("div", "acct-links");
-        [["approve", true, "btn btn-primary btn-sm"], ["reject", false, "btn btn-outline btn-sm"]].forEach(function (d) {
-          var b = button(t("tr.a.term." + d[0]), d[2], function () {
-            busy(b, true);
-            api("adminGlossaryDecide", { id: p.id, approve: d[1], th: th.value.trim(), en: en.value.trim(), group: gp.value.trim() })
-              .then(function () { draw(); }, function (err) { status(st, "error", errText(err)); busy(b, false); });
-          });
-          row.appendChild(b);
-        });
-        item.appendChild(row); item.appendChild(st);
-        c.appendChild(item);
-      });
-      var done = res.proposals.filter(function (p) { return p.status !== "pending"; });
-      if (done.length) {
-        var h = card(box, "tr.a.decidedTerms");
-        var ul = el("ul", "pay-lines");
-        done.slice(0, 50).forEach(function (p) { var li = el("li"); li.appendChild(el("span", null, p.th + " — " + p.en)); li.appendChild(el("span", "flag " + (p.status === "approved" ? "flag-ok" : ""), t("tr.a.term." + p.status))); ul.appendChild(li); });
-        h.appendChild(ul);
-      }
-      box.appendChild(el("p", "note", t("tr.a.glossarySheet")));
-    });
-  };
 
   // ===== admin =====
   VIEWS["a-overview"] = function (box) {

@@ -1,11 +1,12 @@
 // Phase 7 (owner 2026-11-18): translators apply → admin approves → accept the documents → open list / assigned jobs
-// → files after payment → confirm + ready → admin approves or returns → monthly pay; glossary; quality; reminders
+// → files after payment → confirm + ready → admin approves or returns → monthly pay; quality; reminders
 const { load } = require('../lib/mock');
 const g = load(require('../lib/paths').CODE_GS);
 const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) process.exitCode = 1; };
 const P = g.post, S = g.sheets, V = g.ctx.CONFIG.translator.docsVersion;
 g.ctx.setup();
-ok(['Translators', 'Payouts', 'GlossaryProposals'].every(n => S[n]), 'setup makes Translators, Payouts, GlossaryProposals');
+ok(['Translators', 'Payouts'].every(n => S[n]) && !S.GlossaryProposals, 'setup makes Translators + Payouts (no glossary page: dropped by the owner)');
+ok(P({ action: 'glossarySearch', token: 'x' }).error === 'unknown_action', 'glossary actions are gone');
 ok(['กำหนดส่งของผู้แปล', 'ผู้แปลรับงานเมื่อ', 'ค่าแปล (ฐานคิดผู้แปล)', 'ร้านส่งกลับให้แก้ (ครั้ง)'].every(h => S.Jobs.data[0].includes(h)), 'Jobs has the translator columns');
 ok(g.triggers.includes('translatorChecks'), 'hourly translator reminder trigger');
 
@@ -169,17 +170,6 @@ ok(P({ action: 'adminTranslatorUpdate', token: admin, email: 'anan@example.com',
 const q = P({ action: 'adminTranslators', token: admin }).translators.find(t => t.email === 'anan@example.com').quality;
 ok(q.done === 1 && q.returns === 1 && q.revisions === 1, 'quality: delivered jobs, send-backs, customer corrections');
 ok(P({ action: 'translatorMe', token: tA }).quality.done === 1, 'translator sees their own figures');
-
-// ---- glossary
-let gs = P({ action: 'glossarySearch', token: tA, q: 'birth' });
-ok(gs.ok && gs.terms.some(t => t.th === 'สูติบัตร'), 'translator searches the glossary');
-ok(P({ action: 'glossarySearch', token: cust, q: 'x' }).error === 'forbidden', 'customers cannot search it');
-ok(P({ action: 'glossarySuggest', token: tA, th: 'ใบรับรองแพทย์', en: '' }).error === 'term_required', 'suggestion needs both words');
-ok(P({ action: 'glossarySuggest', token: tA, th: 'ใบรับรองแพทย์', en: 'Medical Certificate', group: 'การแพทย์' }).ok, 'translator suggests a term');
-let gp = P({ action: 'adminGlossary', token: admin });
-ok(gp.proposals.length === 1 && gp.proposals[0].status === 'pending' && gp.proposals[0].by === 'anan@example.com', 'admin sees the suggestion');
-gp = P({ action: 'adminGlossaryDecide', token: admin, id: gp.proposals[0].id, approve: true });
-ok(gp.proposals[0].status === 'approved' && P({ action: 'glossarySearch', token: tA, q: 'medical' }).terms.length === 1, 'approved: added to the Glossary');
 
 // ---- profile, availability, suspend
 me = P({ action: 'translatorProfile', token: tA, profile: { available: false, pairs: ['th-en'] } });

@@ -1728,5 +1728,3 @@ button.dash-bar-row:hover .dash-bar { background: var(--accent-line); }
 .tr-more > summary { cursor: pointer; min-height: var(--tap); display: flex; align-items: center; color: var(--accent); font-weight: 600; }
 .tr-more > .choice-grid { margin-top: 6px; }
 .field-group + .field, .field-group + .field-group { margin-top: 14px; }
-.dict-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.dict-links .btn { min-height: var(--tap); }

@@ -327,11 +327,11 @@ provider manages all jobs from one Google Sheet, with no paid server.
       - Fill the dashboard's Quotes, Pay and Payment history views.
 
 - [x] Phase 7 — freelance translators (owner 2026-11-18). Code.gs section "Phase 7": sheets Translators (TRANSLATOR_COLS,
-      statuses applied/approved/rejected/suspended), Payouts, GlossaryProposals; Jobs columns assignedAt, acceptedAt, translatorDue,
+      statuses applied/approved/rejected/suspended), Payouts; Jobs columns assignedAt, acceptedAt, translatorDue,
       translatorConfirmedAt, approvedAt, returnCount, revisionCount, translatorBase, translatorAdjust(+Note), translatorReminders.
       CONFIG.translator {docsVersion, rate 70, whtPercent 3, whtMin 1000, payDay 10, acceptHours 2, dueBufferDays 1};
       CONFIG.certificationFee/shippingFee (keep in step with config.js). Actions translatorMe/Apply/Accept/Profile/Claim/Respond/
-      Earnings, glossarySearch/Suggest, adminTranslators/TranslatorUpdate/Payouts/PayoutMark/Glossary/GlossaryDecide; hourly
+      Earnings, adminTranslators/TranslatorUpdate/Payouts/PayoutMark; hourly
       trigger `translatorChecks` (accept 2 h → admin; due tomorrow → translator; late → both; once each). Rules: staff (not admin)
       work only when approved + current docs accepted (`needTranslator_`: translator_profile / contract_required); files only
       after accepting AND the customer paid (paid/inProgress/review), none once delivered or reassigned (`translatorAccess_`,
@@ -340,9 +340,10 @@ provider manages all jobs from one Google Sheet, with no paid server.
       subtotal − certification − shipping) + adjust; monthly by deliveredAt; tax when the month's total > 1,000; Payouts row freezes.
       `js/translator-docs.js` = window.TRANSLATOR_DOCS {version, sections[7]} (Thai; from the owner's doc
       https://claude.ai/artifact/JJFJz9qNMxTKtKD5nUGGyS, adapted to the web flow; «fields» filled in from the profile). portal.js:
-      customer menu "สมัครเป็นผู้แปล" (t-apply); staff t-earnings/t-glossary/t-manual/t-profile + trGate (profile → contract);
-      s-jobs respond box + open list; s-job confirm tick + locked-file notices; admin a-translators/a-payouts/a-glossary and
-      `adminTranslatorCard` on a-job. Tests: unit/translators.js, e2e/translators.js, mock `g.translator(token, name)`.
+      customer menu "สมัครเป็นผู้แปล" (t-apply); staff t-earnings/t-manual/t-profile + trGate (profile → contract);
+      s-jobs respond box + open list; s-job confirm tick + locked-file notices; admin a-translators/a-payouts and
+      `adminTranslatorCard` on a-job. A glossary + dictionary page for translators was built and dropped (owner 2026-11-18:
+      hard to control) — standard terms go in a job's internal notes (docs 3.6). Tests: unit/translators.js, e2e/translators.js, mock `g.translator(token, name)`.
 
 The owner asked to stop after each phase and show the result before continuing.
 
@@ -370,7 +371,7 @@ The owner asked to stop after each phase and show the result before continuing.
 ## Testing
 `node tests/run.js` runs every suite (see `tests/README.md`): `tests/unit/` = Code.gs against a mocked Apps Script
 (`tests/lib/mock.js`), `tests/e2e/` = the site in Playwright Chromium on port 8765 with the same mock. 33 suites,
-~1,035 checks (2026-11-18). `tests/lib/browser.js` blocks the live Apps Script / Beam / site, and the runner fails any
+~1,030 checks (2026-11-18). `tests/lib/browser.js` blocks the live Apps Script / Beam / site, and the runner fails any
 suite that tried. Suites print `PASS `/`FAIL ` lines; update a test in the same commit as an intended change, and add
 one for each new feature. Still check by eye: every page in priority order — PC 1366, 1920, 1280, 1024; phone 390, 320;
 tablet 768 — in both languages and themes; `node --check js/*.js`; i18n keys match between th/en.
