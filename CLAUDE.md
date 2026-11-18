@@ -226,7 +226,9 @@ provider manages all jobs from one Google Sheet, with no paid server.
   `apple-touch-icon.png`), Open Graph/Twitter (`img/og-image.jpg` 1200×630) and JSON-LD `ProfessionalService`
   (keep it in step with contact details in config.js); `robots.txt` + `sitemap.xml` at the root.
   Footer visitor pill `#visit-count` (home.js `loadVisits`, once per device per day via `tr_visit`;
-  `config.showVisitorCount`). Admin dashboard also has "โค้ดส่วนลด" (`a-coupons`) and "ประชาสัมพันธ์"
+  `config.showVisitorCount`). DBD Registered trustmark (granted 2026-11-17 for www.prathaitranslation.com): DBD's 3-line `<a><img></a>` code
+  sits in the footer `.dbd-badge` exactly as sent — DBD forbids any change and any `<script>` wrapper; style it only
+  from CSS (white plate on the dark footer). Tests answer `dbdregistered.dbd.go.th` with a local stand-in picture. Admin dashboard also has "โค้ดส่วนลด" (`a-coupons`) and "ประชาสัมพันธ์"
   (`a-posts`, news/promo tabs, picture upload) views in portal.js.
 - `img/logo.svg` (header, on white) and `img/logo-white.svg` (footer, on `--footer-bg`):
   the owner's logo, cropped to its content. Colours `#01417b` / `#006192` set `--accent`

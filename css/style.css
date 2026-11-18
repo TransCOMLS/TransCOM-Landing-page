@@ -702,6 +702,10 @@ a.contact-item:hover { border-color: var(--accent); }
 }
 .footer-bottom .footer-link { font-size: 0.875rem; }
 .footer-legal { display: flex; flex-wrap: wrap; gap: 0 20px; }
+/* DBD Registered trustmark (code from DBD, unchanged): a white plate so the badge reads on the dark footer */
+.dbd-badge { margin-top: 16px; }
+.dbd-badge a { display: inline-flex; padding: 6px 10px; background: #fff; border-radius: 10px; }
+.dbd-badge img { display: block; width: auto; height: 48px; max-width: 100%; }
 .site-footer :focus-visible { outline-color: rgba(255, 255, 255, 0.7); }
 @media (min-width: 640px) {
   .footer-inner { grid-template-columns: 1.4fr 1fr 1fr; gap: 32px; }

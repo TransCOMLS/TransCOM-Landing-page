@@ -38,6 +38,18 @@ const pic = require('fs').readFileSync(require('path').join(require('../lib/path
   ok(p.errs.length === 0, 'home: no console errors ' + JSON.stringify(p.errs));
   await ctx.close();
 
+  // ---- DBD Registered trustmark: DBD's code, unchanged, on the homepage footer, not inside a <script>
+  const DBD = 'AAB0E1B665F72FE9FACBF6E5F5C50CDEBC6A37D2782C88C2DE7746F397E9661A';
+  const html = require('fs').readFileSync(require('path').join(require('../lib/paths').ROOT, 'index.html'), 'utf8');
+  ok(html.includes(`<a href='https://dbdregistered.dbd.go.th/api/public/shopinfo?param=${DBD}' target="_blank">\n<img src='https://dbdregistered.dbd.go.th/api/public/banner?param=${DBD}' />\n</a>`), 'DBD badge: source code exactly as DBD sent it');
+  for (const [w, scheme] of [[1366, 'light'], [320, 'dark']]) {
+    ({ ctx, p } = await open(w, 800, scheme, null, '#home'));
+    const d = await p.$eval('.site-footer .dbd-badge a', a => ({ href: a.getAttribute('href'), t: a.target, img: a.querySelector('img').getAttribute('src'), inScript: !!a.closest('script'), shown: a.getBoundingClientRect().width > 0 }));
+    ok(d.href.endsWith('shopinfo?param=' + DBD) && d.img.endsWith('banner?param=' + DBD) && d.t === '_blank' && !d.inScript && d.shown, w + ' DBD badge in the footer, opens DBD in a new tab');
+    ok(await overflow(p) === 0, w + ' footer with DBD badge: no horizontal scroll');
+    await ctx.close();
+  }
+
   for (const [w, h, scheme] of [[1366, 900, 'light'], [390, 844, 'dark']]) {
     const tag = w + scheme;
     ({ ctx, p } = await open(w, h, scheme, admin, '#account'));
