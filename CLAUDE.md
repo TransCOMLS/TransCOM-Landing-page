@@ -42,6 +42,10 @@ provider manages all jobs from one Google Sheet, with no paid server.
   "special rate"; `civilDocuments` lists the 18 documents (TH/EN); `idRetentionDays: 15`.
   Prices are per-page ranges `[min, max]` (a single number also works); use
   `App.priceRange(cat, urgency)` / `App.formatRange(min, max)`, never `cat.normal` directly.
+  `languagePairs` (owner 2026-11-18): th-en/en-th `active: true`; 20 prepared pairs th⇄zh/ja/ko/fr/de/es/ru/vi/lo/my are
+  `active: false` — hidden from forms (app.js `renderSelectOptions`, except a value already saved), names still shown on old jobs;
+  Code.gs `LANG_PAIRS` (code → [th, en, open]) must match (a unit test checks) and `createJob` refuses closed pairs; the stamp
+  wording is Thai only when the target is Thai. README "เปิดรับคู่ภาษาเพิ่ม" tells the owner how to open one.
   `shippingFee` (paper copy by post, per job) adds a calculator option and, in the job form,
   a shipping choice with a required delivery address (`f-address`). LINE OA `@transcomls`
   is on (`contact.showLine: true`); `false` hides every LINE link (`[data-contact="line"]`).
@@ -196,7 +200,7 @@ provider manages all jobs from one Google Sheet, with no paid server.
   `img/email/header.jpg` served from the live site (`CONFIG.siteUrl`; must be on `main`), status
   badge, 6-step progress (`mailSteps_`), details table, one button, navy footer with contacts
   (`CONFIG.contactPhone/lineId/contactEmail` — keep in step with js/config.js). Language pairs and
-  categories show as names (`LANG_PAIR_NAMES`, `CATEGORY_NAMES`). Customer receipt + provider notice (`PROVIDER_EMAIL` or the script owner);
+  categories show as names (`LANG_PAIRS`, `CATEGORY_NAMES`). Customer receipt + provider notice (`PROVIDER_EMAIL` or the script owner);
   Phase 6 (section "money"): Quotes / Payments / Rewards / Redemptions sheets; actions payInfo, payPrice, payStart, payCheck,
   receipt (public, with hash tokens `payToken_` / `receiptToken_`), myPayments, myMembership, redeemReward, adminSaveQuote,
   adminCancelQuote, adminPayments, adminRefund, adminRewards, adminSaveReward, adminDeleteReward, adminRedemption.

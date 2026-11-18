@@ -29,7 +29,8 @@
 
   function textFor(job) {
     var st = CFG.certStamp || {};
-    var lang = String(job.langPair || "") === "en-th" ? "th" : "en";   // the translation's language
+    // wording in the translation's language: Thai when the target is Thai, otherwise English
+    var lang = String(job.langPair || "").split("-")[1] === "th" ? "th" : "en";
     var lines = st[lang] || (lang === "th"
       ? ["เอกสารนี้ได้รับการรับรองผ่านระบบอิเล็กทรอนิกส์", "รหัสรับรองเอกสาร ( {code} )"]
       : ["This Document has been E-Certified", "Certification Code ( {code} )"]);
@@ -181,5 +182,5 @@
     return Promise.resolve(file);
   }
 
-  window.Stamp = { applies: applies, canvas: canvas, stampFile: stampFile, size: { w: W, h: H } };
+  window.Stamp = { applies: applies, canvas: canvas, stampFile: stampFile, text: textFor, size: { w: W, h: H } };
 })();

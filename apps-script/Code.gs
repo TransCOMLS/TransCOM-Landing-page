@@ -263,13 +263,38 @@ var STATUSES = [
   { code: 'cancelled',  th: 'ยกเลิก',            en: 'Cancelled',  color: '#f1f3f4', text: '#566072' }
 ];
 
-// Language pair codes sent by the website → names for emails
-var LANG_PAIR_NAMES = {
-  'th-en': ['ไทย → อังกฤษ', 'Thai → English'],
-  'en-th': ['อังกฤษ → ไทย', 'English → Thai']
+// Language pairs: code → [Thai name, English name, open for new jobs]. Keep in step with js/config.js
+// languagePairs (same codes, same active flags). Prepared pairs stay false until the owner opens them.
+var LANG_PAIRS = {
+  'th-en': ['ไทย → อังกฤษ', 'Thai → English', true],
+  'en-th': ['อังกฤษ → ไทย', 'English → Thai', true],
+  'th-zh': ['ไทย → จีน', 'Thai → Chinese', false],
+  'zh-th': ['จีน → ไทย', 'Chinese → Thai', false],
+  'th-ja': ['ไทย → ญี่ปุ่น', 'Thai → Japanese', false],
+  'ja-th': ['ญี่ปุ่น → ไทย', 'Japanese → Thai', false],
+  'th-ko': ['ไทย → เกาหลี', 'Thai → Korean', false],
+  'ko-th': ['เกาหลี → ไทย', 'Korean → Thai', false],
+  'th-fr': ['ไทย → ฝรั่งเศส', 'Thai → French', false],
+  'fr-th': ['ฝรั่งเศส → ไทย', 'French → Thai', false],
+  'th-de': ['ไทย → เยอรมัน', 'Thai → German', false],
+  'de-th': ['เยอรมัน → ไทย', 'German → Thai', false],
+  'th-es': ['ไทย → สเปน', 'Thai → Spanish', false],
+  'es-th': ['สเปน → ไทย', 'Spanish → Thai', false],
+  'th-ru': ['ไทย → รัสเซีย', 'Thai → Russian', false],
+  'ru-th': ['รัสเซีย → ไทย', 'Russian → Thai', false],
+  'th-vi': ['ไทย → เวียดนาม', 'Thai → Vietnamese', false],
+  'vi-th': ['เวียดนาม → ไทย', 'Vietnamese → Thai', false],
+  'th-lo': ['ไทย → ลาว', 'Thai → Lao', false],
+  'lo-th': ['ลาว → ไทย', 'Lao → Thai', false],
+  'th-my': ['ไทย → เมียนมา', 'Thai → Burmese', false],
+  'my-th': ['เมียนมา → ไทย', 'Burmese → Thai', false]
 };
+function langPairActive_(code) {
+  var n = LANG_PAIRS[String(code || '')];
+  return !!(n && n[2]);
+}
 function langPairName_(code, th) {
-  var n = LANG_PAIR_NAMES[String(code || '')];
+  var n = LANG_PAIRS[String(code || '')];
   return n ? n[th ? 0 : 1] : String(code || '-');
 }
 
@@ -1840,7 +1865,7 @@ function createJob_(req) {
   if (!name) fail_('invalid_name');
   var langPair = text_(j.langPair, 10);
   var category = text_(j.category, 20);
-  if (!LANG_PAIR_RE.test(langPair) || !CATEGORY_RE.test(category)) fail_('invalid_choice');
+  if (!LANG_PAIR_RE.test(langPair) || !langPairActive_(langPair) || !CATEGORY_RE.test(category)) fail_('invalid_choice');
   var pages = j.pages === null || j.pages === undefined || j.pages === '' ? '' : parseInt(j.pages, 10);
   if (pages !== '' && !(pages >= 1 && pages <= 999)) fail_('invalid_pages');
   var tz = ss_().getSpreadsheetTimeZone();

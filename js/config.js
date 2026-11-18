@@ -21,10 +21,33 @@ window.APP_CONFIG = {
     hours: { th: "ทุกวัน 09:00–17:00 น.", en: "Daily, 9:00–17:00 (GMT+7)" }
   },
 
-  // คู่ภาษา / Language pairs (เพิ่มรายการได้)
+  // คู่ภาษา / Language pairs
+  // active: false = เตรียมไว้ ยังไม่เปิดรับ (ไม่แสดงในฟอร์ม แต่ชื่อยังแสดงในงานเก่าได้)
+  // เปิดใช้: เปลี่ยนเป็น active: true ที่นี่ และใน LANG_PAIRS ของ apps-script/Code.gs (ต้องตรงกัน)
+  // ภาษาเป้าหมายไม่ใช่ไทย → ตราประทับรับรองอิเล็กทรอนิกส์ใช้ข้อความภาษาอังกฤษ
   languagePairs: [
-    { id: "th-en", th: "ไทย → อังกฤษ", en: "Thai → English" },
-    { id: "en-th", th: "อังกฤษ → ไทย", en: "English → Thai" }
+    { id: "th-en", th: "ไทย → อังกฤษ", en: "Thai → English", active: true },
+    { id: "en-th", th: "อังกฤษ → ไทย", en: "English → Thai", active: true },
+    { id: "th-zh", th: "ไทย → จีน", en: "Thai → Chinese", active: false },
+    { id: "zh-th", th: "จีน → ไทย", en: "Chinese → Thai", active: false },
+    { id: "th-ja", th: "ไทย → ญี่ปุ่น", en: "Thai → Japanese", active: false },
+    { id: "ja-th", th: "ญี่ปุ่น → ไทย", en: "Japanese → Thai", active: false },
+    { id: "th-ko", th: "ไทย → เกาหลี", en: "Thai → Korean", active: false },
+    { id: "ko-th", th: "เกาหลี → ไทย", en: "Korean → Thai", active: false },
+    { id: "th-fr", th: "ไทย → ฝรั่งเศส", en: "Thai → French", active: false },
+    { id: "fr-th", th: "ฝรั่งเศส → ไทย", en: "French → Thai", active: false },
+    { id: "th-de", th: "ไทย → เยอรมัน", en: "Thai → German", active: false },
+    { id: "de-th", th: "เยอรมัน → ไทย", en: "German → Thai", active: false },
+    { id: "th-es", th: "ไทย → สเปน", en: "Thai → Spanish", active: false },
+    { id: "es-th", th: "สเปน → ไทย", en: "Spanish → Thai", active: false },
+    { id: "th-ru", th: "ไทย → รัสเซีย", en: "Thai → Russian", active: false },
+    { id: "ru-th", th: "รัสเซีย → ไทย", en: "Russian → Thai", active: false },
+    { id: "th-vi", th: "ไทย → เวียดนาม", en: "Thai → Vietnamese", active: false },
+    { id: "vi-th", th: "เวียดนาม → ไทย", en: "Vietnamese → Thai", active: false },
+    { id: "th-lo", th: "ไทย → ลาว", en: "Thai → Lao", active: false },
+    { id: "lo-th", th: "ลาว → ไทย", en: "Lao → Thai", active: false },
+    { id: "th-my", th: "ไทย → เมียนมา", en: "Thai → Burmese", active: false },
+    { id: "my-th", th: "เมียนมา → ไทย", en: "Burmese → Thai", active: false }
   ],
 
   // ประเภทเอกสารและราคาต่อหน้า / Categories and price per page (THB)

@@ -337,7 +337,10 @@
       var current = select.value;
       var items = kind === "categories"
         ? CFG.categories.map(function (c) { return { id: c.id, label: categoryLabel(c.id) }; })
-        : CFG.languagePairs.map(function (p) { return { id: p.id, label: p[state.lang] || p.th }; });
+        : CFG.languagePairs
+            // prepared pairs (active: false) stay hidden, except one already saved in this field
+            .filter(function (p) { return p.active !== false || (current && p.id === current); })
+            .map(function (p) { return { id: p.id, label: p[state.lang] || p.th }; });
 
       select.textContent = "";
       var placeholder = document.createElement("option");
