@@ -84,6 +84,9 @@ var CONFIG = {
       toefl:     { min: 0,  max: 120, b1: 42 },    // TOEFL iBT 42–71 = B1
       toeic:     { min: 10, max: 990, b1: 550 },   // TOEIC Listening & Reading: 275 + 275
       cambridge: { min: 80, max: 230, b1: 140 },   // Cambridge English Scale 140–159 = B1
+      cutep:     { min: 0,  max: 120, b1: 35 },    // CU-TEP (Chulalongkorn) — mapping study: B1 from 35
+      tugetcbt:  { min: 0,  max: 120, b1: 36 },    // TU-GET CBT (Thammasat) — comparison tables: B1 36–48
+      kuept:     { min: 0,  max: 80,  b1: 33 },    // KU-EPT (Kasetsart) — 2024 alignment study: B1 33–63
       cefr:      { levels: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'], b1: 'B1' },
       other:     {}                                // another test / certificate: admin decides from the proof
     }
@@ -4044,7 +4047,7 @@ function pairsFromLanguages_(langs) {
 function checkTest_(type, score) {
   var T = CONFIG.translator.tests, def = T[type];
   if (!def) fail_('test_required');
-  var names = { ielts: 'IELTS', toefl: 'TOEFL iBT', toeic: 'TOEIC', cambridge: 'Cambridge English Scale', cefr: 'CEFR', other: '' };
+  var names = { ielts: 'IELTS', toefl: 'TOEFL iBT', toeic: 'TOEIC', cambridge: 'Cambridge English Scale', cutep: 'CU-TEP', tugetcbt: 'TU-GET CBT', kuept: 'KU-EPT', cefr: 'CEFR', other: '' };
   if (type === 'other') {
     var what = text_(score, 120);
     if (what.length < 2) fail_('invalid_score');

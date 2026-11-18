@@ -1049,7 +1049,7 @@ window.I18N.en = {
     "tr.test.level": "CEFR level on the certificate",
     "tr.test.scoreHint": "Score {min}–{max} · B1 minimum = {b1}",
     "tr.test.otherWhat": "Test name and result",
-    "tr.test.otherHint": "e.g. CU-TEP 85 or HSK 5",
+    "tr.test.otherHint": "e.g. TU-GET paper-based, HSK 5 or another test",
     "tr.test.pass": "✓ Meets the B1 minimum",
     "tr.test.fail": "✗ Below the B1 minimum (at least {need} needed)",
     "tr.test.range": "The score must be {min}–{max}",

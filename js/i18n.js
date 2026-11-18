@@ -1051,7 +1051,7 @@ window.I18N = {
     "tr.test.level": "ระดับ CEFR ตามใบรับรอง",
     "tr.test.scoreHint": "คะแนน {min}–{max} · เกณฑ์ขั้นต่ำ B1 = {b1}",
     "tr.test.otherWhat": "ชื่อการสอบและผล",
-    "tr.test.otherHint": "เช่น CU-TEP 85 หรือ HSK 5",
+    "tr.test.otherHint": "เช่น TU-GET แบบกระดาษ, HSK 5 หรือผลสอบอื่น",
     "tr.test.pass": "✓ ผ่านเกณฑ์ขั้นต่ำ B1",
     "tr.test.fail": "✗ ต่ำกว่าเกณฑ์ขั้นต่ำ B1 (ต้องได้อย่างน้อย {need})",
     "tr.test.range": "คะแนนต้องอยู่ระหว่าง {min}–{max}",

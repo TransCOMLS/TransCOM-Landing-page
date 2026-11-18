@@ -72,6 +72,10 @@ window.APP_CONFIG = {
     { id: "toefl", name: "TOEFL iBT", min: 0, max: 120, step: 1, b1: 42 },
     { id: "toeic", name: "TOEIC (Listening & Reading)", min: 10, max: 990, step: 5, b1: 550 },
     { id: "cambridge", name: "Cambridge English Scale", min: 80, max: 230, step: 1, b1: 140 },
+    // การสอบของไทย (owner 2026-11-19) — เกณฑ์ B1 จากงานวิจัย/ตารางเทียบของผู้จัดสอบ
+    { id: "cutep", name: "CU-TEP (จุฬาฯ)", min: 0, max: 120, step: 1, b1: 35 },
+    { id: "tugetcbt", name: "TU-GET CBT (ธรรมศาสตร์)", min: 0, max: 120, step: 1, b1: 36 },
+    { id: "kuept", name: "KU-EPT (เกษตรศาสตร์)", min: 0, max: 80, step: 1, b1: 33 },
     { id: "cefr", name: "CEFR", levels: ["A1", "A2", "B1", "B2", "C1", "C2"], b1: "B1" },
     { id: "other", name: "" }
   ],

@@ -30,6 +30,7 @@ const cvOnly = [{ kind: 'cv', name: 'cv.pdf', data: 'QUJD' }], withProof = cvOnl
 const tryTest = (type, score, files) => P({ action: 'translatorApply', token: tA, application: app('อนันต์ แปลดี', { testType: type, testScore: score }), files: files || withProof }).error;
 ok(tryTest('', '') === 'test_required', 'test type required');
 ok(tryTest('toeic', 545) === 'below_b1' && tryTest('ielts', 3.5) === 'below_b1' && tryTest('toefl', 41) === 'below_b1' && tryTest('cambridge', 139) === 'below_b1' && tryTest('cefr', 'A2') === 'below_b1', 'below B1 refused (TOEIC 545, IELTS 3.5, TOEFL 41, Cambridge 139, CEFR A2)');
+ok(tryTest('cutep', 34) === 'below_b1' && tryTest('tugetcbt', 35) === 'below_b1' && tryTest('kuept', 32) === 'below_b1' && tryTest('kuept', 81) === 'invalid_score', 'Thai tests: CU-TEP 34, TU-GET CBT 35, KU-EPT 32 below B1; KU-EPT out of 80');
 ok(tryTest('toeic', 1200) === 'invalid_score' && tryTest('ielts', 'x') === 'invalid_score' && tryTest('cefr', 'D1') === 'invalid_score', 'out-of-range or nonsense scores refused');
 ok(tryTest('toeic', 925, cvOnly) === 'test_proof_required', 'proof of the score required');
 ok(JSON.stringify(g.ctx.CONFIG.translator.tests) === JSON.stringify((() => { global.window = {}; eval(require('fs').readFileSync(require('path').join(require('../lib/paths').ROOT, 'js', 'config.js'), 'utf8'));
