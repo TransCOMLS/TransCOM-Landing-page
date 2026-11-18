@@ -106,7 +106,7 @@ function load(codePath, opts) {
       base64Encode: bytes => typeof bytes === 'string' ? Buffer.from(bytes, 'utf8').toString('base64') : Buffer.from(bytes.map(b => b & 255)).toString('base64'),
       sleep: () => {},
       base64Decode: s => { if (!/^[A-Za-z0-9+/=]*$/.test(s)) throw new Error('bad'); return Array.from(Buffer.from(s, 'base64')); },
-      newBlob: (bytes, type, name) => ({ bytes, type, name, getBytes: () => (typeof bytes === 'string' ? Array.from(Buffer.from(bytes, 'utf8')).map(x => x > 127 ? x - 256 : x) : bytes) }),
+      newBlob: (bytes, type, name) => ({ bytes, type, name, getBytes: () => (typeof bytes === 'string' ? Array.from(Buffer.from(bytes, 'utf8')).map(x => x > 127 ? x - 256 : x) : bytes), getAs(t) { return Object.assign({}, this, { type: t, converted: true }); }, setName(n) { this.name = n; return this; }, getName() { return this.name; } }),
       computeHmacSha256Signature: (value, key) => Array.from(crypto.createHmac('sha256', Buffer.from(key.map(x => x & 255))).update(Buffer.from(value.map(x => x & 255))).digest()).map(x => x > 127 ? x - 256 : x),
     },
     MailApp: { sendEmail: m => mail.push(m) },
@@ -129,6 +129,17 @@ function load(codePath, opts) {
     ctx, sheets, mail, cache, drive, triggers, beam, props,
     post: body => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(body) } }).getContent()),
     lastCode: () => { const m = mail[mail.length - 1]; return m && /(\d{6})/.exec(m.subject)[1]; },
+    // Phase 7: make a signed-in staff member a working translator (profile + accepted documents)
+    translator(token, name, pairs) {
+      const post = body => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(body) } }).getContent());
+      const ap = post({ action: 'translatorApply', token, application: { name: name || 'ผู้แปล ทดสอบ', idNumber: '1101700000001', address: '99 ถนนทดสอบ แขวงทดสอบ กรุงเทพฯ',
+        phone: '0811111111', pairs: pairs || ['th-en', 'en-th'], categories: ['civil', 'official'], bankName: 'ธนาคารทดสอบ', bankAccount: '0123456789',
+        bankAccountName: name || 'ผู้แปล ทดสอบ', consent: true }, files: [{ kind: 'cv', name: 'cv.pdf', data: 'QUJD' }] });
+      if (!ap.ok) throw new Error('translatorApply: ' + ap.error);
+      const ac = post({ action: 'translatorAccept', token, version: ctx.CONFIG.translator.docsVersion, name: name || 'ผู้แปล ทดสอบ', html: '<p>' + 'สัญญา '.repeat(120) + '</p>' });
+      if (!ac.ok) throw new Error('translatorAccept: ' + ac.error);
+      return ac;
+    },
   };
 }
 module.exports = { load };

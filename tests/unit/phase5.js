@@ -46,6 +46,8 @@ us = P({ action: 'adminSetUser', token: admin, email: 'nida@example.com', custom
 ok(us.users.find(u => u.email === 'nida@example.com').customerType === 'corporate' && U.data.some(r => r.includes('องค์กร/บริษัท')), 'admin sets customer type (Thai label in sheet)');
 const staff = signIn('ploy@example.com');
 ok(P({ action: 'getAccount', token: staff }).profile.role === 'staff', 'staff signs in with role staff');
+ok(P({ action: 'staffJobs', token: staff }).error === 'translator_profile', 'staff without a translator profile cannot work yet (Phase 7)');
+g.translator(staff, 'พลอย ใจงาม');
 ok(P({ action: 'adminJobs', token: staff }).error === 'forbidden', 'staff cannot open admin job list');
 ok(P({ action: 'deleteAccount', token: staff }).error === 'forbidden', 'staff cannot delete their account from the site');
 
@@ -55,6 +57,9 @@ const mailsBefore = g.mail.length;
 let aj = P({ action: 'adminUpdateJob', token: admin, jobNo, assignee: 'ploy@example.com' });
 ok(aj.ok && aj.job.assignee === 'ploy@example.com' && g.mail.slice(mailsBefore).some(m => m.to === 'ploy@example.com'), 'admin assigns job; staff gets an email');
 ok(P({ action: 'adminUpdateJob', token: admin, jobNo, assignee: 'nida@example.com' }).error === 'invalid_choice', 'cannot assign to a customer');
+ok(P({ action: 'staffJob', token: staff, jobNo }).job.files.length === 0, 'files hidden until the translator accepts and the customer has paid');
+P({ action: 'translatorRespond', token: staff, jobNo, accept: true });
+P({ action: 'adminUpdateJob', token: admin, jobNo, status: 'paid' });
 const sl = P({ action: 'staffJobs', token: staff });
 ok(sl.ok && sl.jobs.length === 1 && sl.jobs[0].jobNo === jobNo, 'staff sees the assigned job');
 let sj = P({ action: 'staffJob', token: staff, jobNo });
@@ -76,7 +81,8 @@ const t1 = P({ action: 'uploadTranslation', token: staff, jobNo, name: 'birth-EN
 const t2 = P({ action: 'uploadTranslation', token: staff, jobNo, name: 'wrong.pdf', data: 'WFla' });
 ok(t1.ok && t2.ok && Object.values(g.drive.folders).some(f => f.name === 'งานแปล (ส่งลูกค้า)'), 'translations stored in their own subfolder');
 ok(P({ action: 'deleteTranslation', token: staff, jobNo, fileId: t2.file.id }).ok, 'staff removes a wrong upload');
-up = P({ action: 'staffUpdate', token: staff, jobNo, step: 'ready' });
+ok(P({ action: 'staffUpdate', token: staff, jobNo, step: 'ready' }).error === 'confirm_required', 'ready needs the translator\'s confirmation tick');
+up = P({ action: 'staffUpdate', token: staff, jobNo, step: 'ready', confirm: true });
 ok(up.ok && up.job.readyAt && g.mail.some(m => /แปลเสร็จ รอตรวจ/.test(m.subject)), 'ready for checking: date set, admin emailed');
 ok(/อัปโหลดไฟล์งานแปล birth-EN.pdf/.test(up.job.internalNotes) && /ploy@example.com/.test(up.job.internalNotes), 'internal notes log who did what');
 ok(!('internalNotes' in P({ action: 'myJob', token: cust, jobNo }).job), 'customer never sees internal notes');
@@ -133,7 +139,10 @@ P({ action: 'uploadFile', jobNo: c3.jobNo, uploadToken: c3.uploadToken, kind: 'i
 P({ action: 'finishJob', jobNo: c3.jobNo, uploadToken: c3.uploadToken });
 const j3 = c3.jobNo;
 P({ action: 'adminUpdateJob', token: admin, jobNo: j3, assignee: 'ploy@example.com', status: 'inProgress' });
+P({ action: 'translatorRespond', token: staff, jobNo: j3, accept: true });
 P({ action: 'uploadTranslation', token: staff, jobNo: j3, name: 'b-EN.pdf', data: 'WFla' });
+ok(P({ action: 'adminUpdateJob', token: admin, jobNo: j3, status: 'review' }).error === 'not_ready', 'admin cannot send a translator\'s job to the customer before it is ready');
+P({ action: 'staffUpdate', token: staff, jobNo: j3, step: 'ready', confirm: true });
 ok(P({ action: 'requestRevision', token: cust, jobNo: j3, text: 'แก้ชื่อ' }).error === 'not_ready', 'cannot ask for corrections before review');
 ok(P({ action: 'myJob', token: cust, jobNo: j3 }).job.files.length === 0, 'customer sees no files while translating');
 let n3 = g.mail.length;
@@ -152,6 +161,7 @@ const toTeam = g.mail.slice(n3).find(m => /ลูกค้าขอแก้ไ�
 ok(mj3.ok && mj3.job.status === 'inProgress' && toTeam && /ploy@example.com/.test(toTeam.to) && /Bang Phli/.test(toTeam.htmlBody), 'corrections: back to กำลังแปล, admin + assigned staff emailed with the text');
 const sv = P({ action: 'staffJob', token: staff, jobNo: j3 }).job;
 ok(/Bang Phli/.test(sv.revisionRequest) && /ลูกค้าขอแก้ไข/.test(sv.internalNotes) && !sv.readyAt, 'staff sees the correction request; ready flag cleared');
+P({ action: 'staffUpdate', token: staff, jobNo: j3, step: 'ready', confirm: true });
 P({ action: 'adminUpdateJob', token: admin, jobNo: j3, status: 'review' });
 n3 = g.mail.length;
 mj3 = P({ action: 'confirmTranslation', token: cust, jobNo: j3 });

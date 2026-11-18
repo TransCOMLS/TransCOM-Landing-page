@@ -5,7 +5,7 @@ const P = g.post;
 g.ctx.setup();
 ok(g.triggers.includes('onJobEdit') && g.triggers.includes('purgeDueJobs'), 'setup installs the edit + daily triggers');
 g.ctx.setup();
-ok(g.triggers.length === new Set(g.triggers).size && g.triggers.includes('checkPayments') && g.triggers.length === 3, 'running setup again does not duplicate triggers (edit, daily purge, 15-min payment check)');
+ok(g.triggers.length === new Set(g.triggers).size && g.triggers.includes('checkPayments') && g.triggers.includes('translatorChecks') && g.triggers.length === 4, 'running setup again does not duplicate triggers (edit, daily purge, 15-min payment check, hourly translator reminders)');
 ok(Object.values(g.drive.folders).some(f => f.name === 'TransCOM – งานแปล'), 'setup creates the private jobs folder');
 
 const future = new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10);

@@ -160,10 +160,12 @@
                                         { view: "c-orders", arg: "cancel", key: "dash.ordersCancel" }] },
       { group: "dash.g.payment", items: [{ view: "c-pay", key: "dash.pay" }, { view: "c-payHistory", key: "dash.payHistory" },
                                          { view: "c-points", key: "mem.title" }] },
-      { group: "dash.g.account", items: [{ view: "settings", key: "dash.profile" }] }
+      { group: "dash.g.account", items: [{ view: "settings", key: "dash.profile" }, { view: "t-apply", key: "tr.apply" }] }
     ],
     staff: [
       { view: "s-jobs", key: "dash.myJobs" },
+      { group: "tr.g.translator", items: [{ view: "t-earnings", key: "tr.earnings" }, { view: "t-glossary", key: "tr.glossary" },
+                                          { view: "t-manual", key: "tr.manual" }, { view: "t-profile", key: "tr.profile" }] },
       { group: "dash.g.account", items: [{ view: "settings", key: "dash.profile" }] }
     ],
     admin: [
@@ -172,6 +174,8 @@
       { group: "dash.g.admin", items: [{ view: "a-users", key: "dash.users" }, { view: "a-discounts", key: "dash.discounts" },
                                        { view: "a-coupons", key: "dash.coupons" }, { view: "a-posts", arg: "news", key: "dash.posts" }] },
       { group: "dash.g.money", items: [{ view: "a-payments", key: "dash.payments" }, { view: "a-rewards", key: "dash.rewards" }] },
+      { group: "tr.g.admin", items: [{ view: "a-translators", key: "tr.a.translators" }, { view: "a-payouts", key: "tr.a.payouts" },
+                                     { view: "a-glossary", key: "tr.a.glossary" }] },
       { group: "dash.g.account", items: [{ view: "settings", key: "dash.profile" }] }
     ]
   };
@@ -1121,17 +1125,27 @@
   // ===== staff =====
   VIEWS["s-jobs"] = function (box) {
     heading(box, "dash.myJobs", button(t("acct.refresh"), "btn-link", function () { draw(); }));
-    load(box, "staffJobs", {}, function (res) {
-      var open = res.jobs.filter(function (j) { return ["delivered", "cancelled"].indexOf(j.status) === -1; });
+    trGate(box, function () { load(box, "staffJobs", {}, function (res) {
+      var reload = function () { draw(); };
+      var waiting = res.jobs.filter(function (j) { return !j.acceptedAt && state.role === "staff" && ["delivered", "cancelled"].indexOf(j.status) === -1; });
+      if (waiting.length) {
+        var w = card(box, "tr.toRespond");
+        waiting.forEach(function (j) {
+          w.appendChild(jobList([j], function () { show("s-job", j.jobNo); }, trFlags));
+          w.appendChild(respondBox(j, reload));
+        });
+      }
+      var open = res.jobs.filter(function (j) { return ["delivered", "cancelled"].indexOf(j.status) === -1 && waiting.indexOf(j) === -1; });
       var done = res.jobs.filter(function (j) { return ["delivered", "cancelled"].indexOf(j.status) > -1; });
       var c = card(box, "dash.toDo");
       if (!open.length) empty(c, "dash.empty.staff");
-      else c.appendChild(jobList(open, function (j) { show("s-job", j.jobNo); }, dueFlags));
+      else c.appendChild(jobList(open, function (j) { show("s-job", j.jobNo); }, state.role === "staff" ? trFlags : dueFlags));
       if (done.length) {
         var d = card(box, "dash.done");
         d.appendChild(jobList(done, function (j) { show("s-job", j.jobNo); }));
       }
-    });
+      if (res.open) openList(box, res);
+    }); });
   };
 
   function workCards(box, j, role, reopen) {
@@ -1143,13 +1157,14 @@
     // translations
     var tr = card(box, "dash.translatedFiles");
     var trFiles = j.files.filter(function (f) { return f.kind === "translation"; });
-    tr.appendChild(fileList(j.jobNo, trFiles, !closed && (j.status !== "delivered" || role === "admin"), reopen));
-    if (!closed && j.status !== "delivered") tr.appendChild(uploader(j, reopen));
+    var view = role === "view";   // translator while the customer checks: look, don't change
+    tr.appendChild(fileList(j.jobNo, trFiles, !view && !closed && (j.status !== "delivered" || role === "admin"), reopen));
+    if (!view && !closed && j.status !== "delivered") tr.appendChild(uploader(j, reopen));
   }
 
   VIEWS["s-job"] = function (box, jobNo) {
     heading(box, { text: t("track.jobNo") + " " + jobNo }, backButton("s-jobs"));
-    load(box, "staffJob", { jobNo: jobNo }, function (res) {
+    trGate(box, function () { load(box, "staffJob", { jobNo: jobNo }, function (res) {
       var j = res.job;
       var reopen = function () { show("s-job", j.jobNo); };
       var c = card(box);
@@ -1162,27 +1177,640 @@
         ["form.pages", j.pages || ""], ["track.neededBy", day(j.neededBy)],
         ["dash.certified", j.certified ? t("form.yes") : t("form.no")],
         ["form.nameSpelling", j.nameSpelling], ["dash.customerNotes", j.notes],
+        ["tr.due", day(j.translatorDue)], ["tr.payThis", j.pay ? money2(j.pay.amount) : ""],
         ["dash.readyAt", day(j.readyAt)]
       ]));
+      var translator = state.role === "staff";
+      if (translator && !j.acceptedAt && ["delivered", "cancelled"].indexOf(j.status) === -1) {
+        c.appendChild(respondBox(j, reopen));
+        notesCard(box, j, function (text) { return api("staffUpdate", { jobNo: j.jobNo, note: text }).then(reopen); });
+        return;
+      }
       var st = el("div", "form-status"); st.hidden = true;
       var row = el("div", "actions");
+      var confirmBox = null;
       function step(name, label, cls) {
         var b = button(t(label), cls);
         b.addEventListener("click", function () {
+          if (name === "ready" && confirmBox && !confirmBox.input.checked) { status(st, "error", t("tr.err.confirm")); return; }
           busy(b, true);
-          api("staffUpdate", { jobNo: j.jobNo, step: name }).then(reopen, function (err) { status(st, "error", errText(err)); busy(b, false); });
+          api("staffUpdate", { jobNo: j.jobNo, step: name, confirm: name === "ready" && !!confirmBox }).then(reopen, function (err) { status(st, "error", errText(err)); busy(b, false); });
         });
         row.appendChild(b);
       }
-      var working = ["delivered", "cancelled"].indexOf(j.status) === -1 && !j.purged;
+      var working = ["delivered", "cancelled"].indexOf(j.status) === -1 && !j.purged && (!translator || j.canWork);
+      if (translator && j.filesLocked) c.appendChild(el("p", "notice notice-soft", t(j.status === "quoted" || j.status === "received" ? "tr.lockedUnpaid" : j.status === "delivered" ? "tr.lockedDone" : "tr.lockedOther")));
       if (working && j.status !== "inProgress") step("start", "dash.start", "btn btn-outline");
-      if (working && !j.readyAt) step("ready", "dash.ready", "btn btn-primary");
-      if (j.readyAt && working) c.appendChild(el("p", "notice", t("dash.readyNote")));
+      if (working && !j.readyAt) {
+        if (translator) { confirmBox = checkbox("tr.confirmReady", false); c.appendChild(confirmBox); }
+        step("ready", "dash.ready", "btn btn-primary");
+      }
+      if (j.readyAt && ["delivered", "cancelled"].indexOf(j.status) === -1) c.appendChild(el("p", "notice", t("dash.readyNote")));
       revisionNotice(c, j);
       if (row.childNodes.length) { c.appendChild(row); c.appendChild(st); }
-      workCards(box, j, "staff", reopen);
+      if (!translator || !j.filesLocked) workCards(box, j, translator && !j.canWork ? "view" : "staff", reopen);
       certCard(box, j, "staff", reopen);
       notesCard(box, j, function (text) { return api("staffUpdate", { jobNo: j.jobNo, note: text }).then(reopen); });
+    }); });
+  };
+
+  /* ===== Phase 7 — translators (owner 2026-11-18) ===== */
+  // translatorMe: profile, documents accepted?, quality. Cached until something changes.
+  function getTr(fresh) {
+    if (state.tr && !fresh) return Promise.resolve(state.tr);
+    return api("translatorMe", {}).then(function (res) { state.tr = res; return res; });
+  }
+  function docsJs() { return window.TRANSLATOR_DOCS ? Promise.resolve() : App.loadScript("js/translator-docs.js"); }
+  function money2(n) { return baht(n); }
+  function monthName(m) {
+    var p = String(m || "").split("-");
+    if (p.length !== 2) return m || "";
+    var d = new Date(Number(p[0]), Number(p[1]) - 1, 1);
+    return d.toLocaleDateString(App.getLang() === "en" ? "en-GB" : "th-TH-u-ca-buddhist", { month: "long", year: "numeric" });
+  }
+
+  // Staff pages need a translator profile and the current documents accepted first
+  function trGate(box, then) {
+    if (state.role !== "staff") { then(null); return; }
+    var seq = state.seq;
+    box.appendChild(el("p", "muted dash-loading", t("acct.loading")));
+    getTr().then(function (me) {
+      if (seq !== state.seq) return;
+      var l = $(".dash-loading", box); if (l) l.remove();
+      if (!me.translator) { box.textContent = ""; heading(box, "tr.profileFirst"); box.appendChild(el("p", "note", t("tr.profileFirstNote"))); applyForm(box, null); return; }
+      if (!me.docsOk) { box.textContent = ""; contractView(box, me); return; }
+      then(me);
+    }, function (err) { var l = $(".dash-loading", box); if (l) l.remove(); var s = el("div", "form-status error"); s.textContent = errText(err); box.appendChild(s); });
+  }
+
+  /* ---- documents: tiny renderer (**bold**, lists, checklists, tables, «fields») ---- */
+  function inline(parent, text, fill) {
+    String(text).split(/(\*\*[^*]+\*\*|`[^`]+`|«[^»]+»)/).forEach(function (part) {
+      if (!part) return;
+      if (/^\*\*.+\*\*$/.test(part)) parent.appendChild(el("strong", null, part.slice(2, -2)));
+      else if (/^`.+`$/.test(part)) parent.appendChild(el("code", null, part.slice(1, -1)));
+      else if (/^«.+»$/.test(part)) {
+        var key = part.slice(1, -1), v = fill && fill[key];
+        parent.appendChild(el(v ? "mark" : "span", v ? "doc-fill" : "doc-field", v || part));
+      } else parent.appendChild(document.createTextNode(part));
+    });
+  }
+  function renderDoc(text, fill) {
+    var frag = document.createDocumentFragment();
+    String(text).split(/\n{2,}/).forEach(function (block) {
+      var lines = block.split("\n").filter(function (x) { return x.trim(); });
+      if (!lines.length) return;
+      if (/^\|/.test(lines[0])) {
+        var tb = el("table", "doc-table"), rows = lines.filter(function (x) { return !/^\|\s*-/.test(x); });
+        rows.forEach(function (r, i) {
+          var tr = el("tr");
+          r.replace(/^\||\|$/g, "").split("|").forEach(function (c) { var td = el(i ? "td" : "th"); inline(td, c.trim(), fill); tr.appendChild(td); });
+          tb.appendChild(tr);
+        });
+        var wrap = el("div", "doc-table-wrap"); wrap.appendChild(tb); frag.appendChild(wrap); return;
+      }
+      if (lines.every(function (x) { return /^\s*(-|\d+\.)\s/.test(x); })) {
+        var ordered = /^\d+\./.test(lines[0].trim());
+        var list = el(ordered ? "ol" : "ul", lines.every(function (x) { return /^- \[ \]/.test(x); }) ? "doc-check" : null);
+        lines.forEach(function (x) { var li = el("li"); inline(li, x.replace(/^\s*(- \[ \] |-\s|\d+\.\s)/, ""), fill); list.appendChild(li); });
+        frag.appendChild(list); return;
+      }
+      lines.forEach(function (x) { var p = el("p"); inline(p, x, fill); frag.appendChild(p); });
+    });
+    return frag;
+  }
+  function docSection(sec, fill, open) {
+    var d = el("details", "doc-sec");
+    if (open) d.open = true;
+    d.appendChild(el("summary", null, sec.title));
+    var body = el("div", "doc-body prose");
+    body.appendChild(renderDoc(sec.body, fill));
+    d.appendChild(body);
+    return d;
+  }
+  function fillFor(me, when) {
+    var tr = me.translator || {};
+    return {
+      "ชื่อ-นามสกุลผู้แปล": tr.name, "เลขบัตรประชาชน": tr.idNumber, "ที่อยู่ตามใบสมัคร": tr.address,
+      "อีเมลบัญชีผู้แปล": tr.email, "คู่ภาษาตามใบสมัคร": (tr.pairs || []).map(pairName).join(", "),
+      "วันที่ผู้แปลกดยอมรับ": day(when), "วันเวลาที่ยอมรับ": when ? day(when) : t("tr.whenAccepted"),
+      "เลขฉบับสัญญา": window.TRANSLATOR_DOCS.version
+    };
+  }
+
+  function contractView(box, me) {
+    heading(box, "tr.contractTitle");
+    var c = card(box);
+    c.appendChild(el("p", "notice notice-soft", t(me.translator.docsVersion ? "tr.contractUpdated" : "tr.contractIntro")));
+    var docBox = el("div", "doc-wrap");
+    c.appendChild(docBox);
+    docsJs().then(function () {
+      var D = window.TRANSLATOR_DOCS;
+      if (D.version !== me.docsVersion) { c.appendChild(el("p", "form-status error", t("tr.docsMismatch"))); return; }
+      var today = isoDay(new Date());
+      D.sections.forEach(function (s, i) { docBox.appendChild(docSection(s, fillFor(me, today), i < 2)); });
+      var nm = input("text", "", { autocomplete: "off" });
+      c.appendChild(fieldBox("tr.typeName", nm, "tr.typeNameHint"));
+      var agree = checkbox("tr.agree", false);
+      c.appendChild(agree);
+      var st = el("div", "form-status"); st.hidden = true;
+      var go = button(t("tr.acceptBtn"), "btn btn-primary");
+      go.addEventListener("click", function () {
+        if (!agree.input.checked) { status(st, "error", t("tr.err.agree")); return; }
+        busy(go, true);
+        var copy = docBox.cloneNode(true);
+        Array.prototype.forEach.call(copy.querySelectorAll("details"), function (d) { d.open = true; });
+        var html = "<h1>" + t("tr.contractTitle") + "</h1>" + copy.innerHTML;
+        api("translatorAccept", { version: D.version, name: nm.value.trim(), html: html }).then(function (res) {
+          state.tr = res; draw();
+        }, function (err) { status(st, "error", errText(err)); busy(go, false); });
+      });
+      var row = el("div", "actions"); row.appendChild(go); c.appendChild(row); c.appendChild(st);
+    });
+  }
+
+  /* ---- application / profile form ---- */
+  function pairChoices(selected) {
+    var wrap = el("div");
+    var box = el("div", "choice-grid");
+    var more = el("details", "tr-more"), moreBox = el("div", "choice-grid");
+    more.appendChild(el("summary", null, t("tr.preparedPairs")));
+    (CFG.languagePairs || []).forEach(function (p) {
+      var l = el("label", "choice choice-sm");
+      var i = el("input"); i.type = "checkbox"; i.value = p.id; i.checked = (selected || []).indexOf(p.id) > -1;
+      if (i.checked && p.active === false) more.open = true;
+      l.appendChild(i); l.appendChild(el("span", null, p[App.getLang()] || p.th));
+      (p.active === false ? moreBox : box).appendChild(l);
+    });
+    wrap.appendChild(box);
+    if (moreBox.childNodes.length) { more.appendChild(moreBox); wrap.appendChild(more); }
+    return wrap;
+  }
+  function catChoices(selected) {
+    var box = el("div", "choice-grid");
+    (CFG.categories || []).forEach(function (c) {
+      var l = el("label", "choice choice-sm");
+      var i = el("input"); i.type = "checkbox"; i.value = c.id; i.checked = (selected || []).indexOf(c.id) > -1;
+      l.appendChild(i); l.appendChild(el("span", null, catName(c.id)));
+      box.appendChild(l);
+    });
+    return box;
+  }
+  function checked(box) { return Array.prototype.filter.call(box.querySelectorAll("input"), function (i) { return i.checked; }).map(function (i) { return i.value; }); }
+  function group(labelKey, inner, hintKey) {
+    var f = el("fieldset", "field field-group");
+    f.appendChild(el("legend", null, t(labelKey)));
+    f.appendChild(inner);
+    if (hintKey) f.appendChild(el("p", "hint", t(hintKey)));
+    return f;
+  }
+
+  function applyForm(box, tr) {
+    var c = card(box, "tr.formTitle");
+    var p = (App.account.profile && App.account.profile()) || {};
+    var f = {
+      name: input("text", tr ? tr.name : p.name || "", { autocomplete: "name" }),
+      idNumber: input("text", tr ? tr.idNumber : "", { inputmode: "numeric", maxlength: "17" }),
+      address: el("textarea"), phone: input("tel", tr ? tr.phone : p.phone || "", { autocomplete: "tel" }),
+      level: input("text", tr ? tr.level : ""), experience: el("textarea"),
+      bankName: input("text", tr ? tr.bankName : ""), bankAccount: input("text", tr ? tr.bankAccount : "", { inputmode: "numeric" }),
+      bankAccountName: input("text", tr ? tr.bankAccountName : "")
+    };
+    f.address.rows = 3; f.address.value = tr ? tr.address : "";
+    f.experience.rows = 4; f.experience.value = tr ? tr.experience : "";
+    var g1 = el("div", "grid-2");
+    g1.appendChild(fieldBox("tr.f.name", f.name, "tr.f.nameHint"));
+    g1.appendChild(fieldBox("tr.f.idNumber", f.idNumber));
+    c.appendChild(g1);
+    c.appendChild(fieldBox("tr.f.address", f.address));
+    var g2 = el("div", "grid-2");
+    g2.appendChild(fieldBox("tr.f.phone", f.phone));
+    g2.appendChild(fieldBox("tr.f.level", f.level, "tr.f.levelHint"));
+    c.appendChild(g2);
+    var pairs = pairChoices(tr ? tr.pairs : []), cats = catChoices(tr ? tr.categories : []);
+    c.appendChild(group("tr.f.pairs", pairs, "tr.f.pairsHint"));
+    c.appendChild(group("tr.f.categories", cats));
+    c.appendChild(fieldBox("tr.f.experience", f.experience));
+    var g3 = el("div", "grid-2");
+    g3.appendChild(fieldBox("tr.f.bankName", f.bankName));
+    g3.appendChild(fieldBox("tr.f.bankAccount", f.bankAccount));
+    c.appendChild(g3);
+    c.appendChild(fieldBox("tr.f.bankAccountName", f.bankAccountName));
+    var files = {};
+    [["cv", "tr.f.cv", true], ["sample", "tr.f.sample", true], ["id", "tr.f.idCopy", false], ["bank", "tr.f.bankCopy", false]].forEach(function (d) {
+      var i = input("file", null, { accept: ".pdf,.jpg,.jpeg,.png,.docx" });
+      if (d[2]) i.multiple = true;
+      files[d[0]] = i;
+      c.appendChild(fieldBox(d[1], i));
+    });
+    c.appendChild(el("p", "hint", t(tr ? "tr.f.filesKeep" : "tr.f.filesHint")));
+    var consent = checkbox("tr.f.consent", false);
+    c.appendChild(consent);
+    var st = el("div", "form-status"); st.hidden = true;
+    var go = button(t(tr ? "acct.save" : "tr.applyBtn"), "btn btn-primary");
+    go.addEventListener("click", function () {
+      var app = { name: f.name.value.trim(), idNumber: f.idNumber.value, address: f.address.value.trim(), phone: f.phone.value.trim(),
+                  level: f.level.value.trim(), experience: f.experience.value.trim(), bankName: f.bankName.value.trim(),
+                  bankAccount: f.bankAccount.value.trim(), bankAccountName: f.bankAccountName.value.trim(),
+                  pairs: checked(pairs), categories: checked(cats), consent: consent.input.checked };
+      if (!app.consent) { status(st, "error", t("tr.err.consent")); return; }
+      var list = [];
+      Object.keys(files).forEach(function (k) { Array.prototype.forEach.call(files[k].files || [], function (fl) { list.push({ kind: k, file: fl }); }); });
+      if (list.some(function (x) { return x.file.size > 5 * 1048576; })) { status(st, "error", t("tr.err.fileSize")); return; }
+      busy(go, true);
+      App.busy.open({ title: t("tr.sending"), text: t("busy.wait") });
+      Promise.all(list.map(function (x) { return readBase64(x.file).then(function (data) { return { kind: x.kind, name: x.file.name, data: data }; }); }))
+        .then(function (payloadFiles) { return api("translatorApply", { application: app, files: payloadFiles }); })
+        .then(function (res) {
+          state.tr = res;
+          return App.busy.done({ title: t("tr.sentTitle"), text: t(res.translator.status === "approved" ? "tr.savedText" : "tr.sentText") });
+        }).then(function () { draw(); }, function (err) { App.busy.close(); status(st, "error", errText(err)); busy(go, false); });
+    });
+    var row = el("div", "actions"); row.appendChild(go); c.appendChild(row); c.appendChild(st);
+  }
+
+  VIEWS["t-apply"] = function (box) {
+    heading(box, "tr.apply");
+    load(box, "translatorMe", {}, function (me) {
+      state.tr = me;
+      var tr = me.translator;
+      if (!tr) { box.appendChild(el("p", "note", t("tr.applyIntro"))); applyForm(box, null); return; }
+      var c = card(box);
+      c.appendChild(el("p", "notice " + (tr.status === "rejected" || tr.status === "suspended" ? "notice-warn" : "notice-soft"), t("tr.state." + tr.status)));
+      c.appendChild(details([["tr.f.name", tr.name], ["tr.f.pairs", tr.pairs.map(pairName).join(", ")], ["tr.appliedAt", day(tr.appliedAt)]]));
+      if (tr.status === "applied" || tr.status === "rejected") applyForm(box, tr);
+    });
+  };
+
+  /* ---- staff: profile, earnings, glossary, manual ---- */
+  VIEWS["t-profile"] = function (box) {
+    heading(box, "tr.profile");
+    trGate(box, function (me) {
+      var tr = me.translator;
+      var s = card(box, "tr.summary");
+      s.appendChild(details([["tr.f.name", tr.name], ["form.email", tr.email], ["tr.rate", tr.rate + "%"],
+        ["tr.docs", t("tr.docsAccepted", { v: tr.docsVersion, date: day(tr.acceptedAt) })]]));
+      if (me.quality) qualityStats(s, me.quality);
+      var c = card(box, "tr.workSettings");
+      var avail = checkbox("tr.available", tr.available);
+      c.appendChild(avail);
+      var pairs = pairChoices(tr.pairs), cats = catChoices(tr.categories);
+      c.appendChild(group("tr.f.pairs", pairs, "tr.f.pairsHint"));
+      c.appendChild(group("tr.f.categories", cats));
+      var phone = input("tel", tr.phone), bn = input("text", tr.bankName), ba = input("text", tr.bankAccount), bh = input("text", tr.bankAccountName);
+      var g = el("div", "grid-2");
+      g.appendChild(fieldBox("tr.f.phone", phone)); g.appendChild(fieldBox("tr.f.bankName", bn));
+      g.appendChild(fieldBox("tr.f.bankAccount", ba)); g.appendChild(fieldBox("tr.f.bankAccountName", bh));
+      c.appendChild(g);
+      c.appendChild(el("p", "hint", t("tr.partiesNote")));
+      var st = el("div", "form-status"); st.hidden = true;
+      var save = button(t("acct.save"), "btn btn-primary");
+      save.addEventListener("click", function () {
+        busy(save, true);
+        api("translatorProfile", { profile: { available: avail.input.checked, pairs: checked(pairs), categories: checked(cats), phone: phone.value.trim(),
+          bankName: bn.value.trim(), bankAccount: ba.value.trim(), bankAccountName: bh.value.trim() } })
+          .then(function (res) { state.tr = res; busy(save, false); status(st, "success", t("acct.saved")); },
+                function (err) { status(st, "error", errText(err)); busy(save, false); });
+      });
+      var row = el("div", "actions"); row.appendChild(save); c.appendChild(row); c.appendChild(st);
+      var ch = card(box, "tr.changeParties");
+      ch.appendChild(el("p", "note", t("tr.changePartiesNote")));
+      ch.appendChild(button(t("tr.editApplication"), "btn btn-outline btn-sm", function () { box.textContent = ""; heading(box, "tr.formTitle"); applyForm(box, tr); }));
+    });
+  };
+  function qualityStats(box, q) {
+    var grid = el("div", "dash-stats");
+    stat(grid, q.done, "tr.q.done", "ok");
+    stat(grid, q.open, "tr.q.open", "");
+    stat(grid, q.onTime, "tr.q.onTime", "ok");
+    stat(grid, q.late, "tr.q.late", q.late ? "bad" : "");
+    stat(grid, q.returns, "tr.q.returns", q.returns ? "warn" : "");
+    stat(grid, q.revisions, "tr.q.revisions", q.revisions ? "warn" : "");
+    box.appendChild(grid);
+  }
+
+  VIEWS["t-earnings"] = function (box) {
+    heading(box, "tr.earnings");
+    trGate(box, function () {
+      load(box, "translatorEarnings", {}, function (res) {
+        box.appendChild(el("p", "note", t("tr.payRule", { rate: res.rate, wht: res.whtPercent, min: App.formatNumber(res.whtMin), day: res.payDay })));
+        res.months.forEach(function (m) {
+          var c = card(box);
+          var top = el("div", "job-top");
+          top.appendChild(el("span", "job-no", monthName(m.month)));
+          top.appendChild(el("span", "flag " + (m.paid ? "flag-ok" : m.jobs.length ? "flag-warn" : ""), m.paid ? t("tr.paidOn", { date: day(m.paidAt) }) : m.jobs.length ? t("tr.unpaid") : t("tr.noJobs")));
+          c.appendChild(top);
+          if (m.jobs.length) c.appendChild(payLines(m));
+        });
+        if (res.pending.length) {
+          var p = card(box, "tr.pending");
+          var ul = el("ul", "pay-lines");
+          res.pending.forEach(function (j) { var li = el("li"); li.appendChild(el("span", null, j.jobNo + " · " + t("status." + j.status))); li.appendChild(el("span", "num", money2(j.amount))); ul.appendChild(li); });
+          p.appendChild(ul);
+          p.appendChild(el("p", "hint", t("tr.pendingNote")));
+        }
+      });
+    });
+  };
+  function payLines(m) {
+    var wrap = el("div");
+    var ul = el("ul", "pay-lines");
+    m.jobs.forEach(function (j) {
+      var li = el("li");
+      li.appendChild(el("span", null, j.jobNo + (j.adjust ? " (" + t("tr.adjust") + " " + money2(j.adjust) + (j.adjustNote ? ": " + j.adjustNote : "") + ")" : "")));
+      li.appendChild(el("span", "num", money2(j.amount)));
+      ul.appendChild(li);
+    });
+    wrap.appendChild(ul);
+    wrap.appendChild(details([["tr.gross", money2(m.gross)], ["tr.wht", money2(m.wht)], ["tr.net", money2(m.net)], ["tr.ref", m.ref || ""]]));
+    return wrap;
+  }
+
+  VIEWS["t-glossary"] = function (box) {
+    heading(box, "tr.glossary");
+    trGate(box, function () {
+      var c = card(box);
+      var q = input("search", "", { "aria-label": t("tr.searchTerms"), placeholder: t("tr.searchTerms") });
+      c.appendChild(q);
+      var out = el("div");
+      c.appendChild(out);
+      var timer = null;
+      function run() {
+        api("glossarySearch", { q: q.value.trim() }).then(function (res) {
+          out.textContent = "";
+          if (!res.terms.length) { empty(out, "tr.noTerms"); return; }
+          var wrap = el("div", "doc-table-wrap"), tb = el("table", "doc-table");
+          var hr = el("tr"); ["tr.g.th", "tr.g.en", "tr.g.group", "tr.g.notes"].forEach(function (k) { hr.appendChild(el("th", null, t(k))); }); tb.appendChild(hr);
+          res.terms.forEach(function (x) { var tr = el("tr"); [x.th, x.en, x.group, x.notes].forEach(function (v) { tr.appendChild(el("td", null, v)); }); tb.appendChild(tr); });
+          wrap.appendChild(tb); out.appendChild(wrap);
+          if (res.total > res.terms.length) out.appendChild(el("p", "hint", t("tr.moreTerms", { n: res.total })));
+        }, function (err) { out.textContent = errText(err); });
+      }
+      q.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(run, 300); });
+      run();
+      var s = card(box, "tr.suggest");
+      s.appendChild(el("p", "note", t("tr.suggestNote")));
+      var th = input("text"), en = input("text"), gp = input("text"), nt = input("text");
+      var g = el("div", "grid-2");
+      g.appendChild(fieldBox("tr.g.th", th)); g.appendChild(fieldBox("tr.g.en", en));
+      g.appendChild(fieldBox("tr.g.group", gp)); g.appendChild(fieldBox("tr.g.notes", nt));
+      s.appendChild(g);
+      var st = el("div", "form-status"); st.hidden = true;
+      var send = button(t("tr.suggestBtn"), "btn btn-outline");
+      send.addEventListener("click", function () {
+        busy(send, true);
+        api("glossarySuggest", { th: th.value.trim(), en: en.value.trim(), group: gp.value.trim(), notes: nt.value.trim() }).then(function () {
+          th.value = en.value = gp.value = nt.value = ""; busy(send, false); status(st, "success", t("tr.suggested"));
+        }, function (err) { status(st, "error", errText(err)); busy(send, false); });
+      });
+      var row = el("div", "actions"); row.appendChild(send); s.appendChild(row); s.appendChild(st);
+    });
+  };
+
+  VIEWS["t-manual"] = function (box) {
+    heading(box, "tr.manual");
+    trGate(box, function (me) {
+      var c = card(box);
+      c.appendChild(el("p", "note", t("tr.manualNote")));
+      docsJs().then(function () {
+        window.TRANSLATOR_DOCS.sections.forEach(function (s) {
+          c.appendChild(docSection(s, me ? fillFor(me, me.translator.acceptedAt) : null, s.id === "policy"));
+        });
+      });
+    });
+  };
+
+  /* ---- staff job list + job page additions ---- */
+  function respondBox(j, after) {
+    var b = el("div", "notice notice-warn tr-respond");
+    b.appendChild(el("p", null, t("tr.respondNote", { due: day(j.translatorDue) })));
+    var row = el("div", "acct-links");
+    var st = el("div", "form-status"); st.hidden = true;
+    var yes = button(t("tr.accept"), "btn btn-primary btn-sm", function () {
+      busy(yes, true);
+      api("translatorRespond", { jobNo: j.jobNo, accept: true }).then(after, function (err) { status(st, "error", errText(err)); busy(yes, false); });
+    });
+    var no = button(t("tr.decline"), "btn btn-outline btn-sm", function () {
+      no.hidden = true;
+      var ta = el("textarea"); ta.rows = 2; ta.setAttribute("aria-label", t("tr.declineReason")); ta.placeholder = t("tr.declineReason");
+      var send = button(t("tr.declineSend"), "btn btn-danger btn-sm", function () {
+        busy(send, true);
+        api("translatorRespond", { jobNo: j.jobNo, accept: false, reason: ta.value.trim() }).then(after, function (err) { status(st, "error", errText(err)); busy(send, false); });
+      });
+      b.appendChild(ta); var r2 = el("div", "acct-links"); r2.appendChild(send); b.appendChild(r2);
+    });
+    row.appendChild(yes); row.appendChild(no);
+    b.appendChild(row); b.appendChild(st);
+    return b;
+  }
+  function trFlags(j, flags) {
+    if (!j.acceptedAt && j.status !== "delivered" && j.status !== "cancelled") flags.appendChild(el("span", "flag flag-warn", t("tr.flag.respond")));
+    if (j.translatorDue && ["delivered", "cancelled"].indexOf(j.status) === -1 && !j.readyAt) {
+      var today = isoDay(new Date());
+      if (j.translatorDue < today) flags.appendChild(el("span", "flag flag-bad", t("dash.flag.overdue")));
+      else if (j.translatorDue <= isoDay(new Date(Date.now() + 2 * 864e5))) flags.appendChild(el("span", "flag flag-warn", t("dash.flag.dueSoon")));
+      flags.appendChild(el("span", "flag", t("tr.dueOn", { date: day(j.translatorDue) })));
+    }
+    if (j.readyAt) flags.appendChild(el("span", "flag flag-ok", t("dash.flag.ready")));
+    if (j.pay) flags.appendChild(el("span", "flag", t("tr.payOn", { n: money2(j.pay.amount) })));
+  }
+  function openList(box, res) {
+    var c = card(box, "tr.openJobs");
+    if (!res.available) { empty(c, "tr.notAvailable"); return; }
+    if (!res.open.length) { empty(c, "tr.noOpen"); return; }
+    c.appendChild(el("p", "note", t("tr.openNote")));
+    var ul = el("ul", "job-list");
+    res.open.forEach(function (j) {
+      var li = el("li", "job-item");
+      var top = el("span", "job-top"); top.appendChild(el("span", "job-no", j.jobNo)); top.appendChild(statusChip(j.status)); li.appendChild(top);
+      li.appendChild(el("span", "job-meta", [catName(j.category), pairName(j.langPair), j.pages ? t("acct.pagesN", { pages: j.pages }) : ""].filter(Boolean).join(" · ")));
+      li.appendChild(el("span", "job-dates", t("tr.dueOn", { date: day(j.translatorDue) }) + (j.pay ? " · " + t("tr.payOn", { n: money2(j.pay.amount) }) : "")));
+      var st = el("div", "form-status"); st.hidden = true;
+      var b = button(t("tr.claim"), "btn btn-primary btn-sm", function () {
+        busy(b, true);
+        api("translatorClaim", { jobNo: j.jobNo }).then(function () { show("s-job", j.jobNo); }, function (err) { status(st, "error", errText(err)); busy(b, false); });
+      });
+      var row = el("div", "actions"); row.appendChild(b); li.appendChild(row); li.appendChild(st);
+      ul.appendChild(li);
+    });
+    c.appendChild(ul);
+  }
+
+  /* ---- admin: translator box on a job ---- */
+  function adminTranslatorCard(box, j, reopen) {
+    if (!j.translatorJob) return;
+    var c = card(box, "tr.a.jobCard");
+    c.appendChild(details([["tr.a.assignedAt", day(j.assignedAt)], ["tr.a.acceptedAt", j.acceptedAt ? day(j.acceptedAt) : t("tr.a.notAccepted")],
+      ["tr.a.confirmedAt", day(j.translatorConfirmedAt)], ["tr.a.approvedAt", day(j.approvedAt)],
+      ["tr.a.returns", String(j.returnCount || 0)], ["tr.a.revisions", String(j.revisionCount || 0)]]));
+    // review: approve → customer / send back with what to fix
+    if (j.readyAt && ["paid", "inProgress"].indexOf(j.status) > -1) {
+      var rv = el("div", "notice notice-soft");
+      rv.appendChild(el("p", null, t("tr.a.readyNote")));
+      var st0 = el("div", "form-status"); st0.hidden = true;
+      var row0 = el("div", "acct-links");
+      var ap = button(t("tr.a.approve"), "btn btn-primary btn-sm", function () {
+        busy(ap, true);
+        api("adminUpdateJob", { jobNo: j.jobNo, review: "approve" }).then(reopen, function (err) { status(st0, "error", errText(err)); busy(ap, false); });
+      });
+      var ret = button(t("tr.a.return"), "btn btn-outline btn-sm", function () {
+        ret.hidden = true;
+        var ta = el("textarea"); ta.rows = 3; ta.placeholder = t("tr.a.returnWhat"); ta.setAttribute("aria-label", t("tr.a.returnWhat"));
+        rv.appendChild(ta);
+        var r2 = el("div", "acct-links");
+        var send = button(t("tr.a.returnSend"), "btn btn-danger btn-sm", function () {
+          busy(send, true);
+          api("adminUpdateJob", { jobNo: j.jobNo, review: "return", reviewNote: ta.value.trim() }).then(reopen, function (err) { status(st0, "error", errText(err)); busy(send, false); });
+        });
+        r2.appendChild(send); rv.appendChild(r2);
+      });
+      row0.appendChild(ap); row0.appendChild(ret);
+      rv.appendChild(row0); rv.appendChild(st0);
+      c.appendChild(rv);
+    }
+    // due date
+    var due = input("date", j.translatorDue || "");
+    var g = el("div", "grid-2");
+    g.appendChild(fieldBox("tr.a.due", due, "tr.a.dueHint"));
+    c.appendChild(g);
+    // pay
+    var p = j.translatorPay || {};
+    var base = input("number", j.translatorBaseSet ? p.base : "", { min: "0", step: "0.01", placeholder: t("tr.a.auto", { n: money2(p.base) }) });
+    var adj = input("number", p.adjust || "", { step: "0.01" }), why = input("text", p.adjustNote || "");
+    var g2 = el("div", "grid-2");
+    g2.appendChild(fieldBox("tr.a.base", base, "tr.a.baseHint"));
+    g2.appendChild(fieldBox("tr.a.adjust", adj, "tr.a.adjustHint"));
+    c.appendChild(g2);
+    c.appendChild(fieldBox("tr.a.adjustNote", why));
+    c.appendChild(el("p", "note", t("tr.a.payNow", { rate: p.rate, n: money2(p.amount) })));
+    var st = el("div", "form-status"); st.hidden = true;
+    var save = button(t("acct.save"), "btn btn-outline", function () {
+      busy(save, true);
+      var payload = { jobNo: j.jobNo, translatorPay: { base: base.value === "" ? "" : Number(base.value), adjust: Number(adj.value) || 0, note: why.value.trim() } };
+      if ((due.value || "") !== (j.translatorDue || "")) payload.translatorDue = due.value;
+      api("adminUpdateJob", payload).then(reopen, function (err) { status(st, "error", errText(err)); busy(save, false); });
+    });
+    var row = el("div", "actions"); row.appendChild(save); c.appendChild(row); c.appendChild(st);
+  }
+
+  /* ---- admin: translators, payouts, glossary suggestions ---- */
+  VIEWS["a-translators"] = function (box) {
+    heading(box, "tr.a.translators", button(t("acct.refresh"), "btn-link", function () { draw(); }));
+    load(box, "adminTranslators", {}, function (res) {
+      if (!res.translators.length) { empty(box, "tr.a.none"); return; }
+      var order = { applied: 0, approved: 1, suspended: 2, rejected: 3 };
+      res.translators.sort(function (a, b) { return order[a.status] - order[b.status]; });
+      res.translators.forEach(function (tr) {
+        var c = card(box);
+        var top = el("div", "job-top");
+        top.appendChild(el("span", "job-no", tr.name || tr.email));
+        top.appendChild(el("span", "flag " + (tr.status === "approved" ? "flag-ok" : tr.status === "applied" ? "flag-warn" : "flag-bad"), t("tr.st." + tr.status)));
+        if (tr.status === "approved" && !tr.docsOk) top.appendChild(el("span", "flag flag-warn", t("tr.a.docsPending")));
+        if (tr.status === "approved" && !tr.available) top.appendChild(el("span", "flag", t("tr.a.away")));
+        c.appendChild(top);
+        var folder = tr.folder ? el("a", null, t("tr.a.openFolder")) : "";
+        if (folder) { folder.href = tr.folder; folder.target = "_blank"; folder.rel = "noopener"; }
+        c.appendChild(details([["form.email", tr.email], ["tr.f.phone", tr.phone], ["tr.f.pairs", tr.pairs.map(pairName).join(", ")],
+          ["tr.f.categories", tr.categories.map(catName).join(", ")], ["tr.f.level", tr.level], ["tr.f.experience", tr.experience],
+          ["tr.appliedAt", day(tr.appliedAt)], ["tr.docs", tr.docsVersion ? t("tr.docsAccepted", { v: tr.docsVersion, date: day(tr.acceptedAt) }) : ""],
+          ["tr.a.files", folder]]));
+        if (tr.quality) qualityStats(c, tr.quality);
+        var st = el("div", "form-status"); st.hidden = true;
+        var row = el("div", "acct-links");
+        function act(decision, key, cls) {
+          var b = button(t(key), cls, function () {
+            if ((decision === "reject" || decision === "suspend") && !window.confirm(t("tr.a.confirm." + decision))) return;
+            busy(b, true);
+            api("adminTranslatorUpdate", { email: tr.email, decision: decision, note: note.value.trim() }).then(function () { draw(); }, function (err) { status(st, "error", errText(err)); busy(b, false); });
+          });
+          row.appendChild(b);
+        }
+        var note = input("text", tr.note || "", { placeholder: t("tr.a.note") });
+        if (tr.status === "applied") { act("approve", "tr.a.approveApp", "btn btn-primary btn-sm"); act("reject", "tr.a.reject", "btn btn-outline btn-sm"); }
+        if (tr.status === "approved") act("suspend", "tr.a.suspend", "btn btn-outline btn-sm danger");
+        if (tr.status === "suspended" || tr.status === "rejected") act("restore", "tr.a.restore", "btn btn-outline btn-sm");
+        var rate = input("number", tr.rate, { min: "0", max: "100", step: "1" });
+        var g = el("div", "grid-2");
+        g.appendChild(fieldBox("tr.rate", rate, "tr.a.rateHint"));
+        g.appendChild(fieldBox("tr.a.note", note));
+        c.appendChild(g);
+        row.appendChild(button(t("acct.save"), "btn btn-outline btn-sm", function () {
+          api("adminTranslatorUpdate", { email: tr.email, rate: rate.value === "" ? "" : Number(rate.value), note: note.value.trim() })
+            .then(function () { status(st, "success", t("acct.saved")); }, function (err) { status(st, "error", errText(err)); });
+        }));
+        c.appendChild(row); c.appendChild(st);
+      });
+    });
+  };
+
+  VIEWS["a-payouts"] = function (box, month) {
+    heading(box, "tr.a.payouts");
+    load(box, "adminPayouts", month ? { month: month } : {}, function (res) {
+      var sel = el("select");
+      res.months.forEach(function (m) { var o = el("option", null, monthName(m)); o.value = m; if (m === res.month) o.selected = true; sel.appendChild(o); });
+      sel.addEventListener("change", function () { show("a-payouts", sel.value); });
+      var top = card(box);
+      top.appendChild(fieldBox("tr.a.month", sel));
+      top.appendChild(el("p", "note", t("tr.a.payoutNote")));
+      if (!res.statements.length) { empty(box, "tr.a.noPayouts"); return; }
+      res.statements.forEach(function (s) {
+        var c = card(box);
+        var h = el("div", "job-top");
+        h.appendChild(el("span", "job-no", s.name || s.email));
+        h.appendChild(el("span", "flag " + (s.paid ? "flag-ok" : "flag-warn"), s.paid ? t("tr.paidOn", { date: day(s.paidAt) }) : t("tr.unpaid")));
+        c.appendChild(h);
+        if (s.bank) c.appendChild(el("p", "note", t("tr.a.bank") + " " + s.bank));
+        c.appendChild(payLines(s));
+        if (!s.paid) {
+          var ref = input("text", "", { placeholder: t("tr.a.refHint") });
+          c.appendChild(fieldBox("tr.ref", ref));
+          var st = el("div", "form-status"); st.hidden = true;
+          var b = button(t("tr.a.markPaid", { n: money2(s.net) }), "btn btn-primary btn-sm", function () {
+            if (!window.confirm(t("tr.a.confirmPaid", { n: money2(s.net), name: s.name || s.email }))) return;
+            busy(b, true);
+            api("adminPayoutMark", { month: res.month, email: s.email, ref: ref.value.trim() }).then(function () { show("a-payouts", res.month); },
+              function (err) { status(st, "error", errText(err)); busy(b, false); });
+          });
+          var row = el("div", "actions"); row.appendChild(b); c.appendChild(row); c.appendChild(st);
+        }
+      });
+    });
+  };
+
+  VIEWS["a-glossary"] = function (box) {
+    heading(box, "tr.a.glossary");
+    load(box, "adminGlossary", {}, function (res) {
+      var pending = res.proposals.filter(function (p) { return p.status === "pending"; });
+      var c = card(box, "tr.a.pendingTerms");
+      if (!pending.length) empty(c, "tr.a.noPendingTerms");
+      pending.forEach(function (p) {
+        var item = el("div", "dash-subcard");
+        var th = input("text", p.th), en = input("text", p.en), gp = input("text", p.group);
+        var g = el("div", "grid-2");
+        g.appendChild(fieldBox("tr.g.th", th)); g.appendChild(fieldBox("tr.g.en", en)); g.appendChild(fieldBox("tr.g.group", gp));
+        item.appendChild(g);
+        item.appendChild(el("p", "hint", (p.notes ? p.notes + " · " : "") + t("tr.a.by", { who: p.by, date: day(p.at) })));
+        var st = el("div", "form-status"); st.hidden = true;
+        var row = el("div", "acct-links");
+        [["approve", true, "btn btn-primary btn-sm"], ["reject", false, "btn btn-outline btn-sm"]].forEach(function (d) {
+          var b = button(t("tr.a.term." + d[0]), d[2], function () {
+            busy(b, true);
+            api("adminGlossaryDecide", { id: p.id, approve: d[1], th: th.value.trim(), en: en.value.trim(), group: gp.value.trim() })
+              .then(function () { draw(); }, function (err) { status(st, "error", errText(err)); busy(b, false); });
+          });
+          row.appendChild(b);
+        });
+        item.appendChild(row); item.appendChild(st);
+        c.appendChild(item);
+      });
+      var done = res.proposals.filter(function (p) { return p.status !== "pending"; });
+      if (done.length) {
+        var h = card(box, "tr.a.decidedTerms");
+        var ul = el("ul", "pay-lines");
+        done.slice(0, 50).forEach(function (p) { var li = el("li"); li.appendChild(el("span", null, p.th + " — " + p.en)); li.appendChild(el("span", "flag " + (p.status === "approved" ? "flag-ok" : ""), t("tr.a.term." + p.status))); ul.appendChild(li); });
+        h.appendChild(ul);
+      }
+      box.appendChild(el("p", "note", t("tr.a.glossarySheet")));
     });
   };
 
@@ -1365,7 +1993,10 @@
       s1.id = "a-assignee"; l1.htmlFor = "a-assignee";
       var none = el("option", null, t("dash.flag.unassigned")); none.value = ""; s1.appendChild(none);
       res.staff.forEach(function (p) {
-        var o = el("option", null, (p.name ? p.name + " — " : "") + p.email + " (" + t("dash.role." + p.role) + ")"); o.value = p.email;
+        var extra = p.role === "staff" && (!p.translator || !p.translator.docsOk) ? " — " + t("tr.a.notReady")
+          : p.translator && !p.translator.available ? " — " + t("tr.a.away") : "";
+        var o = el("option", null, (p.name ? p.name + " — " : "") + p.email + " (" + t("dash.role." + p.role) + ")" + extra); o.value = p.email;
+        if (extra && p.email !== j.assignee && (!p.translator || !p.translator.docsOk)) o.disabled = true;
         if (p.email === j.assignee) o.selected = true;
         s1.appendChild(o);
       });
@@ -1394,6 +2025,7 @@
         row.appendChild(a);
       }
       m.appendChild(row); m.appendChild(st);
+      adminTranslatorCard(box, j, reopen);
       adminMoneyCard(box, j, reopen);
       // customer
       var c = card(box, "dash.customer");
@@ -1944,7 +2576,7 @@
   /* ---------- wiring ---------- */
   function onAccount(e) {
     var d = e.detail || {};
-    if (!d.signedIn || !d.profile) { state.role = null; state.view = null; return; }
+    if (!d.signedIn || !d.profile) { state.role = null; state.view = null; state.tr = null; return; }
     var role = d.profile.role || "customer";
     var me = $("#dash-avatar");
     if (me) me.textContent = ((d.profile.name || d.profile.email || "?").trim().replace(/^[\u0e40-\u0e44]+/, "").charAt(0) || "?").toUpperCase();   // skip Thai leading vowels เ แ โ ใ ไ
@@ -1953,7 +2585,7 @@
     var del = $("#a-delete");
     if (del) del.hidden = role !== "customer";
     if (state.role !== role) {
-      state.role = role; state.arg = undefined;
+      state.role = role; state.arg = undefined; state.tr = null;
       // a new account without a name starts on the profile form (the welcome notice points there)
       state.view = d.profile.name ? HOME[role] : "settings";
       // emails link to ?job=TR-…#account: open that job once signed in

@@ -13,6 +13,7 @@ const admin = signIn('owner@example.com', 'เจ้าของ ร้าน');
 const cust = signIn('nida@example.com', 'นิดา ใจดี');
 P({ action: 'adminSetUser', token: admin, email: 'ploy@example.com', role: 'staff' });
 const staff = signIn('ploy@example.com', 'พลอย นักแปล');
+g.translator(staff, 'พลอย นักแปล');   // Phase 7: profile + accepted documents
 const day = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
 const mk = (cat, need, files) => {
   const c = P({ action: 'createJob', lang: 'th', job: { name: 'นิดา ใจดี', email: 'nida@example.com', phone: '0812345678', langPair: 'th-en', category: cat, pages: 2, neededBy: need, consent: true, idConsent: cat === 'civil', nameSpelling: 'Nida Jaidee', notes: 'ใช้ยื่นวีซ่า', files: [{ name: files[0], size: 3 }], idFiles: cat === 'civil' ? [{ name: 'id.jpg', size: 3 }] : [] } });
@@ -24,9 +25,11 @@ const mk = (cat, need, files) => {
 const j1 = mk('civil', day(2), ['birth.pdf']);      // assigned, in progress
 const j2 = mk('other', day(6), ['letter.pdf']);     // received, customer may cancel
 const j3 = mk('business', day(9), ['contract.pdf']);// delivered with a file
-P({ action: 'adminUpdateJob', token: admin, jobNo: j1, assignee: 'ploy@example.com' });
+P({ action: 'adminUpdateJob', token: admin, jobNo: j1, assignee: 'ploy@example.com', status: 'paid' });
+P({ action: 'translatorRespond', token: staff, jobNo: j1, accept: true });
 P({ action: 'staffUpdate', token: staff, jobNo: j1, step: 'start' });
 P({ action: 'adminUpdateJob', token: admin, jobNo: j3, assignee: 'ploy@example.com', status: 'inProgress' });
+P({ action: 'translatorRespond', token: staff, jobNo: j3, accept: true });
 P({ action: 'uploadTranslation', token: staff, jobNo: j3, name: 'contract-EN.pdf', data: 'WFla' });
 P({ action: 'adminUpdateJob', token: admin, jobNo: j3, status: 'delivered' });
 const tokens = { customer: cust, staff, admin };
@@ -93,15 +96,18 @@ const tokens = { customer: cust, staff, admin };
     ok((await p.textContent('#dash-role')).includes('พนักงาน') && await p.locator('#dash-view .job-item-btn').count() === 2, tag + ' staff: 2 assigned jobs');
     if (w === 1366) ok((await p.textContent('#dash-view')).includes('ใกล้กำหนด'), tag + ' staff: due-soon flag');
     await p.locator('#dash-view .job-item-btn', { hasText: j1 }).click();
-    await p.waitForSelector('#dash-view .dash-files');
+    // Phase 7: once admin has delivered j1 (in the 1366 round) the translator's file access ends
+    await p.waitForSelector(w === 1366 ? '#dash-view .dash-files' : '#dash-view .notice-soft');
     const body = await p.textContent('#dash-view');
-    ok(body.includes('NIDA JAIDEE') && body.includes('birth.pdf') && body.includes('id.jpg') && !body.includes('0812345678') && !body.includes('nida@example.com'), tag + ' staff job: spelling + files, no customer contacts');
+    if (w === 1366) ok(body.includes('NIDA JAIDEE') && body.includes('birth.pdf') && body.includes('id.jpg') && !body.includes('0812345678') && !body.includes('nida@example.com'), tag + ' staff job: spelling + files, no customer contacts');
+    else ok(body.includes('NIDA JAIDEE') && !body.includes('birth.pdf') && body.includes('ปิดการเข้าถึงไฟล์'), tag + ' delivered job: translator sees details, file access ended');
     if (w === 1366) {
       await p.setInputFiles('#dash-view .dash-upload input[type=file]', { name: 'birth-EN.pdf', mimeType: 'application/pdf', buffer: Buffer.from('XYZ') });
       await p.waitForFunction(() => document.querySelector('#dash-view') && document.querySelector('#dash-view').textContent.includes('birth-EN.pdf'), null, { timeout: 15000 });
       await p.waitForSelector('#busy-dialog.is-done');
       ok((await p.textContent('#busy-title')).includes('อัปโหลดเรียบร้อยแล้ว'), 'staff uploads a translation (pop-up shows the tick)');
       await p.waitForFunction(() => !document.querySelector('#busy-dialog').open, null, { timeout: 4000 });
+      await p.check('#dash-view label.choice:has-text("ยืนยันว่าได้แปล") input');
       await p.locator('#dash-view button', { hasText: 'แปลเสร็จ ส่งตรวจ' }).click();
       await p.waitForSelector('#dash-view .notice');
       ok((await p.textContent('#dash-view')).includes('ส่งตรวจแล้ว'), 'staff marks ready for checking');
