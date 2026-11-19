@@ -348,6 +348,33 @@ provider manages all jobs from one Google Sheet, with no paid server.
       Thai) and an English test (config `translatorTests` = Code.gs `CONFIG.translator.tests`, unit-checked; B1: IELTS 4, TOEFL iBT 42,
       TOEIC 550, Cambridge 140, CU-TEP 35, TU-GET CBT 36, KU-EPT 33/80 (Thai tests from published mapping studies; TU-GET paper
       had no reliable table → "other"), CEFR B1; `checkTest_` refuses below_b1, "other" → testResult review) + a `test` proof file. Tests: unit/translators.js, e2e/translators.js, mock `g.translator(token, name)`.
+      Owner 2026-11-19: Sheets turned the accepted version "2026-11-18" into a date ("not accepted" shown) — `translatorObj_` reads it with `day_`,
+      written with `keepText_`. Owner 2026-11-19 (after reading ท.ป.4/2528 the owner supplied): ข้อ 8 / 12/1 make only companies and other
+      juristic persons withhold 3% on hire of work / services and the shop is a sole proprietor → **no withholding on translator pay**
+      (`CONFIG.translator.withhold: false`); contract ข้อ 4, 5.1, 5.2 reworded, docs version **2026-11-19** (everyone re-accepts). With the switch
+      on: 3% when a month is ≥ 1,000 (ข้อ 12/7 counts per contract).
+- [x] Phase 8 — accounting (owner 2026-11-19; owner: tax documents must follow Revenue Department rules). Roles `accountant` (ฝ่ายบัญชี: records,
+      closes months, marks translator pay sent, tax documents) and `auditor` (ผู้ตรวจบัญชีภายนอก: read + export only); neither sees jobs, customer
+      files or users; refunds stay admin. Code.gs section "Phase 8": `ACC_WRITE`/`ACC_READ`; sheets Ledger (LEDGER_COLS; entries never deleted —
+      void with reason), AccountCategories (seeded ACC_DEFAULT_CATS; system categories sales/refund/beamFee/translatorPay are read live from
+      Payments/Payouts, never copied), AccountLog (every change + refunds, payouts, VAT alerts). Cash basis, live mode only. Evidence files in
+      private Drive "TransCOM – บัญชี (หลักฐาน)"/yyyy-MM (`ACC_FOLDER_ID`). Month close: Script Property `ACC_CLOSED` (admin reopens).
+      50 ทวิ numbers `<BE year>/<0001>` (`WHT_SEQ_<BE>`), stored in Payouts/Ledger `whtCertNo`, given at payout / entry save, older payouts on first
+      listing. `whtCert` → official layout in js/accounting.js (both copies, all ภ.ง.ด. boxes, income rows 1–6, row 5 = ม.3 เตรส ค่าจ้างทำของ, ผู้จ่ายเงิน
+      options, มาตรา 35 warning; Thai form wording regardless of page language); translators open their own from t-earnings. ภ.ง.ด.3 list + CSV,
+      due 7th / 15th online. Yearly summary (ภ.ง.ด.94/90) shows actual expenses; `CONFIG.accounting.flatExpensePercent` 0 = no flat-rate line
+      until the accountant confirms. VAT watch: `vatWatch_` daily (from purgeDueJobs), emails at 80% and over 1.8 M once a year (`VAT_ALERT_<year>`).
+      Checked against the official PDFs the owner supplied (50 ทวิ form, ใบแนบ ภ.ง.ด.3 Mar 2017 print, ท.ป.4/2528 consolidated 25-06-2026,
+      ruling 0706/7572): the certificate reproduces every box/line of the form (13-digit labels, row 4 sub-lines, ID footnote, stamp place);
+      the ภ.ง.ด.3 CSV follows the attachment's columns (name / surname split, Buddhist-year dates, condition 1). A sole-proprietor notice
+      (`CONFIG.accounting.payerIsCompany: false`) explains that the shop rarely has to withhold. The other "50 ทวิ" PDF the owner sent is the
+      rough-gem trade variant — not used.
+      Frontend: `js/accounting.js` (loaded on demand by portal.js `draw()` for `acc-*` views; uses `App.portal.h` helpers; exposes
+      `App.accounting.whtDoc`). Tests: unit/accounting.js, e2e/accounting.js.
+- [x] Letterhead (owner 2026-11-19): `docPdf_(html, name)` = HTML → Google Doc (Drive API import with `ScriptApp.getOAuthToken()`) →
+      `letterhead_` (A4, logo `img/letterhead-logo.png` fetched from the live site, shop name + contacts, navy/blue bar, footer with
+      RECEIPT_ADDRESS + RECEIPT_TAX_ID, Sarabun everywhere) → PDF, temp Doc trashed; plain HTML→PDF if anything fails. Used for the translator
+      contract. `createLetterhead()` (run in the editor) makes a Google Docs letterhead template. Needs the Documents scope (re-authorise once).
 
 The owner asked to stop after each phase and show the result before continuing.
 
@@ -374,8 +401,7 @@ The owner asked to stop after each phase and show the result before continuing.
 
 ## Testing
 `node tests/run.js` runs every suite (see `tests/README.md`): `tests/unit/` = Code.gs against a mocked Apps Script
-(`tests/lib/mock.js`), `tests/e2e/` = the site in Playwright Chromium on port 8765 with the same mock. 33 suites,
-~1,041 checks (2026-11-19). `tests/lib/browser.js` blocks the live Apps Script / Beam / site, and the runner fails any
+(`tests/lib/mock.js`), `tests/e2e/` = the site in Playwright Chromium on port 8765 with the same mock. 35 suites, ~1,166 checks (2026-11-19). `tests/lib/browser.js` blocks the live Apps Script / Beam / site, and the runner fails any
 suite that tried. Suites print `PASS `/`FAIL ` lines; update a test in the same commit as an intended change, and add
 one for each new feature. Still check by eye: every page in priority order — PC 1366, 1920, 1280, 1024; phone 390, 320;
 tablet 768 — in both languages and themes; `node --check js/*.js`; i18n keys match between th/en.
@@ -386,5 +412,5 @@ After each phase, republish it with the Artifact tool, passing that URL as `url`
 Publish `index.html` with its `<!DOCTYPE>`, `<html>`, `<head>`/`<body>` tags and the charset/viewport
 metas removed (title, the stylesheet link and the theme script stay), plus `css/style.css`, the 12
 `css/fonts/*.woff2` files, the `js/*.js` files (config, i18n, i18n-en, terms, app, account, submit, track, verify,
-pay, portal, home, qr, stamp, translator-docs, vendor/pdf-lib.min.js) and `img/seal.png` and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
+pay, portal, accounting, home, qr, stamp, translator-docs, vendor/pdf-lib.min.js) and `img/seal.png` and the two `img/*.svg` logos under the same paths via `files`. Add `.site-header { top: env(safe-area-inset-top, 0px); }`
 inline for that copy only.

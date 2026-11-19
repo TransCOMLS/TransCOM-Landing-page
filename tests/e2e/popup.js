@@ -84,7 +84,7 @@ let delay = 0;
   await p.waitForSelector('#busy-dialog', { state: 'hidden' });
   ok(await p.isVisible('#dash-view .pay-list, #dash-view .job-empty'), 'pop-up closes when the view has loaded');
   delay = 0;
-  await p.locator('#dash-nav .dash-link', { hasText: 'ภาพรวม' }).click();
+  await p.locator('#dash-nav .dash-link', { hasText: /^ภาพรวม$/ }).click();
   await p.waitForTimeout(400);
   ok(!(await p.isVisible('#busy-dialog')), 'fast view → no pop-up');
   ok(!p.errs.length, 'no console errors ' + p.errs.join(' | '));

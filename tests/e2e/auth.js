@@ -46,7 +46,7 @@ const codeFor = to => /(\d{6})/.exec(g.mail.filter(m => m.to === to).pop().subje
     await codeSignIn(p, email);
     await p.waitForSelector('#acct-security', { state: 'visible' });
     ok(true, tag + ' new account opens on the profile page, with the security card');
-    await p.locator('#dash-nav .dash-link', { hasText: 'ภาพรวม' }).click();
+    await p.locator('#dash-nav .dash-link', { hasText: /^ภาพรวม$/ }).click();
     await p.waitForSelector('.dash-nudge');
     ok((await p.textContent('.dash-nudge')).includes('ตั้งรหัสผ่านหรือเพิ่มอีเมลสำรอง'), tag + ' overview suggests a password / backup email');
     await p.locator('.dash-nudge button').click();
@@ -78,7 +78,7 @@ const codeFor = to => /(\d{6})/.exec(g.mail.filter(m => m.to === to).pop().subje
     await p.screenshot({ path: `${out}/security-${tag}.png`, fullPage: true });
     ok(await overflow(p) <= 0, tag + ' settings: no horizontal scroll');
     // nudge gone
-    await p.locator('#dash-nav .dash-link', { hasText: 'ภาพรวม' }).click();
+    await p.locator('#dash-nav .dash-link', { hasText: /^ภาพรวม$/ }).click();
     await p.waitForSelector('#dash-view .dash-stats');
     ok(!(await p.$('.dash-nudge')), tag + ' overview: suggestion gone once set up');
     // ---- sign out, sign in with password

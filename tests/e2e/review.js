@@ -52,7 +52,7 @@ return { jobNo, link };
       ok((await p.textContent('#dash-view')).includes('ส่งคำขอแก้ไขแล้ว') && g.mail.some(m => /ลูกค้าขอแก้ไข/.test(m.subject)), 'correction request: back to กำลังแปล, team emailed, note shown');
       // team sends it back for review, customer confirms
       P({ action: 'adminUpdateJob', token: admin, jobNo, status: 'review' });
-      await p.locator('#dash-nav .dash-link', { hasText: 'ภาพรวม' }).click();
+      await p.locator('#dash-nav .dash-link', { hasText: /^ภาพรวม$/ }).click();
       await p.waitForSelector('.dash-attention');
       ok((await p.textContent('.dash-attention')).includes('รอท่านตรวจ 1 งาน'), 'overview reminds the customer of work to check');
       await p.locator('.dash-attention .job-item-btn').click();
