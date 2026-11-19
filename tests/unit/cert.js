@@ -47,7 +47,7 @@ const mj = P({ action: 'myJob', token: cust, jobNo: j1 });
 ok(mj.job.cert && mj.job.cert.code === code && mj.job.cert.docTitle === undefined, 'customer job page shows code + link (not the editable fields)');
 P({ action: 'confirmTranslation', token: cust, jobNo: j1 });
 v = P({ action: 'verifyCert', code });
-const today = new Date().toISOString().slice(0, 10);
+const today = new Date(Date.now() + 7 * 36e5).toISOString().slice(0, 10);   // the sheet's time zone is Asia/Bangkok
 ok(v.cert.status === 'valid' && v.cert.certifiedAt === today && v.cert.docTitle === 'สูติบัตร' && v.cert.certifier.includes('TransCOM'), 'customer accepts → certified, date = acceptance day, title + certifier shown');
 // admin withdraws / restores, sets certifier
 u = P({ action: 'certUpdate', token: admin, jobNo: j1, status: 'revoked' });

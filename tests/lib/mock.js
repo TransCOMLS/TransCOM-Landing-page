@@ -134,7 +134,7 @@ function load(codePath, opts) {
       const post = body => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(body) } }).getContent());
       const ap = post({ action: 'translatorApply', token, application: { name: name || 'ผู้แปล ทดสอบ', idNumber: '1101700000001', address: '99 ถนนทดสอบ แขวงทดสอบ กรุงเทพฯ',
         phone: '0811111111', pairs: pairs || ['th-en', 'en-th'], categories: ['civil', 'official'], bankName: 'ธนาคารทดสอบ', bankAccount: '0123456789',
-        bankAccountName: name || 'ผู้แปล ทดสอบ', consent: true }, files: [{ kind: 'cv', name: 'cv.pdf', data: 'QUJD' }] });
+        bankAccountName: name || 'ผู้แปล ทดสอบ', testType: 'toeic', testScore: 900, consent: true }, files: [{ kind: 'cv', name: 'cv.pdf', data: 'QUJD' }, { kind: 'test', name: 'toeic.pdf', data: 'QUJD' }] });
       if (!ap.ok) throw new Error('translatorApply: ' + ap.error);
       const ac = post({ action: 'translatorAccept', token, version: ctx.CONFIG.translator.docsVersion, name: name || 'ผู้แปล ทดสอบ', html: '<p>' + 'สัญญา '.repeat(120) + '</p>' });
       if (!ac.ok) throw new Error('translatorAccept: ' + ac.error);

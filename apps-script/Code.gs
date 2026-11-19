@@ -76,7 +76,20 @@ var CONFIG = {
     whtMin: 1000,
     payDay: 10,            // paid by this day of the next month
     acceptHours: 2,        // assigned jobs: accept or decline within this many hours (then admin is reminded)
-    dueBufferDays: 1       // translator's due date = a working day before the customer's date
+    dueBufferDays: 1,      // translator's due date = a working day before the customer's date
+    // English test on the application (owner 2026-11-19): minimum CEFR B1, per the test makers' CEFR tables.
+    // Keep in step with js/config.js translatorTests (a unit test checks).
+    tests: {
+      ielts:     { min: 0,  max: 9,   b1: 4 },     // band 4.0–5.0 = B1
+      toefl:     { min: 0,  max: 120, b1: 42 },    // TOEFL iBT 42–71 = B1
+      toeic:     { min: 10, max: 990, b1: 550 },   // TOEIC Listening & Reading: 275 + 275
+      cambridge: { min: 80, max: 230, b1: 140 },   // Cambridge English Scale 140–159 = B1
+      cutep:     { min: 0,  max: 120, b1: 35 },    // CU-TEP (Chulalongkorn) — mapping study: B1 from 35
+      tugetcbt:  { min: 0,  max: 120, b1: 36 },    // TU-GET CBT (Thammasat) — comparison tables: B1 36–48
+      kuept:     { min: 0,  max: 80,  b1: 33 },    // KU-EPT (Kasetsart) — 2024 alignment study: B1 33–63
+      cefr:      { levels: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'], b1: 'B1' },
+      other:     {}                                // another test / certificate: admin decides from the proof
+    }
   }
 };
 
@@ -3849,7 +3862,10 @@ var TRANSLATOR_COLS = [
   ['phone', 'โทรศัพท์'],
   ['pairs', 'คู่ภาษาที่รับ'],              // codes, comma separated (th-en,en-th)
   ['categories', 'ประเภทเอกสารที่ถนัด'],    // codes, comma separated
-  ['level', 'ระดับภาษา / ผลสอบ'],
+  ['level', 'ระดับภาษา / ผลสอบ'],          // e.g. "TOEIC 925 — ผ่านเกณฑ์ B1"
+  ['testType', 'ประเภทการสอบ'],
+  ['testScore', 'คะแนน / ระดับ'],
+  ['testResult', 'เทียบเกณฑ์ B1'],          // ผ่าน / รอตรวจหลักฐาน
   ['experience', 'ประสบการณ์'],
   ['bankName', 'ธนาคาร'],
   ['bankAccount', 'เลขบัญชี'],
@@ -3906,6 +3922,7 @@ function translatorObj_(r, tz) {
     email: email_(r.email, true), status: codeOf_(TRANSLATOR_STATUSES, r.status, 'applied'),
     name: String(r.name || ''), idNumber: plainText_(r.idNumber), address: String(r.address || ''), phone: plainText_(r.phone),
     pairs: list_(r.pairs), categories: list_(r.categories), level: String(r.level || ''), experience: String(r.experience || ''),
+    testType: String(r.testType || ''), testScore: plainText_(r.testScore), testResult: String(r.testResult || '') === 'ผ่าน' ? 'pass' : String(r.testResult || '') ? 'review' : '',
     bankName: String(r.bankName || ''), bankAccount: plainText_(r.bankAccount), bankAccountName: String(r.bankAccountName || ''),
     folder: String(r.folder || ''), appliedAt: day_(r.appliedAt, tz), decidedAt: day_(r.decidedAt, tz),
     docsVersion: String(r.docsVersion || ''), acceptedAt: day_(r.acceptedAt, tz), acceptedName: String(r.acceptedName || ''),
@@ -4016,18 +4033,49 @@ function translatorMe_(req) {
   return out;
 }
 
-var TR_FILE_KINDS = ['cv', 'sample', 'id', 'bank', 'certificate'];
+var TR_FILE_KINDS = ['cv', 'sample', 'id', 'bank', 'test', 'certificate'];
+
+// Languages (other than Thai) → both pairs with Thai, when the pair exists (owner 2026-11-19: pick languages, not pairs)
+function pairsFromLanguages_(langs) {
+  var out = [];
+  (langs || []).map(String).forEach(function (x) {
+    ['th-' + x, x + '-th'].forEach(function (p) { if (LANG_PAIRS[p] && out.indexOf(p) === -1) out.push(p); });
+  });
+  return out;
+}
+// English test → { type, score, result: 'pass' | 'review', text }; below CEFR B1 is refused
+function checkTest_(type, score) {
+  var T = CONFIG.translator.tests, def = T[type];
+  if (!def) fail_('test_required');
+  var names = { ielts: 'IELTS', toefl: 'TOEFL iBT', toeic: 'TOEIC', cambridge: 'Cambridge English Scale', cutep: 'CU-TEP', tugetcbt: 'TU-GET CBT', kuept: 'KU-EPT', cefr: 'CEFR', other: '' };
+  if (type === 'other') {
+    var what = text_(score, 120);
+    if (what.length < 2) fail_('invalid_score');
+    return { type: type, score: what, result: 'review', text: what + ' — รอตรวจหลักฐาน' };
+  }
+  if (type === 'cefr') {
+    var lv = String(score || '').toUpperCase();
+    if (def.levels.indexOf(lv) === -1) fail_('invalid_score');
+    if (def.levels.indexOf(lv) < def.levels.indexOf(def.b1)) fail_('below_b1');
+    return { type: type, score: lv, result: 'pass', text: 'CEFR ' + lv + ' — ผ่านเกณฑ์ B1' };
+  }
+  var n = Number(score);
+  if (String(score).trim() === '' || !isFinite(n) || n < def.min || n > def.max) fail_('invalid_score');
+  if (n < def.b1) fail_('below_b1');
+  return { type: type, score: String(n), result: 'pass', text: names[type] + ' ' + n + ' — ผ่านเกณฑ์ B1' };
+}
 function translatorApply_(req) {
   var me = need_(req, ['customer', 'staff', 'admin']);
   var a = req.application || {};
   var v = {
     name: text_(a.name, 120), idNumber: String(a.idNumber || '').replace(/\D/g, ''), address: text_(a.address, 300),
-    phone: text_(a.phone, 30), level: text_(a.level, 200), experience: text_(a.experience, 1500),
+    phone: text_(a.phone, 30), experience: text_(a.experience, 1500),
     bankName: text_(a.bankName, 80), bankAccount: String(a.bankAccount || '').replace(/[^\d-]/g, '').slice(0, 30),
     bankAccountName: text_(a.bankAccountName, 120),
-    pairs: (a.pairs || []).map(String).filter(function (p) { return LANG_PAIRS[p]; }),
+    pairs: a.languages ? pairsFromLanguages_(a.languages) : (a.pairs || []).map(String).filter(function (p) { return LANG_PAIRS[p]; }),
     categories: (a.categories || []).map(String).filter(function (c) { return CATEGORY_NAMES[c]; })
   };
+  var test = checkTest_(String(a.testType || ''), a.testScore);
   if (v.name.length < 3) fail_('invalid_name');
   if (!/^\d{13}$/.test(v.idNumber)) fail_('invalid_id_number');
   if (v.address.length < 10) fail_('invalid_address');
@@ -4038,6 +4086,9 @@ function translatorApply_(req) {
   var existing = translatorOf_(me.email);
   if (existing && existing.status === 'suspended') fail_('forbidden');
   if (!files.length && !(existing && existing.folder)) fail_('files_required');
+  // proof of the test result: needed with a new application or a changed test
+  var testChanged = !existing || existing.testType !== test.type || existing.testScore !== test.score;
+  if (testChanged && !files.some(function (f) { return f.kind === 'test'; })) fail_('test_proof_required');
   var saved = [];
   var folder = translatorFolder_(me.email);
   files.forEach(function (f) {
@@ -4056,7 +4107,8 @@ function translatorApply_(req) {
     var t = table_(SHEETS.translators, TRANSLATOR_COLS);
     var row = translatorRow_(t, me.email);
     var o = { email: me.email, name: v.name, idNumber: keepText_(v.idNumber), address: v.address, phone: keepText_(v.phone),
-              pairs: v.pairs.join(','), categories: v.categories.join(','), level: v.level, experience: v.experience,
+              pairs: v.pairs.join(','), categories: v.categories.join(','), level: test.text, experience: v.experience,
+              testType: test.type, testScore: keepText_(test.score), testResult: test.result === 'pass' ? 'ผ่าน' : 'รอตรวจหลักฐาน',
               bankName: v.bankName, bankAccount: keepText_(v.bankAccount), bankAccountName: v.bankAccountName,
               folder: folder.getUrl ? folder.getUrl() : '', status: codeLabel_(TRANSLATOR_STATUSES, status) };
     if (row) {
@@ -4131,7 +4183,8 @@ function translatorProfile_(req) {
     var row = translatorRow_(t, me.email);
     if (!row) fail_('translator_profile');
     var ch = {};
-    if (p.pairs) ch.pairs = p.pairs.map(String).filter(function (x) { return LANG_PAIRS[x]; }).join(',');
+    if (p.languages) ch.pairs = pairsFromLanguages_(p.languages).join(',');
+    else if (p.pairs) ch.pairs = p.pairs.map(String).filter(function (x) { return LANG_PAIRS[x]; }).join(',');
     if (p.categories) ch.categories = p.categories.map(String).filter(function (x) { return CATEGORY_NAMES[x]; }).join(',');
     if (p.available !== undefined) ch.available = !!p.available;
     if (p.phone !== undefined) ch.phone = keepText_(text_(p.phone, 30));

@@ -343,7 +343,11 @@ provider manages all jobs from one Google Sheet, with no paid server.
       customer menu "สมัครเป็นผู้แปล" (t-apply); staff t-earnings/t-manual/t-profile + trGate (profile → contract);
       s-jobs respond box + open list; s-job confirm tick + locked-file notices; admin a-translators/a-payouts and
       `adminTranslatorCard` on a-job. A glossary + dictionary page for translators was built and dropped (owner 2026-11-18:
-      hard to control) — standard terms go in a job's internal notes (docs 3.6). Tests: unit/translators.js, e2e/translators.js, mock `g.translator(token, name)`.
+      hard to control) — standard terms go in a job's internal notes (docs 3.6).
+      Owner 2026-11-19: the form asks for languages (config `translatorLanguages`; server `pairsFromLanguages_` → both pairs with
+      Thai) and an English test (config `translatorTests` = Code.gs `CONFIG.translator.tests`, unit-checked; B1: IELTS 4, TOEFL iBT 42,
+      TOEIC 550, Cambridge 140, CU-TEP 35, TU-GET CBT 36, KU-EPT 33/80 (Thai tests from published mapping studies; TU-GET paper
+      had no reliable table → "other"), CEFR B1; `checkTest_` refuses below_b1, "other" → testResult review) + a `test` proof file. Tests: unit/translators.js, e2e/translators.js, mock `g.translator(token, name)`.
 
 The owner asked to stop after each phase and show the result before continuing.
 
@@ -371,7 +375,7 @@ The owner asked to stop after each phase and show the result before continuing.
 ## Testing
 `node tests/run.js` runs every suite (see `tests/README.md`): `tests/unit/` = Code.gs against a mocked Apps Script
 (`tests/lib/mock.js`), `tests/e2e/` = the site in Playwright Chromium on port 8765 with the same mock. 33 suites,
-~1,030 checks (2026-11-18). `tests/lib/browser.js` blocks the live Apps Script / Beam / site, and the runner fails any
+~1,041 checks (2026-11-19). `tests/lib/browser.js` blocks the live Apps Script / Beam / site, and the runner fails any
 suite that tried. Suites print `PASS `/`FAIL ` lines; update a test in the same commit as an intended change, and add
 one for each new feature. Still check by eye: every page in priority order — PC 1366, 1920, 1280, 1024; phone 390, 320;
 tablet 768 — in both languages and themes; `node --check js/*.js`; i18n keys match between th/en.

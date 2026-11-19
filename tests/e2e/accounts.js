@@ -41,7 +41,8 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) process
   await p.fill('#p-phone', '081 234 5678'); await p.fill('#p-line', '@nida'); await p.fill('#p-nameSpelling', 'nida jaidee'); await p.selectOption('#p-langPair', 'th-en');
   await p.click('#acct-profile button[type=submit]'); await p.waitForSelector('#acct-profile-status.success');
   ok(await p.inputValue('#p-nameSpelling') === 'NIDA JAIDEE', 'saved + spelling upper-case');
-  await p.waitForFunction(() => (document.querySelector('.account-label') || {}).textContent && document.querySelector('.account-label').textContent.trim() === 'นิดา', null, { timeout: 8000 }).catch(() => {});
+  await p.waitForFunction(() => (document.querySelector('.account-label') || {}).textContent && document.querySelector('.account-label').textContent.trim() === 'นิดา' &&
+    (document.querySelector('#acct-hello') || {}).textContent && document.querySelector('#acct-hello').textContent.includes('นิดา'), null, { timeout: 15000 }).catch(() => {});
   ok((await p.textContent('#acct-hello')).includes('นิดา') && (await p.textContent('.account-label')).trim() === 'นิดา', 'greeting + header use first name');
   await p.locator('#dash-nav .dash-link', { hasText: 'ภาพรวม' }).click(); await p.waitForSelector('.job-item');
   await p.screenshot({ path: out + '/acct-home1366.png', fullPage: true });
@@ -49,11 +50,11 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) process
   await p.click('.lang-toggle [data-lang=th]');
   // prefill
   await p.click('#acct-home [data-goto=submit]');
-  await p.waitForFunction(() => document.querySelector('#f-name').value !== '', null, { timeout: 8000 }).catch(() => {});
+  await p.waitForFunction(() => document.querySelector('#f-name').value !== '' && document.querySelector('#f-langPair').value !== '' && document.querySelector('#f-nameSpelling').value !== '', null, { timeout: 15000 }).catch(() => {});
   ok(await p.inputValue('#f-name') === 'นิดา ใจดี' && await p.inputValue('#f-email') === 'nida@example.com' && await p.inputValue('#f-nameSpelling') === 'NIDA JAIDEE' && await p.inputValue('#f-langPair') === 'th-en', 'job form filled in from account');
   ok(await p.isVisible('#acct-prefill-done'), 'prefill notice');
   // reload keeps session
-  await p.reload(); await p.waitForFunction(() => (document.querySelector('.account-label') || {}).textContent && document.querySelector('.account-label').textContent.trim() === 'นิดา', null, { timeout: 8000 }).catch(() => {}); ok((await p.textContent('.account-label')).trim() === 'นิดา', 'session survives reload');
+  await p.reload(); await p.waitForFunction(() => (document.querySelector('.account-label') || {}).textContent && document.querySelector('.account-label').textContent.trim() === 'นิดา', null, { timeout: 15000 }).catch(() => {}); ok((await p.textContent('.account-label')).trim() === 'นิดา', 'session survives reload');
   // logout clears form + session
   await p.evaluate(() => App.showTab('account')); await p.locator('#dash-nav .dash-logout').click();
   ok(await p.isVisible('#acct-signin') && (await p.textContent('#acct-signin-status')).includes('ออกจากระบบ'), 'logged out');

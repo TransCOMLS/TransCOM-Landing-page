@@ -98,6 +98,7 @@
     state.jobs = [];
     state.fresh = false;
     state.bkPending = "";
+    ["name", "line", "phone", "nameSpelling", "langPair"].forEach(function (k) { var el = document.getElementById("p-" + k); if (el) { el.removeAttribute("data-dirty"); el.value = ""; } });
     render();
     if (message) App.showStatus($("#acct-signin-status"), "", message);
   }
@@ -235,7 +236,8 @@
     $("#p-email").value = p.email || "";
     PROFILE_FIELDS.forEach(function (k) {
       var el = document.getElementById("p-" + k);
-      if (el && document.activeElement !== el) el.value = p[k] || "";
+      // a background refresh never overwrites what the person is typing (field edited but not saved yet)
+      if (el && document.activeElement !== el && !el.hasAttribute("data-dirty")) el.value = p[k] || "";
     });
   }
 
@@ -550,10 +552,15 @@
         .then(function (res) {
           state.profile = res.profile;
           state.isNew = false;
+          PROFILE_FIELDS.forEach(function (k) { var el = document.getElementById("p-" + k); if (el) el.removeAttribute("data-dirty"); });
           render();
           App.showStatus(status, "success", t("acct.saved"));
         }, function (err) { handleAuthError(err, status); })
         .then(function () { busy(btn, false); });
+    });
+    PROFILE_FIELDS.forEach(function (k) {
+      var el = document.getElementById("p-" + k);
+      if (el) ["input", "change"].forEach(function (ev) { el.addEventListener(ev, function () { el.setAttribute("data-dirty", ""); }); });
     });
     ["#p-line", "#p-phone"].forEach(function (sel) {
       $(sel).addEventListener("input", function () { App.setFieldError(this, null); App.showStatus(status, "", ""); });
