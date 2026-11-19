@@ -1732,3 +1732,97 @@ button.dash-bar-row:hover .dash-bar { background: var(--accent-line); }
 .tr-test-result.is-ok { color: var(--success); }
 .tr-test-result.is-bad { color: var(--error); }
 .tr-test-result.is-review { color: var(--warn-text); }
+
+/* ---------- Phase 8: accounting (js/accounting.js) ---------- */
+.span-2 { grid-column: 1 / -1; }
+.acc-filters { margin-top: 4px; }
+.acc-inline { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; margin-top: 12px; }
+.acc-inline .field { flex: 1 1 200px; margin: 0; }
+.acc-todo { list-style: none; margin: 0; padding: 0; }
+.acc-todo li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; padding: 10px 0; border-top: 1px solid var(--border); }
+.acc-todo li:first-child { border-top: 0; padding-top: 0; }
+.acc-todo li > span { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
+.acc-meter.is-warn .mem-progress-fill { background: var(--st-quoted-text); }
+.acc-meter.is-over .mem-progress-fill { background: var(--error); }
+.acc-item.is-void { opacity: .6; }
+.acc-item.is-void .acc-amt { text-decoration: line-through; }
+.acc-amt.is-in { color: var(--success); }
+.acc-amt.is-out, .acc-amt.is-neg { color: var(--error); }
+.acc-desc { margin: 4px 0 0; overflow-wrap: anywhere; }
+.acc-evidence { margin-top: 8px; }
+.acc-evidence > summary { display: inline-flex; align-items: center; min-height: var(--tap); cursor: pointer; color: var(--accent); font-weight: 600; }
+.acc-evidence .dash-files { margin-bottom: 8px; }
+.acc-form { border-color: var(--accent); }
+.acc-table-wrap { margin-top: 12px; overflow-x: auto; }
+.acc-table { min-width: 640px; font-size: 0.9375rem; }
+.acc-table td, .acc-table th { white-space: nowrap; }
+.acc-table td:first-child { white-space: normal; }
+.acc-table tfoot td { font-weight: 700; border-top: 2px solid var(--border-strong); }
+.acc-table .btn-link { min-height: 32px; }
+.acc-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.acc-bars li { display: grid; grid-template-columns: minmax(84px, 150px) minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.acc-bar-label { font-size: 0.875rem; color: var(--muted); }
+.acc-bar-pair { display: grid; gap: 3px; }
+.acc-bar-pair .dash-bar { height: 7px; }
+.dash-bar-fill.acc-is-in { background: var(--success); }
+.dash-bar-fill.acc-is-out { background: var(--error); }
+.acc-bar-n { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 0.875rem; }
+.acc-bar-n.is-neg { color: var(--error); }
+.acc-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.acc-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+.acc-dot.is-in { background: var(--success); }
+.acc-dot.is-out { background: var(--error); margin-left: 10px; }
+
+/* A printable document over the page (50 ทวิ); print shows only the paper */
+.print-sheet { position: fixed; inset: 0; z-index: 300; overflow: auto; padding: 16px; background: var(--bg); }
+.print-sheet .receipt { margin: 0 auto 32px; }
+.print-sheet .receipt-actions { max-width: 800px; margin: 0 auto 14px; }
+.print-sheet > .notice { max-width: 800px; margin: 0 auto 14px; }
+body.print-sheet-open { overflow: hidden; }
+.wht-doc { font-size: 0.9375rem; }
+.wht-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; border-bottom: 2px solid #01417b; padding-bottom: 12px; margin-bottom: 14px; }
+.wht-head h2 { margin: 0; font-size: 1.375rem; color: #01417b; }
+.wht-party { border: 1px solid #d9dee7; border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; break-inside: avoid; }
+.wht-party h3 { margin: 0 0 6px; font-size: 0.9375rem; color: #01417b; }
+.wht-dl { margin: 0; display: grid; gap: 2px; }
+.wht-dl > div { display: grid; grid-template-columns: minmax(120px, 190px) minmax(0, 1fr); gap: 8px; }
+.wht-dl dt { color: #566072; }
+.wht-dl dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.wht-form { margin: 10px 0; font-weight: 600; }
+.wht-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+.wht-table th, .wht-table td { border: 1px solid #d9dee7; padding: 6px 8px; vertical-align: top; text-align: left; }
+.wht-table th { background: #f6f8fb; color: #566072; font-weight: 600; }
+.wht-table .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.wht-table tfoot td { font-weight: 700; color: #01417b; }
+.wht-sign { margin-top: 18px; text-align: center; break-inside: avoid; }
+.wht-sign p { margin: 4px 0; }
+.wht-sign-line { margin-top: 28px !important; }
+@media (max-width: 560px) { .wht-dl > div { grid-template-columns: 1fr; gap: 0; } }
+.wht-copy { text-align: right; font-size: 0.8125rem; color: #566072; margin-bottom: 6px; }
+.wht-forms { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #d9dee7; }
+.wht-seq { margin: 0 0 4px; }
+.wht-seq b { display: inline-block; min-width: 2.5em; text-align: center; border-bottom: 1px dotted #566072; }
+.wht-ticks { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.wht-tick { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.wht-box { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border: 1px solid #1d2433; font-size: 11px; line-height: 1; font-weight: 700; }
+.wht-label { font-weight: 700; margin-right: 4px; }
+.wht-payer { margin: 10px 0; }
+.wht-table-wrap { overflow-x: auto; }
+.wht-table { min-width: 560px; font-size: 0.875rem; }
+.wht-table tr.is-ours td { background: #f6f8fb; }
+.wht-words { margin: 6px 0; }
+.wht-funds { font-size: 0.8125rem; color: #566072; margin: 6px 0; }
+.wht-foot { display: grid; gap: 12px; margin-top: 12px; }
+.wht-warn { margin: 0; font-size: 0.8125rem; color: #566072; border: 1px solid #d9dee7; border-radius: 8px; padding: 8px 10px; }
+.wht-small { font-size: 0.8125rem; color: #566072; }
+.print-sheet .wht-doc + .wht-doc { margin-top: 24px; }
+@media (min-width: 720px) { .wht-foot { grid-template-columns: 1fr 1fr; align-items: end; } }
+@media print { body.print-sheet-open .wht-doc + .wht-doc { break-before: page; margin-top: 0; } .wht-table { min-width: 0; } }
+@media print {
+  body.print-sheet-open > *:not(.print-sheet) { display: none !important; }
+  body.print-sheet-open { background: #ffffff !important; overflow: visible; }
+  body.print-sheet-open .print-sheet { position: static; overflow: visible; padding: 0; background: #ffffff; }
+  body.print-sheet-open .print-sheet .no-print { display: none !important; }
+  body.print-sheet-open .receipt { border: 0; box-shadow: none; max-width: none; padding: 0; margin: 0; }
+  @page { size: A4; margin: 14mm; }
+}

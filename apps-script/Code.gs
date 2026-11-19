@@ -72,7 +72,7 @@ var CONFIG = {
   translator: {
     docsVersion: '2026-11-18',   // must equal TRANSLATOR_DOCS.version in js/translator-docs.js; a new one asks everyone to accept again
     rate: 70,              // % of the translation fee (before discounts, without certification + shipping); per translator in "Translators"
-    whtPercent: 3,         // tax withheld when a month's pay is over whtMin
+    whtPercent: 3,         // tax withheld when a month's pay is whtMin or more (ท.ป.4/2528: only payments under 1,000 baht are exempt)
     whtMin: 1000,
     payDay: 10,            // paid by this day of the next month
     acceptHours: 2,        // assigned jobs: accept or decline within this many hours (then admin is reminded)
@@ -90,6 +90,19 @@ var CONFIG = {
       cefr:      { levels: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'], b1: 'B1' },
       other:     {}                                // another test / certificate: admin decides from the proof
     }
+  },
+  // Phase 8 — accounting (owner 2026-11-19). Not VAT-registered: watch the yearly threshold.
+  accounting: {
+    vatThreshold: 1800000,   // revenue a year that makes VAT registration compulsory
+    vatWarnPercent: 80,      // the owner is emailed once a year at this share, and again over the line
+    // Flat-rate expenses on the yearly summary: the allowed rate depends on how the income is classed under section 40
+    // (confirm with the accountant), so 0 = not shown. Set e.g. 60 once confirmed.
+    flatExpensePercent: 0,
+    // Withholding tax certificate (50 ทวิ) for translators: the line of the form and the wording. Confirm with the accountant.
+    whtIncomeRow: '5',
+    whtIncomeText: 'ค่าจ้างทำของ (ค่าแปลเอกสาร)',
+    evidenceMB: 10,          // per file
+    evidenceFiles: 5         // per entry
   }
 };
 
@@ -111,7 +124,8 @@ var SHEETS = { users: 'Users', jobs: 'Jobs', sessions: '_sessions', promotions: 
               dashboard: 'Dashboard', glossary: 'Glossary', discounts: 'Discounts',
               coupons: 'Coupons', couponUses: 'CouponUses', certs: 'Certificates',
               quotes: 'Quotes', payments: 'Payments', rewards: 'Rewards', redemptions: 'Redemptions',
-              translators: 'Translators', payouts: 'Payouts' };
+              translators: 'Translators', payouts: 'Payouts',
+              ledger: 'Ledger', accCats: 'AccountCategories', accLog: 'AccountLog' };
 
 // Column headers (Thai, for the owner) and the keys the code uses.
 // Columns are found by header text, so the owner may reorder them.
@@ -137,7 +151,10 @@ var USER_COLS = [
 var ROLES = [
   { code: 'customer', th: 'ลูกค้า' },
   { code: 'staff',    th: 'พนักงาน' },
-  { code: 'admin',    th: 'ผู้ดูแลระบบ' }
+  { code: 'admin',    th: 'ผู้ดูแลระบบ' },
+  // Phase 8 (owner 2026-11-19): money only — never customer files or job content
+  { code: 'accountant', th: 'ฝ่ายบัญชี' },            // records income/expenses, marks translator pay as sent, tax documents
+  { code: 'auditor',    th: 'ผู้ตรวจบัญชีภายนอก' }     // an outside accounting office: reads and exports only
 ];
 var CUSTOMER_TYPES = [
   { code: 'general',   th: 'ทั่วไป',             en: 'General' },
@@ -447,7 +464,24 @@ var ACTIONS = {
   adminTranslators: adminTranslators_,
   adminTranslatorUpdate: adminTranslatorUpdate_,
   adminPayouts: adminPayouts_,
-  adminPayoutMark: adminPayoutMark_
+  adminPayoutMark: adminPayoutMark_,
+  whtCert: whtCert_,
+  // Phase 8 — accounting (accountant / auditor / admin)
+  accOverview: accOverview_,
+  accLedger: accLedger_,
+  accSaveEntry: accSaveEntry_,
+  accVoidEntry: accVoidEntry_,
+  accUploadEvidence: accUploadEvidence_,
+  accRemoveEvidence: accRemoveEvidence_,
+  accFile: accFile_,
+  accCategories: accCategories_,
+  accSaveCategory: accSaveCategory_,
+  accReport: accReport_,
+  accReceipts: accReceipts_,
+  accWht: accWht_,
+  accTaxYear: accTaxYear_,
+  accClose: accClose_,
+  accLog: accLogList_
 };
 
 /* ======================================================================
@@ -1380,7 +1414,7 @@ function staffList_() {
   var admins = bootstrapAdmins_();
   return table_(SHEETS.users, USER_COLS).rows.filter(function (u) {
     var e = email_(u.email, true);
-    return e && (roleCode_(u.role) !== 'customer' || admins.indexOf(e) > -1);
+    return e && (['staff', 'admin'].indexOf(roleCode_(u.role)) > -1 || admins.indexOf(e) > -1);
   }).map(function (u) {
     var e = email_(u.email, true);
     var o = { email: e, name: String(u.name || ''), role: roleOf_(e, u) };
@@ -2644,6 +2678,7 @@ function purgeDueJobs() {
       });
     });
   });
+  try { vatWatch_(); } catch (e) { console.error('vatWatch_: ' + e); }   // Phase 8: once a day
 }
 
 function addDays_(d, n) { return new Date(d.getTime() + n * 86400000); }
@@ -3456,7 +3491,7 @@ function myPayments_(req) {
 }
 
 function adminPayments_(req) {
-  need_(req, ['admin']);
+  var me = need_(req, ACC_READ);
   var mode = req.mode === 'test' ? 'test' : req.mode === 'live' ? 'live' : beamMode_();
   var list = paymentsOf_(function (p) { return modeCode_(p.mode) === mode; }, true);
   var secret = PropertiesService.getScriptProperties().getProperty('BEAM_HOOK_SECRET') || '';
@@ -3469,7 +3504,7 @@ function adminPayments_(req) {
     sum.fee = money_(sum.fee + (p.fee || 0) + (p.feeVat || 0)); sum.net = money_(sum.net + (p.net || 0));
   });
   return { ok: true, payments: list.slice(0, 500), mode: mode, current: beamMode_(), ready: payReady_(), month: sum,
-           hookUrl: url && secret ? url + '?hook=' + secret : '' };
+           hookUrl: me.role === 'admin' && url && secret ? url + '?hook=' + secret : '' };
 }
 
 /* ---------- refunds (admin) ---------- */
@@ -3496,6 +3531,7 @@ function adminRefund_(req) {
   });
   var jobs = table_(SHEETS.jobs, JOB_COLS);
   try { note_(jobRow_(jobs, p.jobNo), me.email, 'ขอคืนเงิน ' + baht_(amount, true) + ' ใบเสร็จ ' + no + (reason ? ' — ' + reason : '')); } catch (e) { /* job purged */ }
+  accLog_(me.email, 'refund', no, 'ขอคืนเงิน ' + baht_(amount, true) + (reason ? ' — ' + reason : ''));
   try { syncRefund_(String(res.refundId)); } catch (e) { /* the webhook or the trigger finishes it */ }
   return { ok: true, payments: paymentsOf_(function (x) { return String(x.jobNo) === String(p.jobNo); }, true) };
 }
@@ -3897,7 +3933,8 @@ var PAYOUT_COLS = [
   ['net', 'โอนจริง (บาท)'],
   ['paidAt', 'โอนเมื่อ'],
   ['paidBy', 'บันทึกโดย'],
-  ['ref', 'อ้างอิงการโอน']
+  ['ref', 'อ้างอิงการโอน'],
+  ['whtCertNo', 'เลขที่ 50 ทวิ']            // Phase 8: withholding tax certificate (book/no.), when tax was withheld
 ];
 var TRANSLATOR_FOLDER = 'TransCOM – ผู้แปล (ส่วนตัว)';
 var WORK_STATUSES = ['paid', 'inProgress', 'review'];      // a translator may open the files at these steps
@@ -3925,7 +3962,8 @@ function translatorObj_(r, tz) {
     testType: String(r.testType || ''), testScore: plainText_(r.testScore), testResult: String(r.testResult || '') === 'ผ่าน' ? 'pass' : String(r.testResult || '') ? 'review' : '',
     bankName: String(r.bankName || ''), bankAccount: plainText_(r.bankAccount), bankAccountName: String(r.bankAccountName || ''),
     folder: String(r.folder || ''), appliedAt: day_(r.appliedAt, tz), decidedAt: day_(r.decidedAt, tz),
-    docsVersion: String(r.docsVersion || ''), acceptedAt: day_(r.acceptedAt, tz), acceptedName: String(r.acceptedName || ''),
+    // Sheets turns "2026-11-18" into a date: read it back as yyyy-MM-dd (owner 2026-11-19: accepted contracts showed as not accepted)
+    docsVersion: day_(r.docsVersion, tz) || plainText_(r.docsVersion), acceptedAt: day_(r.acceptedAt, tz), acceptedName: String(r.acceptedName || ''),
     rate: isFinite(rate) && rate >= 0 && rate <= 100 ? rate : CONFIG.translator.rate,
     available: r.available === '' || r.available == null ? true : bool_(r.available), note: String(r.note || '')
   };
@@ -4102,7 +4140,7 @@ function translatorApply_(req) {
     saved.push(kind + ': ' + name);
   });
   // Someone who is already staff (added before Phase 7) is approved straight away
-  var status = me.role !== 'customer' ? 'approved' : (existing && existing.status === 'approved' ? 'approved' : 'applied');
+  var status = me.role === 'staff' || me.role === 'admin' ? 'approved' : (existing && existing.status === 'approved' ? 'approved' : 'applied');
   withLock_(function () {
     var t = table_(SHEETS.translators, TRANSLATOR_COLS);
     var row = translatorRow_(t, me.email);
@@ -4151,17 +4189,17 @@ function translatorAccept_(req) {
   var when = Utilities.formatDate(now, tz, 'yyyy-MM-dd HH:mm:ss');
   var pdf = null;
   try {
-    var page = '<html><head><meta charset="utf-8"><style>body{font-family:"Sarabun",sans-serif;font-size:11pt;line-height:1.5}' +
+    var page = '<html><head><meta charset="utf-8"><style>body,p,li,td,th,h1,h2,h3,h4{font-family:"Sarabun",sans-serif}body{font-size:11pt;line-height:1.5}' +
       'table{border-collapse:collapse}td,th{border:1px solid #999;padding:3px 6px}</style></head><body>' + html +
       '<hr><p>ยอมรับทางอิเล็กทรอนิกส์โดย ' + esc_(tr.name) + ' (' + esc_(me.email) + ') เมื่อ ' + esc_(when) +
       ' · ฉบับเอกสาร ' + esc_(CONFIG.translator.docsVersion) + '</p></body></html>';
-    pdf = Utilities.newBlob(page, 'text/html', 'contract.html').getAs('application/pdf')
-      .setName('สัญญาผู้แปล ' + CONFIG.translator.docsVersion + ' - ' + tr.name + '.pdf');
+    // owner 2026-11-19: one font (Sarabun) and the shop's letterhead — via Google Docs, plain PDF if that fails
+    pdf = docPdf_(page, 'สัญญาผู้แปล ' + CONFIG.translator.docsVersion + ' - ' + tr.name);
     translatorFolder_(me.email).createFile(pdf);
   } catch (e) { console.error('contract pdf: ' + e); }
   withLock_(function () {
     var t = table_(SHEETS.translators, TRANSLATOR_COLS);
-    updateRow_(t, translatorRow_(t, me.email), { docsVersion: CONFIG.translator.docsVersion, acceptedAt: now, acceptedName: text_(req.name, 120) });
+    updateRow_(t, translatorRow_(t, me.email), { docsVersion: keepText_(CONFIG.translator.docsVersion), acceptedAt: now, acceptedName: text_(req.name, 120) });
   });
   try {
     var msg = { name: CONFIG.serviceName, subject: 'สัญญาผู้แปล TransCOM (ฉบับ ' + CONFIG.translator.docsVersion + ') — ' + tr.name,
@@ -4272,11 +4310,11 @@ function statement_(email, month, rate, tz, jobsTable) {
     return r.jobNo && email_(r.assignee, true) === email && statusCode_(r.status) === 'delivered' && monthOf_(r.deliveredAt, tz) === month;
   }).map(function (r) { var p = translatorPay_(r, rate); return { jobNo: String(r.jobNo), base: p.base, adjust: p.adjust, adjustNote: p.adjustNote, amount: p.amount }; });
   var gross = round2_(jobs.reduce(function (s, j) { return s + j.amount; }, 0));
-  var wht = gross > CONFIG.translator.whtMin ? round2_(gross * CONFIG.translator.whtPercent / 100) : 0;
+  var wht = gross >= CONFIG.translator.whtMin ? round2_(gross * CONFIG.translator.whtPercent / 100) : 0;
   var paid = payoutRows_().filter(function (p) { return String(p.month) === month && email_(p.email, true) === email; })[0];
   var out = { month: month, email: email, jobs: jobs, gross: gross, wht: wht, net: round2_(gross - wht), paid: false };
   if (paid) {   // frozen at payment time
-    out.paid = true; out.paidAt = day_(paid.paidAt, tz); out.ref = String(paid.ref || '');
+    out.paid = true; out.paidAt = day_(paid.paidAt, tz); out.ref = String(paid.ref || ''); out.whtCertNo = String(paid.whtCertNo || '');
     out.gross = money_(paid.gross); out.wht = money_(paid.wht); out.net = money_(paid.net);
   }
   return out;
@@ -4301,7 +4339,7 @@ function translatorEarnings_(req) {
            whtPercent: CONFIG.translator.whtPercent, whtMin: CONFIG.translator.whtMin, payDay: CONFIG.translator.payDay };
 }
 function adminPayouts_(req) {
-  need_(req, ['admin']);
+  var me = need_(req, ACC_READ);
   var tz = ss_().getSpreadsheetTimeZone();
   var month = /^\d{4}-\d{2}$/.test(String(req.month || '')) ? String(req.month) : recentMonths_(2, tz)[1];
   var jt = table_(SHEETS.jobs, JOB_COLS);
@@ -4310,10 +4348,10 @@ function adminPayouts_(req) {
     .map(function (tr) { var s = statement_(tr.email, month, tr.rate, tz, jt); s.name = tr.name;
       s.bank = [tr.bankName, tr.bankAccount, tr.bankAccountName].filter(String).join(' · '); return s; })
     .filter(function (s) { return s.jobs.length || s.paid; });
-  return { ok: true, month: month, months: recentMonths_(12, tz), statements: list };
+  return { ok: true, month: month, months: recentMonths_(12, tz), statements: list, canMark: ACC_WRITE.indexOf(me.role) > -1 };
 }
 function adminPayoutMark_(req) {
-  var me = need_(req, ['admin']);
+  var me = need_(req, ACC_WRITE);
   var tz = ss_().getSpreadsheetTimeZone();
   var month = String(req.month || ''), email = email_(req.email);
   if (!/^\d{4}-\d{2}$/.test(month)) fail_('bad_request');
@@ -4325,8 +4363,10 @@ function adminPayoutMark_(req) {
   withLock_(function () {
     appendRow_(table_(SHEETS.payouts, PAYOUT_COLS), { month: month, email: email, name: tr.name,
       jobs: s.jobs.map(function (j) { return j.jobNo + ' = ' + j.amount.toFixed(2); }).join('\n'),
-      gross: s.gross, wht: s.wht, net: s.net, paidAt: new Date(), paidBy: me.email, ref: text_(req.ref, 120) });
+      gross: s.gross, wht: s.wht, net: s.net, paidAt: new Date(), paidBy: me.email, ref: text_(req.ref, 120),
+      whtCertNo: s.wht > 0 ? whtNextNo_(today_()) : '' });
   });
+  accLog_(me.email, 'payout', month + ' ' + email, 'โอนค่าตอบแทน ' + baht_(s.net, true) + ' (รวม ' + baht_(s.gross, true) + ', หักภาษี ' + baht_(s.wht, true) + ')' + (req.ref ? ' อ้างอิง ' + text_(req.ref, 120) : ''));
   try {
     MailApp.sendEmail({ to: email, name: CONFIG.serviceName, subject: 'โอนค่าตอบแทนเดือน ' + month + ' แล้ว',
       htmlBody: mailLayout_({ th: true, title: 'โอนค่าตอบแทนแล้ว', intro: ['เดือน ' + esc_(month) + ' · ' + s.jobs.length + ' งาน',
@@ -4436,6 +4476,730 @@ function translatorChecks() {
 }
 
 /* ======================================================================
+   Phase 8 — accounting (owner 2026-11-19)
+   "Ledger" = income and expenses that do not come through the website (with evidence files);
+   online payments, Beam fees, refunds and translator pay are read live from Payments / Payouts,
+   never copied, so the books always match them. Reports, the receipt register, withholding tax
+   (50 ทวิ + the ภ.ง.ด.3 list), a yearly summary for the owner's income tax and a VAT watch.
+   Roles: accountant (ฝ่ายบัญชี) records; auditor (ผู้ตรวจบัญชีภายนอก) reads and exports; admin both.
+   Nobody here sees customer files or job content. Every change is written to "AccountLog".
+   ====================================================================== */
+
+var ACC_WRITE = ['admin', 'accountant'];
+var ACC_READ = ['admin', 'accountant', 'auditor'];
+var LEDGER_COLS = [
+  ['id', 'รหัสรายการ (ห้ามแก้)'],
+  ['date', 'วันที่'],
+  ['kind', 'ประเภท'],                        // รายรับ / รายจ่าย
+  ['category', 'หมวด'],                      // code from AccountCategories
+  ['description', 'รายการ'],
+  ['party', 'คู่ค้า (ผู้จ่าย/ผู้รับเงิน)'],
+  ['partyTaxId', 'เลขผู้เสียภาษีคู่ค้า'],
+  ['partyAddress', 'ที่อยู่คู่ค้า'],
+  ['docNo', 'เลขที่เอกสาร/บิล'],
+  ['amount', 'จำนวนเงิน (บาท)'],             // before withholding tax
+  ['wht', 'ภาษีหัก ณ ที่จ่าย (บาท)'],         // expense: we withheld it (ภ.ง.ด.3); income: the payer withheld it (tax credit)
+  ['whtCertNo', 'เลขที่ 50 ทวิ'],
+  ['method', 'ช่องทาง'],
+  ['evidence', 'หลักฐาน (ห้ามแก้)'],           // one file per line: <Drive file id>|<name>
+  ['note', 'หมายเหตุ'],
+  ['status', 'สถานะ'],                       // ใช้งาน / ยกเลิก (entries are never deleted)
+  ['voidReason', 'เหตุผลที่ยกเลิก'],
+  ['createdAt', 'บันทึกเมื่อ'],
+  ['createdBy', 'บันทึกโดย'],
+  ['updatedAt', 'แก้ไขล่าสุด'],
+  ['updatedBy', 'แก้ไขโดย']
+];
+var ACC_CAT_COLS = [
+  ['code', 'รหัสหมวด (ห้ามแก้)'],
+  ['kind', 'ประเภท'],
+  ['nameTh', 'ชื่อหมวด (ไทย)'],
+  ['nameEn', 'ชื่อหมวด (EN)'],
+  ['active', 'ใช้งาน']
+];
+var ACC_LOG_COLS = [['at', 'เวลา'], ['by', 'ผู้ทำรายการ'], ['action', 'การกระทำ'], ['ref', 'อ้างอิง'], ['detail', 'รายละเอียด']];
+var ACC_KINDS = [{ code: 'income', th: 'รายรับ' }, { code: 'expense', th: 'รายจ่าย' }];
+var ACC_STATUSES = [{ code: 'active', th: 'ใช้งาน' }, { code: 'void', th: 'ยกเลิก' }];
+var ACC_METHODS = ['transfer', 'cash', 'promptpay', 'card', 'cheque', 'other'];
+var ACC_DEFAULT_CATS = [
+  ['translation', 'income', 'ค่าบริการแปล (ช่องทางอื่น)', 'Translation (other channels)'],
+  ['otherIncome', 'income', 'รายได้อื่น', 'Other income'],
+  ['translatorExt', 'expense', 'ค่าจ้างผู้แปล (นอกระบบ)', 'Translators (outside the system)'],
+  ['postage', 'expense', 'ค่าไปรษณีย์และขนส่ง', 'Postage and delivery'],
+  ['software', 'expense', 'ซอฟต์แวร์ โดเมน และเว็บไซต์', 'Software, domain and website'],
+  ['marketing', 'expense', 'โฆษณาและการตลาด', 'Advertising and marketing'],
+  ['office', 'expense', 'เครื่องเขียนและวัสดุสำนักงาน', 'Stationery and office supplies'],
+  ['telecom', 'expense', 'โทรศัพท์และอินเทอร์เน็ต', 'Phone and internet'],
+  ['professional', 'expense', 'ค่าบริการวิชาชีพ (บัญชี/กฎหมาย)', 'Professional fees (accounting, legal)'],
+  ['fees', 'expense', 'ค่าธรรมเนียมธนาคารและราชการ', 'Bank and government fees'],
+  ['equipment', 'expense', 'อุปกรณ์และคอมพิวเตอร์', 'Equipment and computers'],
+  ['travel', 'expense', 'ค่าเดินทาง', 'Travel'],
+  ['otherExpense', 'expense', 'ค่าใช้จ่ายอื่น', 'Other expenses']
+];
+// Read live from other sheets; cannot be picked for a hand-written entry
+var ACC_AUTO_CATS = {
+  sales: ['income', 'รับชำระจากลูกค้า (ออนไลน์)', 'Customer payments (online)'],
+  refund: ['income', 'คืนเงินลูกค้า', 'Refunds to customers'],
+  beamFee: ['expense', 'ค่าธรรมเนียมรับชำระเงิน (Beam)', 'Payment fees (Beam)'],
+  translatorPay: ['expense', 'ค่าตอบแทนผู้แปล', 'Translator pay']
+};
+var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+var MONTH_RE = /^\d{4}-\d{2}$/;
+
+function accSetup_() {
+  var isNew = !ss_().getSheetByName(SHEETS.accCats);
+  [[SHEETS.ledger, LEDGER_COLS], [SHEETS.accCats, ACC_CAT_COLS], [SHEETS.accLog, ACC_LOG_COLS]]
+    .forEach(function (d) { addMissingColumns_(ensureSheet_(d[0], d[1]), d[1]); });
+  if (isNew) {
+    var t = table_(SHEETS.accCats, ACC_CAT_COLS);
+    ACC_DEFAULT_CATS.forEach(function (c) { appendRow_(t, { code: c[0], kind: labelOf_(ACC_KINDS, c[1]), nameTh: c[2], nameEn: c[3], active: true }); });
+  }
+  var cs = ss_().getSheetByName(SHEETS.accCats), col = colIndex_(cs, 'ใช้งาน');
+  if (col) cs.getRange(2, col, Math.max(cs.getMaxRows() - 1, 1), 1).insertCheckboxes();
+  var ls = ss_().getSheetByName(SHEETS.ledger);
+  [['ประเภท', ACC_KINDS], ['สถานะ', ACC_STATUSES]].forEach(function (d) {
+    var c = colIndex_(ls, d[0]);
+    if (c) ls.getRange(2, c, Math.max(ls.getMaxRows() - 1, 1), 1).setDataValidation(SpreadsheetApp.newDataValidation()
+      .requireValueInList(d[1].map(function (x) { return x.th; }), true).build());
+  });
+}
+
+function accLog_(by, action, ref, detail) {
+  try {
+    appendRow_(table_(SHEETS.accLog, ACC_LOG_COLS), { at: new Date(), by: String(by || ''), action: action, ref: String(ref || ''), detail: text_(detail, 1000) });
+  } catch (e) { console.error('accLog_: ' + e); }
+}
+function accClosed_() { return list_(PropertiesService.getScriptProperties().getProperty('ACC_CLOSED')).filter(function (m) { return MONTH_RE.test(m); }).sort(); }
+function accOpen_(date) { if (accClosed_().indexOf(String(date).slice(0, 7)) > -1) fail_('period_closed'); }
+function accYear_(v) { var y = Number(v); return y >= 2020 && y <= 2100 && Math.floor(y) === y ? y : Number(today_().slice(0, 4)); }
+function accMode_(req) { return req.mode === 'test' ? 'test' : 'live'; }
+
+function accCats_() {
+  var rows = rowsIfSheet_(SHEETS.accCats, ACC_CAT_COLS).filter(function (r) { return r.code; });
+  if (!rows.length) return ACC_DEFAULT_CATS.map(function (c) { return { code: c[0], kind: c[1], nameTh: c[2], nameEn: c[3], active: true }; });
+  return rows.map(function (r) {
+    return { code: String(r.code), kind: codeOf_(ACC_KINDS, r.kind, 'expense'), nameTh: String(r.nameTh || r.code), nameEn: String(r.nameEn || r.nameTh || r.code),
+             active: r.active === '' || r.active == null ? true : bool_(r.active) };
+  });
+}
+function accAutoCats_() {
+  return Object.keys(ACC_AUTO_CATS).map(function (k) { var c = ACC_AUTO_CATS[k]; return { code: k, kind: c[0], nameTh: c[1], nameEn: c[2], auto: true }; });
+}
+
+function accEvidence_(v) {
+  return String(v || '').split('\n').filter(String).map(function (l) { var i = l.indexOf('|'); return { id: i > -1 ? l.slice(0, i) : l, name: i > -1 ? l.slice(i + 1) : l }; });
+}
+function accEntryObj_(r, tz) {
+  return {
+    id: String(r.id), date: day_(r.date, tz), kind: codeOf_(ACC_KINDS, r.kind, 'expense'), category: String(r.category || ''),
+    description: String(r.description || ''), party: String(r.party || ''), partyTaxId: plainText_(r.partyTaxId), partyAddress: String(r.partyAddress || ''),
+    docNo: plainText_(r.docNo), amount: money_(r.amount), wht: money_(r.wht), whtCertNo: String(r.whtCertNo || ''), method: String(r.method || ''),
+    evidence: accEvidence_(r.evidence), note: String(r.note || ''), status: codeOf_(ACC_STATUSES, r.status, 'active'), voidReason: String(r.voidReason || ''),
+    createdAt: iso_(r.createdAt), createdBy: String(r.createdBy || ''), updatedAt: iso_(r.updatedAt), updatedBy: String(r.updatedBy || '')
+  };
+}
+function accEntryRow_(t, id) {
+  for (var i = 0; i < t.rows.length; i++) if (String(t.rows[i].id) === String(id || '-')) return t.rows[i];
+  fail_('not_found');
+}
+
+// Every money line between two dates (yyyy-MM-dd, inclusive): online payments, fees, refunds, translator pay, ledger
+function accRows_(from, to, mode, tz) {
+  var rows = [];
+  var inside = function (d) { return d && d >= from && d <= to; };
+  rowsIfSheet_(SHEETS.payments, PAY_COLS).forEach(function (p) {
+    if (!p.receiptNo || modeCode_(p.mode) !== mode) return;
+    var no = String(p.receiptNo), d = day_(p.paidAt, tz), who = String(p.billName || p.name || '');
+    if (inside(d)) {
+      rows.push({ date: d, kind: 'income', category: 'sales', description: 'ใบเสร็จ ' + no + ' · งาน ' + p.jobNo, party: who, docNo: no,
+                  amount: money_(p.amount), wht: 0, method: String(p.method || ''), source: 'payment', ref: no, auto: true });
+      var fee = money_(Number(p.fee || 0) + Number(p.feeVat || 0));
+      if (fee > 0) rows.push({ date: d, kind: 'expense', category: 'beamFee', description: 'ค่าธรรมเนียม + VAT · ใบเสร็จ ' + no, party: 'Beam Checkout', docNo: no,
+                               amount: fee, wht: 0, method: '', source: 'fee', ref: no, auto: true });
+    }
+    var rd = day_(p.refundAt, tz);
+    if (String(p.refundStatus) === 'succeeded' && inside(rd) && money_(p.refundAmount) > 0) {
+      rows.push({ date: rd, kind: 'income', category: 'refund', description: 'คืนเงิน · ใบเสร็จ ' + no + (p.refundReason ? ' — ' + p.refundReason : ''), party: who, docNo: no,
+                  amount: -money_(p.refundAmount), wht: 0, method: String(p.method || ''), source: 'refund', ref: no, auto: true });
+    }
+  });
+  if (mode === 'live') {
+    payoutRows_().forEach(function (p) {
+      var d = day_(p.paidAt, tz);
+      if (!inside(d)) return;
+      rows.push({ date: d, kind: 'expense', category: 'translatorPay', description: 'ค่าตอบแทนผู้แปลเดือน ' + p.month + (p.ref ? ' · ' + p.ref : ''), party: String(p.name || p.email),
+                  docNo: String(p.whtCertNo || ''), amount: money_(p.gross), wht: money_(p.wht), method: 'transfer', source: 'payout', ref: p.month + '|' + email_(p.email, true), auto: true });
+    });
+    rowsIfSheet_(SHEETS.ledger, LEDGER_COLS).forEach(function (r) {
+      if (!r.id) return;
+      var e = accEntryObj_(r, tz);
+      if (!inside(e.date)) return;
+      e.source = 'ledger'; e.ref = e.id;
+      rows.push(e);
+    });
+  }
+  rows.sort(function (a, b) { return a.date === b.date ? 0 : a.date < b.date ? -1 : 1; });
+  return rows;
+}
+function accCounts_(r) { return r.status !== 'void'; }
+function accSum_(rows) {
+  var s = { income: 0, expense: 0, net: 0, whtWithheld: 0, whtCredit: 0 };
+  rows.filter(accCounts_).forEach(function (r) {
+    if (r.kind === 'income') { s.income += r.amount; s.whtCredit += r.wht; } else { s.expense += r.amount; s.whtWithheld += r.wht; }
+  });
+  for (var k in s) s[k] = round2_(s[k]);
+  s.net = round2_(s.income - s.expense);
+  return s;
+}
+function accCaps_(me) { return { role: me.role, canEdit: ACC_WRITE.indexOf(me.role) > -1, canReopen: me.role === 'admin', canRefund: me.role === 'admin' }; }
+
+/* ---------- ledger ---------- */
+
+function accLedger_(req) {
+  var me = need_(req, ACC_READ);
+  var tz = ss_().getSpreadsheetTimeZone(), today = today_();
+  var from = DATE_RE.test(String(req.from || '')) ? String(req.from) : today.slice(0, 8) + '01';
+  var to = DATE_RE.test(String(req.to || '')) ? String(req.to) : today;
+  if (to < from) fail_('bad_range');
+  if ((new Date(to) - new Date(from)) / 864e5 > 400) fail_('range_too_long');
+  var mode = accMode_(req);
+  var rows = accRows_(from, to, mode, tz);
+  if (req.kind === 'income' || req.kind === 'expense') rows = rows.filter(function (r) { return r.kind === req.kind; });
+  if (req.category) rows = rows.filter(function (r) { return r.category === String(req.category); });
+  if (req.source === 'ledger' || req.source === 'auto') rows = rows.filter(function (r) { return req.source === 'ledger' ? !r.auto : r.auto; });
+  if (req.noEvidence) rows = rows.filter(function (r) { return !r.auto && r.kind === 'expense' && r.status !== 'void' && !r.evidence.length; });
+  var q = text_(req.q, 80).toLowerCase();
+  if (q) rows = rows.filter(function (r) { return [r.description, r.party, r.docNo, r.note, r.ref].join(' ').toLowerCase().indexOf(q) > -1; });
+  return { ok: true, from: from, to: to, mode: mode, rows: rows.slice(-2000), totals: accSum_(rows), cats: accCats_(), auto: accAutoCats_(),
+           closed: accClosed_(), methods: ACC_METHODS, caps: accCaps_(me) };
+}
+
+function accSaveEntry_(req) {
+  var me = need_(req, ACC_WRITE);
+  var e = req.entry || {};
+  var tz = ss_().getSpreadsheetTimeZone();
+  var v = {
+    date: String(e.date || ''), kind: String(e.kind || ''), category: String(e.category || ''), description: text_(e.description, 300),
+    party: text_(e.party, 200), partyTaxId: String(e.partyTaxId || '').replace(/\D/g, ''), partyAddress: text_(e.partyAddress, 300),
+    docNo: text_(e.docNo, 60), amount: round2_(e.amount), wht: round2_(e.wht || 0), method: String(e.method || 'transfer'), note: text_(e.note, 600)
+  };
+  if (!DATE_RE.test(v.date) || isNaN(new Date(v.date)) || v.date > today_()) fail_('invalid_date');
+  if (v.kind !== 'income' && v.kind !== 'expense') fail_('invalid_choice');
+  if (!accCats_().some(function (c) { return c.code === v.category && c.kind === v.kind && c.active; })) fail_('invalid_category');
+  if (v.description.length < 2) fail_('description_required');
+  if (!(v.amount > 0) || v.amount > 10000000) fail_('invalid_amount');
+  if (v.wht < 0 || v.wht >= v.amount) fail_('invalid_wht');
+  if (v.partyTaxId && v.partyTaxId.length !== 13) fail_('invalid_tax_id');
+  if (v.kind === 'expense' && v.wht > 0 && (!v.party || !v.partyTaxId || !v.partyAddress)) fail_('wht_party_required');
+  if (ACC_METHODS.indexOf(v.method) === -1) fail_('invalid_choice');
+  accOpen_(v.date);
+  var row = { date: v.date, kind: labelOf_(ACC_KINDS, v.kind), category: v.category, description: v.description, party: v.party,
+              partyTaxId: keepText_(v.partyTaxId), partyAddress: v.partyAddress, docNo: keepText_(v.docNo), amount: v.amount, wht: v.wht,
+              method: v.method, note: v.note };
+  var id = String(e.id || ''), saved;
+  withLock_(function () {
+    var t = table_(SHEETS.ledger, LEDGER_COLS);
+    if (id) {
+      var r = accEntryRow_(t, id);
+      if (codeOf_(ACC_STATUSES, r.status, 'active') === 'void') fail_('entry_void');
+      accOpen_(day_(r.date, tz));
+      if (v.kind === 'expense' && v.wht > 0 && !r.whtCertNo) row.whtCertNo = whtNextNo_(v.date);
+      row.updatedAt = new Date(); row.updatedBy = me.email;
+      var before = accEntryObj_(r, tz);
+      updateRow_(t, r, row);
+      saved = accEntryObj_(r, tz);
+      accLog_(me.email, 'edit', id, accDiff_(before, saved));
+    } else {
+      id = 'AC-' + v.date.replace(/-/g, '') + '-' + Utilities.getUuid().replace(/-/g, '').slice(0, 5).toUpperCase();
+      row.id = id; row.status = labelOf_(ACC_STATUSES, 'active'); row.createdAt = new Date(); row.createdBy = me.email;
+      if (v.kind === 'expense' && v.wht > 0) row.whtCertNo = whtNextNo_(v.date);
+      appendRow_(t, row);
+      saved = accEntryObj_(accEntryRow_(table_(SHEETS.ledger, LEDGER_COLS), id), tz);
+      accLog_(me.email, 'create', id, labelOf_(ACC_KINDS, v.kind) + ' ' + baht_(v.amount, true) + ' · ' + v.description);
+    }
+  });
+  return { ok: true, entry: saved };
+}
+function accDiff_(a, b) {
+  var out = [];
+  ['date', 'kind', 'category', 'description', 'party', 'partyTaxId', 'docNo', 'amount', 'wht', 'method', 'note'].forEach(function (k) {
+    if (String(a[k]) !== String(b[k])) out.push(k + ': ' + a[k] + ' → ' + b[k]);
+  });
+  return out.join(' · ') || 'ไม่มีการเปลี่ยนแปลง';
+}
+
+function accVoidEntry_(req) {
+  var me = need_(req, ACC_WRITE);
+  var reason = text_(req.reason, 300);
+  if (reason.length < 3) fail_('reason_required');
+  var tz = ss_().getSpreadsheetTimeZone(), out;
+  withLock_(function () {
+    var t = table_(SHEETS.ledger, LEDGER_COLS), r = accEntryRow_(t, req.id);
+    if (codeOf_(ACC_STATUSES, r.status, 'active') === 'void') fail_('entry_void');
+    accOpen_(day_(r.date, tz));
+    updateRow_(t, r, { status: labelOf_(ACC_STATUSES, 'void'), voidReason: reason, updatedAt: new Date(), updatedBy: me.email });
+    out = accEntryObj_(r, tz);
+  });
+  accLog_(me.email, 'void', out.id, reason);
+  return { ok: true, entry: out };
+}
+
+/* ---------- evidence files (private Drive folder, one subfolder a month) ---------- */
+
+function accFolder_(month) {
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty('ACC_FOLDER_ID'), root = null;
+  if (id) { try { root = DriveApp.getFolderById(id); } catch (e) { root = null; } }
+  if (!root) { root = DriveApp.createFolder('TransCOM – บัญชี (หลักฐาน)'); props.setProperty('ACC_FOLDER_ID', root.getId()); }
+  return subFolder_(root, function (n) { return n === month; }, month);
+}
+function accUploadEvidence_(req) {
+  var me = need_(req, ACC_WRITE);
+  var name = safeFileName_(req.name || 'file.pdf');
+  var ext = ((name.match(/\.([a-z0-9]+)$/i) || [])[1] || '').toLowerCase();
+  if (['pdf', 'jpg', 'jpeg', 'png'].indexOf(ext) === -1) fail_('bad_file');
+  var bytes;
+  try { bytes = Utilities.base64Decode(String(req.data || '')); } catch (e) { fail_('bad_file'); }
+  if (!bytes.length) fail_('bad_file');
+  if (bytes.length > CONFIG.accounting.evidenceMB * 1048576) fail_('too_large');
+  var tz = ss_().getSpreadsheetTimeZone();
+  var r0 = accEntryRow_(table_(SHEETS.ledger, LEDGER_COLS), req.id);
+  if (codeOf_(ACC_STATUSES, r0.status, 'active') === 'void') fail_('entry_void');
+  if (accEvidence_(r0.evidence).length >= CONFIG.accounting.evidenceFiles) fail_('too_many_files');
+  var file = accFolder_(day_(r0.date, tz).slice(0, 7)).createFile(Utilities.newBlob(bytes, mimeFor_(ext), r0.id + ' - ' + name));
+  var out;
+  withLock_(function () {
+    var t = table_(SHEETS.ledger, LEDGER_COLS), r = accEntryRow_(t, req.id);
+    var list = String(r.evidence || '').split('\n').filter(String);
+    list.push(file.getId() + '|' + name.replace(/\|/g, '_'));
+    updateRow_(t, r, { evidence: list.join('\n'), updatedAt: new Date(), updatedBy: me.email });
+    out = accEntryObj_(r, tz);
+  });
+  accLog_(me.email, 'evidence', out.id, 'แนบหลักฐาน ' + name);
+  return { ok: true, entry: out };
+}
+function accRemoveEvidence_(req) {
+  var me = need_(req, ACC_WRITE);
+  var tz = ss_().getSpreadsheetTimeZone(), out, gone = null;
+  withLock_(function () {
+    var t = table_(SHEETS.ledger, LEDGER_COLS), r = accEntryRow_(t, req.id);
+    accOpen_(day_(r.date, tz));
+    var list = accEvidence_(r.evidence);
+    gone = list.filter(function (f) { return f.id === String(req.fileId || ''); })[0];
+    if (!gone) fail_('not_found');
+    updateRow_(t, r, { evidence: list.filter(function (f) { return f !== gone; }).map(function (f) { return f.id + '|' + f.name; }).join('\n'),
+                       updatedAt: new Date(), updatedBy: me.email });
+    out = accEntryObj_(r, tz);
+  });
+  try { DriveApp.getFileById(gone.id).setTrashed(true); } catch (e) { /* already gone */ }
+  accLog_(me.email, 'evidence', out.id, 'ลบหลักฐาน ' + gone.name);
+  return { ok: true, entry: out };
+}
+function accFile_(req) {
+  need_(req, ACC_READ);
+  var r = accEntryRow_(table_(SHEETS.ledger, LEDGER_COLS), req.id);
+  var hit = accEvidence_(r.evidence).filter(function (f) { return f.id === String(req.fileId || ''); })[0];
+  if (!hit) fail_('not_found');
+  var file = DriveApp.getFileById(hit.id);
+  return { ok: true, name: hit.name, mime: file.getMimeType(), data: Utilities.base64Encode(file.getBlob().getBytes()) };
+}
+
+/* ---------- categories ---------- */
+
+function accCategories_(req) {
+  var me = need_(req, ACC_READ);
+  return { ok: true, cats: accCats_(), auto: accAutoCats_(), caps: accCaps_(me) };
+}
+function accSaveCategory_(req) {
+  var me = need_(req, ACC_WRITE);
+  var c = req.cat || {};
+  var v = { kind: String(c.kind || ''), nameTh: text_(c.nameTh, 80), nameEn: text_(c.nameEn, 80), active: c.active !== false };
+  if (v.nameTh.length < 2) fail_('name_required');
+  withLock_(function () {
+    if (!rowsIfSheet_(SHEETS.accCats, ACC_CAT_COLS).some(function (r) { return r.code; })) accSetup_();
+    var t = table_(SHEETS.accCats, ACC_CAT_COLS);
+    var code = String(c.code || '');
+    if (code) {
+      var r = find_(t, 'code', code);
+      if (!r) fail_('not_found');
+      updateRow_(t, r, { nameTh: v.nameTh, nameEn: v.nameEn || v.nameTh, active: v.active });   // the kind stays: entries already use it
+      accLog_(me.email, 'category', code, (v.active ? '' : '(ปิดใช้งาน) ') + v.nameTh);
+    } else {
+      if (v.kind !== 'income' && v.kind !== 'expense') fail_('invalid_choice');
+      code = 'c' + Utilities.getUuid().replace(/-/g, '').slice(0, 6);
+      appendRow_(t, { code: code, kind: labelOf_(ACC_KINDS, v.kind), nameTh: v.nameTh, nameEn: v.nameEn || v.nameTh, active: true });
+      accLog_(me.email, 'category', code, 'เพิ่มหมวด ' + labelOf_(ACC_KINDS, v.kind) + ': ' + v.nameTh);
+    }
+  });
+  return accCategories_(req);
+}
+
+/* ---------- reports ---------- */
+
+function accTotals_(rows) {
+  var s = { sales: 0, refunds: 0, otherIncome: 0, income: 0, fees: 0, payouts: 0, otherExpense: 0, expense: 0, net: 0, whtCredit: 0, whtWithheld: 0 };
+  rows.filter(accCounts_).forEach(function (r) {
+    if (r.category === 'sales') s.sales += r.amount;
+    else if (r.category === 'refund') s.refunds -= r.amount;
+    else if (r.category === 'beamFee') s.fees += r.amount;
+    else if (r.category === 'translatorPay') { s.payouts += r.amount; s.whtWithheld += r.wht; }
+    else if (r.kind === 'income') { s.otherIncome += r.amount; s.whtCredit += r.wht; }
+    else { s.otherExpense += r.amount; s.whtWithheld += r.wht; }
+  });
+  s.income = s.sales - s.refunds + s.otherIncome;
+  s.expense = s.fees + s.payouts + s.otherExpense;
+  s.net = s.income - s.expense;
+  for (var k in s) s[k] = round2_(s[k]);
+  return s;
+}
+function accByCategory_(rows, th) {
+  var map = {}, names = {};
+  accCats_().concat(accAutoCats_()).forEach(function (c) { names[c.code] = c; });
+  rows.filter(accCounts_).forEach(function (r) {
+    var k = r.kind + '|' + r.category;
+    if (!map[k]) map[k] = { kind: r.kind, code: r.category, nameTh: names[r.category] ? names[r.category].nameTh : r.category,
+                            nameEn: names[r.category] ? names[r.category].nameEn : r.category, amount: 0, count: 0 };
+    map[k].amount = round2_(map[k].amount + r.amount); map[k].count++;
+  });
+  return Object.keys(map).map(function (k) { return map[k]; }).sort(function (a, b) { return a.kind === b.kind ? Math.abs(b.amount) - Math.abs(a.amount) : a.kind === 'income' ? -1 : 1; });
+}
+function accReport_(req) {
+  var me = need_(req, ACC_READ);
+  var tz = ss_().getSpreadsheetTimeZone(), year = accYear_(req.year), mode = accMode_(req);
+  var rows = accRows_(year + '-01-01', year + '-12-31', mode, tz);
+  var months = [];
+  for (var m = 1; m <= 12; m++) {
+    var key = year + '-' + (m < 10 ? '0' : '') + m;
+    var s = accTotals_(rows.filter(function (r) { return r.date.slice(0, 7) === key; }));
+    s.month = key;
+    months.push(s);
+  }
+  return { ok: true, year: year, mode: mode, months: months, totals: accTotals_(rows), byCategory: accByCategory_(rows), closed: accClosed_(), caps: accCaps_(me) };
+}
+
+// Receipt register: every receipt of the year, and any gap in the running numbers
+function accReceipts_(req) {
+  need_(req, ACC_READ);
+  var tz = ss_().getSpreadsheetTimeZone(), year = String(accYear_(req.year)), mode = accMode_(req);
+  var list = rowsIfSheet_(SHEETS.payments, PAY_COLS).filter(function (p) {
+    return p.receiptNo && modeCode_(p.mode) === mode && day_(p.paidAt, tz).slice(0, 4) === year;
+  }).map(function (p) {
+    var o = payObj_(p, tz, true);
+    return { no: o.receiptNo, date: o.paidDay, jobNo: o.jobNo, name: String(p.billName || p.name || ''), taxId: plainText_(p.billTaxId),
+             amount: o.amount, method: o.method, status: o.status, refundAmount: o.refundAmount, refundDay: o.refundDay, receiptUrl: o.receiptUrl };
+  }).sort(function (a, b) { return a.no < b.no ? -1 : a.no > b.no ? 1 : 0; });
+  var series = {};
+  list.forEach(function (r) {
+    var m = /^(.*-)(\d{3,})$/.exec(r.no);
+    if (!m) return;
+    var s = series[m[1]] || (series[m[1]] = { prefix: m[1], nums: [] });
+    s.nums.push(Number(m[2]));
+  });
+  var out = Object.keys(series).map(function (k) {
+    var s = series[k], max = Math.max.apply(null, s.nums), have = {}, gaps = [];
+    s.nums.forEach(function (n) { have[n] = true; });
+    for (var i = 1; i <= max; i++) if (!have[i]) gaps.push(s.prefix + ('0000' + i).slice(-5));
+    return { prefix: s.prefix, count: s.nums.length, first: s.prefix + ('0000' + Math.min.apply(null, s.nums)).slice(-5), last: s.prefix + ('0000' + max).slice(-5), gaps: gaps.slice(0, 200) };
+  });
+  var total = round2_(list.reduce(function (a, r) { return a + r.amount; }, 0));
+  var refunded = round2_(list.reduce(function (a, r) { return a + (r.refundAmount || 0); }, 0));
+  return { ok: true, year: Number(year), mode: mode, receipts: list, series: out, total: total, refunded: refunded };
+}
+
+/* ---------- withholding tax: 50 ทวิ numbers, the ภ.ง.ด.3 list, the certificate ---------- */
+
+// Book = Buddhist year, number runs from 0001 each year and is never reused
+function whtNextNo_(date) {
+  var be = Number(String(date).slice(0, 4)) + 543;
+  var props = PropertiesService.getScriptProperties();
+  var key = 'WHT_SEQ_' + be;
+  var n = (parseInt(props.getProperty(key) || '0', 10) || 0) + 1;
+  props.setProperty(key, String(n));
+  return be + '/' + ('000' + n).slice(-4);
+}
+function accWhtRows_(month, tz) {
+  var trs = {};
+  rowsIfSheet_(SHEETS.translators, TRANSLATOR_COLS).forEach(function (r) { if (r.email) trs[email_(r.email, true)] = translatorObj_(r, tz); });
+  var out = [];
+  payoutRows_().forEach(function (p) {
+    var d = day_(p.paidAt, tz);
+    if (d.slice(0, 7) !== month || !(money_(p.wht) > 0)) return;
+    var tr = trs[email_(p.email, true)] || {};
+    out.push({ source: 'payout', key: p.month + '|' + email_(p.email, true), certNo: String(p.whtCertNo || ''), name: String(tr.name || p.name || ''),
+               taxId: String(tr.idNumber || ''), address: String(tr.address || ''), payDate: d, amount: money_(p.gross), wht: money_(p.wht),
+               text: CONFIG.accounting.whtIncomeText, ref: 'ค่าตอบแทนเดือน ' + p.month });
+  });
+  rowsIfSheet_(SHEETS.ledger, LEDGER_COLS).forEach(function (r) {
+    if (!r.id) return;
+    var e = accEntryObj_(r, tz);
+    if (e.status === 'void' || e.kind !== 'expense' || !(e.wht > 0) || e.date.slice(0, 7) !== month) return;
+    out.push({ source: 'ledger', key: e.id, certNo: e.whtCertNo, name: e.party, taxId: e.partyTaxId, address: e.partyAddress, payDate: e.date,
+               amount: e.amount, wht: e.wht, text: e.description, ref: e.id });
+  });
+  return out.sort(function (a, b) { return a.payDate < b.payDate ? -1 : a.payDate > b.payDate ? 1 : 0; });
+}
+// Older payouts (paid before Phase 8) get their certificate number the first time they are listed
+function accWhtNumber_(rows) {
+  var need = rows.filter(function (r) { return !r.certNo && r.source === 'payout'; });
+  if (!need.length) return;
+  withLock_(function () {
+    var t = table_(SHEETS.payouts, PAYOUT_COLS);
+    need.forEach(function (w) {
+      var p = t.rows.filter(function (x) { return x.month + '|' + email_(x.email, true) === w.key; })[0];
+      if (!p) return;
+      if (!p.whtCertNo) updateRow_(t, p, { whtCertNo: whtNextNo_(w.payDate) });
+      w.certNo = String(p.whtCertNo);
+    });
+  });
+}
+function nextMonth_(month) {
+  var y = Number(month.slice(0, 4)), m = Number(month.slice(5, 7)) + 1;
+  if (m > 12) { m = 1; y++; }
+  return y + '-' + (m < 10 ? '0' : '') + m;
+}
+function accWht_(req) {
+  var me = need_(req, ACC_READ);
+  var tz = ss_().getSpreadsheetTimeZone();
+  var month = MONTH_RE.test(String(req.month || '')) ? String(req.month) : recentMonths_(2, tz)[1];
+  var rows = accWhtRows_(month, tz);
+  accWhtNumber_(rows);
+  var nm = nextMonth_(month);
+  return { ok: true, month: month, months: recentMonths_(24, tz), rows: rows,
+           totals: { count: rows.length, amount: round2_(rows.reduce(function (a, r) { return a + r.amount; }, 0)), wht: round2_(rows.reduce(function (a, r) { return a + r.wht; }, 0)) },
+           due: nm + '-07', dueOnline: nm + '-15', payer: sellerInfo_(), caps: accCaps_(me) };
+}
+// One certificate (50 ทวิ). Translators may open their own; accounting roles any.
+function whtCert_(req) {
+  var me = need_(req, ['admin', 'accountant', 'auditor', 'staff']);
+  var tz = ss_().getSpreadsheetTimeZone();
+  var source = req.source === 'ledger' ? 'ledger' : 'payout', key = String(req.key || '');
+  var month;
+  if (source === 'payout') {
+    var p = payoutRows_().filter(function (x) { return x.month + '|' + email_(x.email, true) === key; })[0];
+    if (!p) fail_('not_found');
+    if (me.role === 'staff' && email_(p.email, true) !== me.email) fail_('not_found');
+    month = day_(p.paidAt, tz).slice(0, 7);
+  } else {
+    if (me.role === 'staff') fail_('not_found');
+    month = accEntryObj_(accEntryRow_(table_(SHEETS.ledger, LEDGER_COLS), key), tz).date.slice(0, 7);
+  }
+  var rows = accWhtRows_(month, tz).filter(function (r) { return r.source === source && r.key === key; });
+  if (!rows.length) fail_('not_found');
+  accWhtNumber_(rows);
+  var all = accWhtRows_(month, tz), seq = 0;
+  all.forEach(function (r, i) { if (r.source === source && r.key === key) seq = i + 1; });   // line on that month's ภ.ง.ด.3 attachment
+  var w = rows[0], s = sellerInfo_();
+  return { ok: true, cert: { seq: seq, certNo: w.certNo, book: w.certNo.split('/')[0], no: w.certNo.split('/')[1], payDate: w.payDate, amount: w.amount, wht: w.wht,
+    text: w.text, row: CONFIG.accounting.whtIncomeRow, form: 'pnd3',
+    payer: { name: s.owner, shop: s.name, taxId: s.taxId, address: s.address },
+    payee: { name: w.name, taxId: w.taxId, address: w.address } } };
+}
+
+/* ---------- the owner's income tax (ภ.ง.ด.94 half year, ภ.ง.ด.90 full year) and the VAT watch ---------- */
+
+function accTaxYear_(req) {
+  need_(req, ACC_READ);
+  var tz = ss_().getSpreadsheetTimeZone(), year = accYear_(req.year), mode = accMode_(req);
+  var rows = accRows_(year + '-01-01', year + '-12-31', mode, tz);
+  var pick = function (list) {
+    var s = accTotals_(list);
+    return { income: s.income, expense: s.expense, flat: round2_(s.income * CONFIG.accounting.flatExpensePercent / 100), whtCredit: s.whtCredit, net: s.net };
+  };
+  return { ok: true, year: year, mode: mode, half: pick(rows.filter(function (r) { return r.date <= year + '-06-30'; })), full: pick(rows),
+           byCategory: accByCategory_(rows).filter(function (c) { return c.kind === 'expense'; }), flatPercent: CONFIG.accounting.flatExpensePercent };
+}
+function vatStatus_(year) {
+  var tz = ss_().getSpreadsheetTimeZone();
+  var s = accTotals_(accRows_(year + '-01-01', year + '-12-31', 'live', tz));
+  var limit = CONFIG.accounting.vatThreshold, pct = limit ? round2_(s.income / limit * 100) : 0;
+  return { year: year, income: s.income, threshold: limit, percent: pct, warnPercent: CONFIG.accounting.vatWarnPercent,
+           level: s.income > limit ? 'over' : pct >= CONFIG.accounting.vatWarnPercent ? 'warn' : 'ok' };
+}
+// Daily (from purgeDueJobs): email the owner once a year at the warning share, and once more over the line
+function vatWatch_() {
+  var year = Number(today_().slice(0, 4)), v = vatStatus_(year);
+  if (v.level === 'ok') return null;
+  var props = PropertiesService.getScriptProperties(), key = 'VAT_ALERT_' + year, sent = props.getProperty(key) || '';
+  if (sent === 'over' || sent === v.level) return null;
+  props.setProperty(key, v.level);
+  var title = v.level === 'over' ? 'รายรับปี ' + (year + 543) + ' เกินเกณฑ์จดทะเบียน VAT แล้ว' : 'รายรับปี ' + (year + 543) + ' ใกล้เกณฑ์จดทะเบียน VAT';
+  try {
+    MailApp.sendEmail({ to: providerEmail_(), name: CONFIG.serviceName, subject: title,
+      htmlBody: mailLayout_({ th: true, title: title, intro: ['รายรับสะสมตั้งแต่ 1 มกราคม: <b>' + baht_(v.income, true) + '</b> (' + v.percent + '% ของ ' + baht_(v.threshold, true) + ')',
+        v.level === 'over' ? 'ผู้ประกอบการที่มีรายรับเกิน 1.8 ล้านบาทต่อปีต้องจดทะเบียนภาษีมูลค่าเพิ่มภายใน 30 วันนับจากวันที่รายรับเกิน โปรดปรึกษาผู้ทำบัญชีโดยเร็ว'
+                           : 'โปรดวางแผนกับผู้ทำบัญชีล่วงหน้า หากรายรับเกิน 1.8 ล้านบาทต่อปีต้องจดทะเบียนภาษีมูลค่าเพิ่ม'],
+        button: { label: 'เปิดหน้าบัญชี', url: CONFIG.siteUrl + '/#account' } }) });
+  } catch (e) { console.error('vat mail: ' + e); }
+  accLog_('system', 'vat', String(year), title);
+  return v.level;
+}
+
+/* ---------- overview, closing a month, the change log ---------- */
+
+function accOverview_(req) {
+  var me = need_(req, ACC_READ);
+  var tz = ss_().getSpreadsheetTimeZone(), today = today_(), year = Number(today.slice(0, 4)), month = today.slice(0, 7);
+  var ytd = accRows_(year + '-01-01', today, 'live', tz);
+  var last = recentMonths_(2, tz)[1];
+  var missing = ytd.filter(function (r) { return r.source === 'ledger' && r.kind === 'expense' && r.status !== 'void' && !r.evidence.length; }).length;
+  var jt = table_(SHEETS.jobs, JOB_COLS);
+  var unpaid = rowsIfSheet_(SHEETS.translators, TRANSLATOR_COLS).filter(function (r) { return r.email; }).map(function (r) {
+    var tr = translatorObj_(r, tz); return statement_(tr.email, last, tr.rate, tz, jt);
+  }).filter(function (s) { return s.jobs.length && !s.paid; });
+  var wht = accWhtRows_(last, tz);
+  return { ok: true, month: month, lastMonth: last,
+           thisMonth: accTotals_(ytd.filter(function (r) { return r.date.slice(0, 7) === month; })), ytd: accTotals_(ytd),
+           vat: vatStatus_(year), missingEvidence: missing,
+           payouts: { month: last, count: unpaid.length, net: round2_(unpaid.reduce(function (a, s) { return a + s.net; }, 0)) },
+           wht: { month: last, count: wht.length, tax: round2_(wht.reduce(function (a, r) { return a + r.wht; }, 0)), due: nextMonth_(last) + '-07', dueOnline: nextMonth_(last) + '-15' },
+           closed: accClosed_(), caps: accCaps_(me) };
+}
+function accClose_(req) {
+  var me = need_(req, ACC_WRITE);
+  var month = String(req.month || '');
+  if (!MONTH_RE.test(month) || month >= today_().slice(0, 7)) fail_('bad_month');   // only months that have ended
+  var close = req.close !== false;
+  if (!close && me.role !== 'admin') fail_('forbidden');
+  var list = accClosed_().filter(function (m) { return m !== month; });
+  if (close) list.push(month);
+  PropertiesService.getScriptProperties().setProperty('ACC_CLOSED', list.sort().join(','));
+  accLog_(me.email, close ? 'close' : 'reopen', month, close ? 'ปิดงวดบัญชี' : 'เปิดงวดบัญชีอีกครั้ง');
+  return { ok: true, closed: accClosed_() };
+}
+function accLogList_(req) {
+  need_(req, ACC_READ);
+  var tz = ss_().getSpreadsheetTimeZone();
+  var rows = rowsIfSheet_(SHEETS.accLog, ACC_LOG_COLS).filter(function (r) { return r.action; }).slice(-300).reverse().map(function (r) {
+    return { at: iso_(r.at), day: day_(r.at, tz), by: String(r.by || ''), action: String(r.action), ref: String(r.ref || ''), detail: String(r.detail || '') };
+  });
+  return { ok: true, log: rows };
+}
+
+/* ======================================================================
+   Documents on the shop's letterhead (owner 2026-11-19): A4, Sarabun throughout.
+   HTML → Google Doc (Drive import) → letterhead header/footer + one font → PDF. A plain PDF if any step fails.
+   createLetterhead() (run once in the editor) makes a Google Docs letterhead template in Drive.
+   The logo comes from the live site (img/letterhead-logo.png); address + tax ID from Script Properties.
+   ====================================================================== */
+
+var DOC_FONT = 'Sarabun';
+var DOC_NAVY = '#01417b', DOC_BLUE = '#006192', DOC_GREY = '#566072';
+
+function letterheadLogo_() {
+  try {
+    var r = UrlFetchApp.fetch(CONFIG.siteUrl + '/img/letterhead-logo.png', { muteHttpExceptions: true });
+    return r.getResponseCode() === 200 ? r.getBlob() : null;
+  } catch (e) { return null; }
+}
+
+// HTML → a Google Doc in Drive (Drive API import keeps headings, lists and tables)
+function htmlToDoc_(html, name) {
+  var boundary = 'tc' + Utilities.getUuid().replace(/-/g, '');
+  var body = '--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' +
+    JSON.stringify({ name: name, mimeType: 'application/vnd.google-apps.document' }) + '\r\n--' + boundary +
+    '\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n' + html + '\r\n--' + boundary + '--';
+  var res = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+    method: 'post', contentType: 'multipart/related; boundary=' + boundary, payload: Utilities.newBlob(body).getBytes(),
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+  if (res.getResponseCode() >= 300) throw new Error('drive import ' + res.getResponseCode() + ' ' + String(res.getContentText()).slice(0, 200));
+  return JSON.parse(res.getContentText()).id;
+}
+
+// A thin coloured bar: a one-row table with filled cells (Docs has no coloured rules)
+function docBar_(section, height) {
+  var t = section.appendTable([['', '']]);
+  t.setBorderWidth(0);
+  [[0, DOC_NAVY, 380], [1, DOC_BLUE, 103]].forEach(function (c) {
+    var cell = t.getCell(0, c[0]);
+    cell.setBackgroundColor(c[1]).setWidth(c[2]).setPaddingTop(0).setPaddingBottom(0).setPaddingLeft(0).setPaddingRight(0);
+    cell.getChild(0).asParagraph().setSpacingBefore(0).setSpacingAfter(0).setLineSpacing(1).editAsText().setFontSize(height || 2);
+  });
+  return t;
+}
+function docLine_(cell, text, size, color, bold) {
+  var p = cell.appendParagraph(text);
+  p.setAlignment(DocumentApp.HorizontalAlignment.RIGHT).setSpacingBefore(0).setSpacingAfter(0).setLineSpacing(1);
+  p.editAsText().setFontSize(size).setForegroundColor(color).setBold(!!bold);
+  return p;
+}
+
+// Header: logo left, shop name + contacts right, navy/blue bar. Footer: bar, address + tax ID, contacts.
+function letterhead_(doc) {
+  var s = sellerInfo_();
+  var body = doc.getBody();
+  body.setPageWidth(595.28).setPageHeight(841.89)                 // A4
+      .setMarginTop(34).setMarginBottom(34).setMarginLeft(57).setMarginRight(51);
+  var header = doc.getHeader() || doc.addHeader();
+  header.clear();
+  var t = header.appendTable([['', '']]);
+  t.setBorderWidth(0);
+  var c0 = t.getCell(0, 0), c1 = t.getCell(0, 1);
+  c0.setWidth(170).setPaddingLeft(0).setPaddingTop(0).setPaddingBottom(4);
+  c1.setWidth(313).setPaddingRight(0).setPaddingTop(0).setPaddingBottom(4).setVerticalAlignment(DocumentApp.VerticalAlignment.BOTTOM);
+  var logo = letterheadLogo_();
+  if (logo) {
+    var img = c0.getChild(0).asParagraph().appendInlineImage(logo);
+    var w = 150;
+    img.setHeight(Math.round(img.getHeight() * w / img.getWidth())).setWidth(w);
+  } else {
+    c0.getChild(0).asParagraph().appendText(CONFIG.serviceName).setFontSize(20).setBold(true).setForegroundColor(DOC_NAVY);
+  }
+  var first = c1.getChild(0).asParagraph();
+  first.appendText(s.name).setFontSize(14).setBold(true).setForegroundColor(DOC_NAVY);
+  first.setAlignment(DocumentApp.HorizontalAlignment.RIGHT).setSpacingAfter(0);
+  docLine_(c1, 'ทรานส์คอม แลงเกวจ เซอร์วิส · บริการแปลเอกสารและรับรองคำแปล', 9, DOC_GREY);
+  docLine_(c1, 'โทร ' + s.phone + '  ·  ' + s.email, 9, DOC_GREY);
+  docLine_(c1, s.web + '  ·  LINE ' + CONFIG.lineId, 9, DOC_BLUE);
+  docBar_(header, 2);
+  var footer = doc.getFooter() || doc.addFooter();
+  footer.clear();
+  docBar_(footer, 1);
+  var addr = [s.address, s.taxId ? 'เลขประจำตัวผู้เสียภาษี ' + s.taxId : ''].filter(String).join('  ·  ');
+  [addr, 'โทร ' + s.phone + '  ·  ' + s.email + '  ·  ' + s.web].filter(String).forEach(function (line) {
+    var p = footer.appendParagraph(line);
+    p.setAlignment(DocumentApp.HorizontalAlignment.CENTER).setSpacingBefore(0).setSpacingAfter(0);
+    p.editAsText().setFontSize(8).setForegroundColor(DOC_GREY).setBold(false);
+  });
+  // one font everywhere (Thai and Latin alike)
+  [body, header, footer].forEach(function (sec) { try { sec.editAsText().setFontFamily(DOC_FONT); } catch (e) { console.error('font: ' + e); } });
+}
+
+// HTML → PDF on the letterhead; falls back to the plain HTML → PDF conversion
+function docPdf_(html, name) {
+  var id = null;
+  try {
+    id = htmlToDoc_(html, name);
+    var doc = DocumentApp.openById(id);
+    letterhead_(doc);
+    doc.saveAndClose();
+    return DriveApp.getFileById(id).getAs('application/pdf').setName(name + '.pdf');
+  } catch (e) {
+    console.error('docPdf_ (plain PDF instead): ' + e);
+    return Utilities.newBlob(html, 'text/html', 'doc.html').getAs('application/pdf').setName(name + '.pdf');
+  } finally {
+    if (id) { try { DriveApp.getFileById(id).setTrashed(true); } catch (e) { /* already gone */ } }
+  }
+}
+
+// Run once in the editor: a letterhead template in Google Docs (File → Make a copy for each letter)
+function createLetterhead() {
+  var doc = DocumentApp.create('TransCOM – กระดาษหัวจดหมาย (A4)');
+  letterhead_(doc);
+  var body = doc.getBody();
+  body.clear();
+  ['วันที่ ', '', 'เรื่อง ', 'เรียน ', '', '(ข้อความ)', '', '', 'ขอแสดงความนับถือ', '', '', '(' + CONFIG.sellerOwner + ')', CONFIG.sellerName]
+    .forEach(function (line, i) {
+      var p = i === 0 ? body.getChild(0).asParagraph().setText(line) : body.appendParagraph(line);
+      if (i === 0) p.setAlignment(DocumentApp.HorizontalAlignment.RIGHT);
+      if (i >= 8) p.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    });
+  body.editAsText().setFontFamily(DOC_FONT).setFontSize(12).setForegroundColor('#1d2433');
+  doc.saveAndClose();
+  console.log('กระดาษหัวจดหมาย: ' + doc.getUrl());
+  return doc.getUrl();
+}
+
+/* ======================================================================
    Setup
    ====================================================================== */
 
@@ -4464,6 +5228,8 @@ function setup() {
   // Phase 7: translators, monthly pay
   [[SHEETS.translators, TRANSLATOR_COLS], [SHEETS.payouts, PAYOUT_COLS]]
     .forEach(function (d) { addMissingColumns_(ensureSheet_(d[0], d[1]), d[1]); });
+  // Phase 8: accounting
+  accSetup_();
   var trSheet = ss_().getSheetByName(SHEETS.translators), trCol = colIndex_(trSheet, 'สถานะ');
   if (trCol) trSheet.getRange(2, trCol, Math.max(trSheet.getMaxRows() - 1, 1), 1).setDataValidation(SpreadsheetApp.newDataValidation()
     .requireValueInList(TRANSLATOR_STATUSES.map(function (x) { return x.th; }), true).build());

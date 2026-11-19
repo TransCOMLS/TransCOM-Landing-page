@@ -3,7 +3,7 @@ const fs = require('fs'), vm = require('vm'), crypto = require('crypto');
 function load(codePath, opts) {
   opts = opts || {};
   const sheets = {}; const cache = new Map(); const props = {}; const mail = [];
-  const chain = () => new Proxy(function () {}, { get: (t, k) => k === 'build' ? () => ({}) : chain(), apply: () => chain() });
+  const chain = () => new Proxy(function () {}, { get: (t, k) => k === 'build' ? () => ({}) : k === Symbol.toPrimitive ? () => 100 : chain(), apply: () => chain() });
   function Sheet(name) {
     this.name = name; this.data = []; this.hidden = false; this.maxCols = 26;
   }
@@ -45,7 +45,8 @@ function load(codePath, opts) {
   function iter(l) { let i = 0; return { hasNext: () => i < l.length, next: () => l[i++] }; }
   function File(blob, folder) { this.id = 'X' + String(++drive.seq).padStart(14, '0'); this.folder = folder; this.name = blob.name; this.type = blob.type; this.bytes = blob.bytes; this.size = blob.bytes.length; this.trashed = false; }
   File.prototype = { getId() { return this.id; }, getName() { return this.name; }, getSize() { return this.size; }, getMimeType() { return this.type; },
-    getBlob() { const b = this.bytes; return { getBytes: () => b }; }, setTrashed(v) { this.trashed = v; }, setSharing(a) { if (drive.blockSharing) throw new Error('policy'); this.sharing = a; } };
+    getBlob() { const b = this.bytes; return { getBytes: () => b }; }, setTrashed(v) { this.trashed = v; },
+    getAs(t) { const self = this; return { type: t, fromDoc: true, name: self.name, bytes: [1], getBytes: () => [1], setName(n) { this.name = n; return this; }, getName() { return this.name; } }; }, setSharing(a) { if (drive.blockSharing) throw new Error('policy'); this.sharing = a; } };
   const triggers = [];
   // Fake Beam (Playground-like): payment links, charges, refunds, transactions
   const beam = { links: {}, charges: [], refunds: {}, tx: {}, calls: [], seq: 0, down: false };
@@ -60,8 +61,16 @@ function load(codePath, opts) {
   };
   const resp = (code, body) => ({ getResponseCode: () => code, getContentText: () => JSON.stringify(body) });
   const UrlFetchApp = { fetch(url, opt) {
-    beam.calls.push({ url, method: opt.method, body: opt.payload ? JSON.parse(opt.payload) : null, headers: opt.headers });
+    beam.calls.push({ url, method: opt.method, body: (() => { try { return opt.payload ? JSON.parse(opt.payload) : null; } catch (e) { return null; } })(), headers: opt.headers });
     if (beam.down) throw new Error('network');
+    // Google Drive import (HTML → Google Doc) for documents on the letterhead
+    if (/^https:\/\/www\.googleapis\.com\/upload\/drive\/v3\/files/.test(url)) {
+      if (drive.importDown || !/^Bearer /.test((opt.headers || {}).Authorization || '')) return resp(403, { error: 'no' });
+      const f = new File({ name: 'imported doc', type: 'application/vnd.google-apps.document', bytes: [1] }, 'root');
+      drive.files.push(f); drive.imports = (drive.imports || 0) + 1;
+      return resp(200, { id: f.id });
+    }
+    if (url.indexOf('/img/letterhead-logo.png') > -1) return { getResponseCode: () => 200, getBlob: () => ({ name: 'logo.png' }) };
     if (!/^Basic /.test(opt.headers.Authorization)) return resp(401, {});
     const u = new URL(url), path = u.pathname;
     let m;
@@ -113,7 +122,11 @@ function load(codePath, opts) {
     DriveApp: { Access: { ANYONE_WITH_LINK: 'anyone' }, Permission: { VIEW: 'view' }, createFolder: n => new Folder(n, 'root'), getFolderById: id => { if (!drive.folders[id]) throw new Error('no folder'); return drive.folders[id]; },
       getFileById: id => { const f = drive.files.find(x => x.id === id); if (!f) throw new Error('no file'); return f; } },
     Session: { getEffectiveUser: () => ({ getEmail: () => 'owner@example.com' }) },
+    // Documents: any call works and returns the same kind of stand-in (layout is checked by eye in Google Docs)
+    DocumentApp: { HorizontalAlignment: {}, VerticalAlignment: {},
+      openById: id => { drive.opened = (drive.opened || []).concat(id); return chain(); }, create: () => chain() },
     ScriptApp: {
+      getOAuthToken: () => 'oauth-test',
       getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/TEST/exec' }),
       getProjectTriggers: () => triggers.map(h => ({ getHandlerFunction: () => h })),
       newTrigger: h => { const c = new Proxy({}, { get: (t, k) => k === 'create' ? () => triggers.push(h) : () => c }); return c; },

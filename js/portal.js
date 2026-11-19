@@ -6,6 +6,7 @@
  *             upload translations, start / ready for checking, internal notes · settings
  *   admin:    overview · all jobs (search, filters) · job detail (assign, status, deliver,
  *             cancel requests, notes, files) · users (roles, customer types) · discounts · settings
+ *   accountant / auditor (Phase 8): accounting only — views in js/accounting.js (loaded on demand)
  * Roles come from the server (profile.role); every action is checked again on the server.
  * The translator is never named to customers.
  */
@@ -151,6 +152,18 @@
   }
 
   /* ---------- menus ---------- */
+  // Phase 8: accounting (views in js/accounting.js)
+  var ACC_ITEMS = [{ view: "acc-overview", key: "acc.overview" }, { view: "acc-ledger", key: "acc.ledger" }, { view: "acc-reports", key: "acc.reports" },
+                   { view: "acc-receipts", key: "acc.receipts" }, { view: "acc-wht", key: "acc.wht" }, { view: "acc-tax", key: "acc.tax" },
+                   { view: "acc-cats", key: "acc.cats" }, { view: "acc-log", key: "acc.log" }];
+  var ACC_MENU = [
+    { view: "acc-overview", key: "acc.overview" },
+    { group: "acc.g.books", items: [{ view: "acc-ledger", key: "acc.ledger" }, { view: "acc-reports", key: "acc.reports" }, { view: "acc-receipts", key: "acc.receipts" }] },
+    { group: "acc.g.tax", items: [{ view: "acc-wht", key: "acc.wht" }, { view: "acc-tax", key: "acc.tax" }] },
+    { group: "acc.g.pay", items: [{ view: "a-payments", key: "dash.payments" }, { view: "a-payouts", key: "tr.a.payouts" }] },
+    { group: "acc.g.settings", items: [{ view: "acc-cats", key: "acc.cats" }, { view: "acc-log", key: "acc.log" }] },
+    { group: "dash.g.account", items: [{ view: "settings", key: "dash.profile" }] }
+  ];
   var MENUS = {
     customer: [
       { view: "c-overview", key: "dash.overview" },
@@ -175,10 +188,13 @@
                                        { view: "a-coupons", key: "dash.coupons" }, { view: "a-posts", arg: "news", key: "dash.posts" }] },
       { group: "dash.g.money", items: [{ view: "a-payments", key: "dash.payments" }, { view: "a-rewards", key: "dash.rewards" }] },
       { group: "tr.g.admin", items: [{ view: "a-translators", key: "tr.a.translators" }, { view: "a-payouts", key: "tr.a.payouts" }] },
+      { group: "acc.g.books", items: ACC_ITEMS },
       { group: "dash.g.account", items: [{ view: "settings", key: "dash.profile" }] }
-    ]
+    ],
+    accountant: ACC_MENU,
+    auditor: ACC_MENU
   };
-  var HOME = { customer: "c-overview", staff: "s-jobs", admin: "a-overview" };
+  var HOME = { customer: "c-overview", staff: "s-jobs", admin: "a-overview", accountant: "acc-overview", auditor: "acc-overview" };
   // Detail views highlight their list in the menu
   var PARENT = { "c-job": "c-orders", "s-job": "s-jobs", "a-job": "a-jobs" };
 
@@ -235,7 +251,18 @@
     if (settings) settings.hidden = !isSettings;
     box.hidden = isSettings;
     if (isSettings) return;
-    (VIEWS[state.view] || VIEWS[HOME[state.role]])(box, state.arg);
+    var name = VIEWS[state.view] ? state.view : HOME[state.role];
+    if (!VIEWS[name] && /^acc-/.test(name)) {   // accounting views: their own file, fetched the first time
+      var seq = state.seq;
+      box.appendChild(el("p", "muted dash-loading", t("acct.loading")));
+      App.loadScript("js/accounting.js").then(function () { if (seq === state.seq) draw(); }, function () {
+        if (seq !== state.seq) return;
+        box.textContent = "";
+        var s = el("div", "form-status error"); s.textContent = t("acct.err.network"); box.appendChild(s);
+      });
+      return;
+    }
+    (VIEWS[name] || VIEWS[HOME[state.role]])(box, state.arg);
   }
 
   function heading(box, key, extra) {
@@ -1020,7 +1047,7 @@
       s.appendChild(grid);
       var l = card(box, "pay.payments");
       if (!res.payments.length) empty(l, "pay.emptyHistory");
-      else l.appendChild(paymentList(res.payments, true, function (p, li) { refundForm(p, li, function () { show("a-payments", res.mode); }); }));
+      else l.appendChild(paymentList(res.payments, true, state.role !== "admin" ? null : function (p, li) { refundForm(p, li, function () { show("a-payments", res.mode); }); }));
       if (res.hookUrl) {
         var hk = card(box, "pay.hookTitle");
         hk.appendChild(el("p", "note", t("pay.hookHint")));
@@ -1577,6 +1604,7 @@
           top.appendChild(el("span", "flag " + (m.paid ? "flag-ok" : m.jobs.length ? "flag-warn" : ""), m.paid ? t("tr.paidOn", { date: day(m.paidAt) }) : m.jobs.length ? t("tr.unpaid") : t("tr.noJobs")));
           c.appendChild(top);
           if (m.jobs.length) c.appendChild(payLines(m));
+          if (m.paid && m.wht > 0) c.appendChild(whtButton(m.month + "|" + m.email));
         });
         if (res.pending.length) {
           var p = card(box, "tr.pending");
@@ -1588,6 +1616,17 @@
       });
     });
   };
+  // Phase 8: the withholding tax certificate (50 ทวิ) for a month's pay — drawn by js/accounting.js
+  function whtButton(key) {
+    var row = el("div", "actions");
+    var b = button(t("acc.whtCert"), "btn btn-outline btn-sm", function () {
+      busy(b, true);
+      App.loadScript("js/accounting.js").then(function () { return App.accounting.whtDoc({ source: "payout", key: key }); })
+        .catch(function (err) { alertBox(b, errText(err)); }).then(function () { busy(b, false); });
+    });
+    row.appendChild(b);
+    return row;
+  }
   function payLines(m) {
     var wrap = el("div");
     var ul = el("ul", "pay-lines");
@@ -1797,7 +1836,8 @@
         c.appendChild(h);
         if (s.bank) c.appendChild(el("p", "note", t("tr.a.bank") + " " + s.bank));
         c.appendChild(payLines(s));
-        if (!s.paid) {
+        if (s.paid && s.wht > 0) c.appendChild(whtButton(s.month + "|" + s.email));
+        if (!s.paid && res.canMark !== false) {
           var ref = input("text", "", { placeholder: t("tr.a.refHint") });
           c.appendChild(fieldBox("tr.ref", ref));
           var st = el("div", "form-status"); st.hidden = true;
@@ -2059,7 +2099,7 @@
     var row = el("div", "dash-toolbar");
     var em = el("input"); em.type = "email"; em.placeholder = "name@example.com"; em.setAttribute("aria-label", t("form.email"));
     var rs = el("select"); rs.setAttribute("aria-label", t("dash.role"));
-    ["staff", "admin"].forEach(function (r) { var o = el("option", null, t("dash.role." + r)); o.value = r; rs.appendChild(o); });
+    ["staff", "admin", "accountant", "auditor"].forEach(function (r) { var o = el("option", null, t("dash.role." + r)); o.value = r; rs.appendChild(o); });
     var ab = button(t("dash.add"), "btn btn-primary btn-sm");
     row.appendChild(em); row.appendChild(rs); row.appendChild(ab);
     add.appendChild(row);
@@ -2110,7 +2150,7 @@
         li.appendChild(who);
         var ctl = el("div", "dash-user-ctl");
         var role = el("select"); role.setAttribute("aria-label", t("dash.role") + " " + u.email);
-        ["customer", "staff", "admin"].forEach(function (r) { var o = el("option", null, t("dash.role." + r)); o.value = r; if (r === u.role) o.selected = true; role.appendChild(o); });
+        ["customer", "staff", "admin", "accountant", "auditor"].forEach(function (r) { var o = el("option", null, t("dash.role." + r)); o.value = r; if (r === u.role) o.selected = true; role.appendChild(o); });
         if (u.fixedAdmin) { role.disabled = true; role.title = t("dash.fixedAdmin"); }
         ctl.appendChild(role);
         var type = el("select"); type.setAttribute("aria-label", t("dash.customerType") + " " + u.email);
@@ -2573,6 +2613,15 @@
     });
   };
 
+  /* ---------- shared with js/accounting.js (Phase 8) ---------- */
+  App.portal = {
+    views: VIEWS, state: state,
+    h: { $: $, el: el, button: button, busy: busy, day: day, isoDay: isoDay, api: api, load: load, show: show, draw: draw, heading: heading,
+         card: card, stat: stat, details: details, empty: empty, status: status, errText: errText, alertBox: alertBox, readBase64: readBase64,
+         sizeText: sizeText, baht: baht, monthName: monthName, input: input, fieldBox: fieldBox, checkbox: checkbox, payMethod: payMethod,
+         openReceipt: openReceipt, payJs: payJs }
+  };
+
   /* ---------- wiring ---------- */
   function onAccount(e) {
     var d = e.detail || {};
@@ -2589,7 +2638,7 @@
       // a new account without a name starts on the profile form (the welcome notice points there)
       state.view = d.profile.name ? HOME[role] : "settings";
       // emails link to ?job=TR-…#account: open that job once signed in
-      var want = linkedJob();
+      var want = HOME[role] && /^acc-/.test(HOME[role]) ? "" : linkedJob();
       if (want) {
         state.view = role === "admin" ? "a-job" : role === "staff" ? "s-job" : "c-job";
         state.arg = want;

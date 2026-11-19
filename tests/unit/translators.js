@@ -61,6 +61,7 @@ me = P({ action: 'translatorAccept', token: tA, version: V, name: '  อนั�
 ok(me.ok && me.docsOk && me.translator.docsVersion === V && me.translator.acceptedAt, 'accepted: version + date recorded');
 const cm = g.mail.slice(n).filter(m => /สัญญาผู้แปล/.test(m.subject));
 ok(cm.length === 2 && cm.every(m => m.attachments && m.attachments[0].type === 'application/pdf') && g.drive.files.some(f => /^สัญญาผู้แปล/.test(f.name)), 'PDF copy kept in Drive and emailed to both sides');
+ok(g.drive.imports >= 1 && (g.drive.opened || []).length >= 1 && cm[0].attachments[0].fromDoc && g.drive.files.filter(f => f.name === 'imported doc').every(f => f.trashed), 'contract PDF made via Google Docs (letterhead, Sarabun); the temporary Doc is trashed');
 
 // existing staff (added by admin before Phase 7): fill the same form → approved at once
 P({ action: 'adminSetUser', token: admin, email: 'bee@example.com', role: 'staff' });

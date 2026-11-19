@@ -30,7 +30,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) process
   await p.fill('#a-code', real); await p.click('#acct-code-form button[type=submit]');
   await p.waitForSelector('#acct-home:not([hidden])'); await p.waitForSelector('#acct-profile', { state: 'visible' });
   ok(await p.isVisible('#acct-welcome') && await p.isVisible('#acct-profile'), 'new account: welcome + opens on the profile form');
-  await p.locator('#dash-nav .dash-link', { hasText: 'ภาพรวม' }).click(); await p.waitForSelector('.job-item');
+  await p.locator('#dash-nav .dash-link', { hasText: /^ภาพรวม$/ }).click(); await p.waitForSelector('.job-item');
   ok(await p.$$eval('.job-item .job-no', a => a.map(e => e.textContent).join(',')) === 'TR-2569-0007,TR-2569-0004', 'job history newest first');
   ok((await p.textContent('.job-item .status-chip')).includes('ใบเสนอราคา'), 'status chip in Thai');
   ok(/2569/.test(await p.textContent('.job-dates')), 'Thai dates use พ.ศ.');
@@ -44,7 +44,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) process
   await p.waitForFunction(() => (document.querySelector('.account-label') || {}).textContent && document.querySelector('.account-label').textContent.trim() === 'นิดา' &&
     (document.querySelector('#acct-hello') || {}).textContent && document.querySelector('#acct-hello').textContent.includes('นิดา'), null, { timeout: 15000 }).catch(() => {});
   ok((await p.textContent('#acct-hello')).includes('นิดา') && (await p.textContent('.account-label')).trim() === 'นิดา', 'greeting + header use first name');
-  await p.locator('#dash-nav .dash-link', { hasText: 'ภาพรวม' }).click(); await p.waitForSelector('.job-item');
+  await p.locator('#dash-nav .dash-link', { hasText: /^ภาพรวม$/ }).click(); await p.waitForSelector('.job-item');
   await p.screenshot({ path: out + '/acct-home1366.png', fullPage: true });
   await p.click('.lang-toggle [data-lang=en]'); await p.waitForFunction(() => document.documentElement.lang === 'en'); ok((await p.textContent('.job-item .status-chip')).includes('Quote sent') && /2026/.test(await p.textContent('.job-dates')), 'English status + dates');
   await p.click('.lang-toggle [data-lang=th]');
