@@ -70,9 +70,13 @@ var CONFIG = {
   certificationFee: 300,
   shippingFee: 50,
   translator: {
-    docsVersion: '2026-11-18',   // must equal TRANSLATOR_DOCS.version in js/translator-docs.js; a new one asks everyone to accept again
+    docsVersion: '2026-11-19',   // must equal TRANSLATOR_DOCS.version in js/translator-docs.js; a new one asks everyone to accept again
     rate: 70,              // % of the translation fee (before discounts, without certification + shipping); per translator in "Translators"
-    whtPercent: 3,         // tax withheld when a month's pay is whtMin or more (ท.ป.4/2528: only payments under 1,000 baht are exempt)
+    // Withholding tax on translator pay (owner 2026-11-19): OFF — the shop is a sole proprietor, and ท.ป.4/2528 ข้อ 8 / 12/1
+    // make only companies and other juristic persons withhold 3% on hire of work / services (translation = 40(8), ruling 0706/7572).
+    // Turn on (with a new contract version) if the shop becomes a juristic person. Rules when on: 3% from 1,000 baht a contract (ข้อ 12/7).
+    withhold: false,
+    whtPercent: 3,
     whtMin: 1000,
     payDay: 10,            // paid by this day of the next month
     acceptHours: 2,        // assigned jobs: accept or decline within this many hours (then admin is reminded)
@@ -93,6 +97,7 @@ var CONFIG = {
   },
   // Phase 8 — accounting (owner 2026-11-19). Not VAT-registered: watch the yearly threshold.
   accounting: {
+    payerIsCompany: false,   // the shop is a sole proprietor (บุคคลธรรมดา): shown on the withholding tax page
     vatThreshold: 1800000,   // revenue a year that makes VAT registration compulsory
     vatWarnPercent: 80,      // the owner is emailed once a year at this share, and again over the line
     // Flat-rate expenses on the yearly summary: the allowed rate depends on how the income is classed under section 40
@@ -4310,7 +4315,7 @@ function statement_(email, month, rate, tz, jobsTable) {
     return r.jobNo && email_(r.assignee, true) === email && statusCode_(r.status) === 'delivered' && monthOf_(r.deliveredAt, tz) === month;
   }).map(function (r) { var p = translatorPay_(r, rate); return { jobNo: String(r.jobNo), base: p.base, adjust: p.adjust, adjustNote: p.adjustNote, amount: p.amount }; });
   var gross = round2_(jobs.reduce(function (s, j) { return s + j.amount; }, 0));
-  var wht = gross >= CONFIG.translator.whtMin ? round2_(gross * CONFIG.translator.whtPercent / 100) : 0;
+  var wht = CONFIG.translator.withhold && gross >= CONFIG.translator.whtMin ? round2_(gross * CONFIG.translator.whtPercent / 100) : 0;
   var paid = payoutRows_().filter(function (p) { return String(p.month) === month && email_(p.email, true) === email; })[0];
   var out = { month: month, email: email, jobs: jobs, gross: gross, wht: wht, net: round2_(gross - wht), paid: false };
   if (paid) {   // frozen at payment time
@@ -4336,7 +4341,7 @@ function translatorEarnings_(req) {
     return r.jobNo && email_(r.assignee, true) === me.email && ['review', 'inProgress', 'paid'].indexOf(statusCode_(r.status)) > -1;
   }).map(function (r) { return { jobNo: String(r.jobNo), status: statusCode_(r.status), amount: translatorPay_(r, me.translator.rate).amount }; });
   return { ok: true, rate: me.translator.rate, months: months, pending: pending,
-           whtPercent: CONFIG.translator.whtPercent, whtMin: CONFIG.translator.whtMin, payDay: CONFIG.translator.payDay };
+           withhold: CONFIG.translator.withhold, whtPercent: CONFIG.translator.whtPercent, whtMin: CONFIG.translator.whtMin, payDay: CONFIG.translator.payDay };
 }
 function adminPayouts_(req) {
   var me = need_(req, ACC_READ);
@@ -4370,7 +4375,8 @@ function adminPayoutMark_(req) {
   try {
     MailApp.sendEmail({ to: email, name: CONFIG.serviceName, subject: 'โอนค่าตอบแทนเดือน ' + month + ' แล้ว',
       htmlBody: mailLayout_({ th: true, title: 'โอนค่าตอบแทนแล้ว', intro: ['เดือน ' + esc_(month) + ' · ' + s.jobs.length + ' งาน',
-        'ค่าตอบแทนรวม ' + s.gross.toFixed(2) + ' บาท · หักภาษี ณ ที่จ่าย ' + s.wht.toFixed(2) + ' บาท · โอนจริง <b>' + s.net.toFixed(2) + ' บาท</b>',
+        s.wht > 0 ? 'ค่าตอบแทนรวม ' + s.gross.toFixed(2) + ' บาท · หักภาษี ณ ที่จ่าย ' + s.wht.toFixed(2) + ' บาท · โอนจริง <b>' + s.net.toFixed(2) + ' บาท</b>'
+                  : 'โอนจริง <b>' + s.net.toFixed(2) + ' บาท</b> (ไม่หักภาษี ณ ที่จ่าย — ผู้แปลยื่นภาษีเงินได้ของตนเอง)',
         req.ref ? 'อ้างอิง: ' + esc_(req.ref) : ''].filter(String), button: { label: 'ดูรายละเอียด', url: CONFIG.siteUrl + '/#account' } }) });
   } catch (e) { console.error('payout mail: ' + e); }
   return adminPayouts_({ token: req.token, month: month });
@@ -4966,7 +4972,8 @@ function accWht_(req) {
   var nm = nextMonth_(month);
   return { ok: true, month: month, months: recentMonths_(24, tz), rows: rows,
            totals: { count: rows.length, amount: round2_(rows.reduce(function (a, r) { return a + r.amount; }, 0)), wht: round2_(rows.reduce(function (a, r) { return a + r.wht; }, 0)) },
-           due: nm + '-07', dueOnline: nm + '-15', payer: sellerInfo_(), caps: accCaps_(me) };
+           due: nm + '-07', dueOnline: nm + '-15', payer: sellerInfo_(), payerIsCompany: CONFIG.accounting.payerIsCompany,
+           translatorWithhold: CONFIG.translator.withhold, caps: accCaps_(me) };
 }
 // One certificate (50 ทวิ). Translators may open their own; accounting roles any.
 function whtCert_(req) {

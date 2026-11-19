@@ -148,7 +148,7 @@ P({ action: 'confirmTranslation', token: cust, jobNo: j1 });
 d1 = P({ action: 'staffJob', token: tA, jobNo: j1 }).job;
 ok(d1.status === 'delivered' && d1.files.length === 0 && P({ action: 'jobFile', token: tA, jobNo: j1, fileId: fid }).error === 'not_found', 'delivered: access to the files ends');
 
-// ---- pay: base (auto / set), adjustments, monthly statement, 3% over 1,000, mark paid (frozen)
+// ---- pay: base (auto / set), adjustments, monthly statement, no withholding (sole proprietor), mark paid (frozen)
 let aj1 = P({ action: 'adminJob', token: admin, jobNo: j1 }).job;
 ok(aj1.translatorPay.base === 900 && aj1.translatorPay.amount === 630 && !aj1.translatorBaseSet, 'auto base = quote subtotal (not certified/shipped here)');
 const jc = job('th-en', 6, { certified: true, shipping: true, address: '1 ถนนทดสอบ เขตบางรัก กรุงเทพฯ 10500' });
@@ -164,16 +164,19 @@ ok(er.ok && er.months[0].month === month && er.months[0].gross === 550 && er.mon
 ok(er.pending.length >= 1, 'jobs not yet delivered listed as pending');
 P({ action: 'adminUpdateJob', token: admin, jobNo: j1, translatorPay: { base: 4600, adjust: 0, note: '' } });
 er = P({ action: 'translatorEarnings', token: tA });
-ok(er.months[0].gross === 3220 && er.months[0].wht === 96.6 && er.months[0].net === 3123.4, 'policy example: 3,220 − 3% = 3,123.40');
+ok(er.months[0].gross === 3220 && er.months[0].wht === 0 && er.months[0].net === 3220 && er.withhold === false, 'owner 2026-11-19: the shop is a sole proprietor → no tax withheld (ท.ป.4/2528 ข้อ 8), 3,220 paid in full');
+g.ctx.CONFIG.translator.withhold = true;   // the switch for a juristic-person shop: 3% from 1,000 baht
+ok(P({ action: 'translatorEarnings', token: tA }).months[0].net === 3123.4, 'switch on: 3,220 − 3% = 3,123.40');
+g.ctx.CONFIG.translator.withhold = false;
 ok(P({ action: 'translatorEarnings', token: admin }).error === 'forbidden', 'earnings are per translator');
 let po = P({ action: 'adminPayouts', token: admin, month });
 ok(po.ok && po.statements.length === 1 && po.statements[0].email === 'anan@example.com' && /กสิกรไทย/.test(po.statements[0].bank), 'admin payout list with bank details');
 n = g.mail.length;
 po = P({ action: 'adminPayoutMark', token: admin, month, email: 'anan@example.com', ref: 'KBank 123' });
-ok(po.statements[0].paid && S.Payouts.data.length === 2 && g.mail.slice(n).some(m => m.to === 'anan@example.com' && /3123\.40/.test(m.htmlBody)), 'marked paid: Payouts row + translator emailed');
+ok(po.statements[0].paid && S.Payouts.data.length === 2 && g.mail.slice(n).some(m => m.to === 'anan@example.com' && /3220\.00/.test(m.htmlBody) && /ไม่หักภาษี/.test(m.htmlBody)), 'marked paid: Payouts row + translator emailed (no tax withheld)');
 ok(P({ action: 'adminPayoutMark', token: admin, month, email: 'anan@example.com' }).error === 'already_paid', 'a month is paid once');
 P({ action: 'adminUpdateJob', token: admin, jobNo: j1, translatorPay: { base: 100, adjust: 0, note: '' } });
-ok(P({ action: 'translatorEarnings', token: tA }).months[0].net === 3123.4, 'paid months keep their frozen figures');
+ok(P({ action: 'translatorEarnings', token: tA }).months[0].net === 3220, 'paid months keep their frozen figures');
 P({ action: 'adminTranslatorUpdate', token: admin, email: 'anan@example.com', rate: 75 });
 ok(P({ action: 'adminJob', token: admin, jobNo: jc }).job.translatorPay.rate === 75, 'per-translator rate');
 ok(P({ action: 'adminTranslatorUpdate', token: admin, email: 'anan@example.com', rate: 150 }).error === 'invalid_rate', 'rate 0–100 only');

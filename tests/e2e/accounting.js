@@ -107,12 +107,17 @@ C.appendRow_(C.table_('Payouts', C.PAYOUT_COLS), { month: last, email: 'tr@examp
   await nav(p, 'ภาษีหัก ณ ที่จ่าย');
   await p.waitForSelector('#dash-view .acc-table');
   ok(/ผู้แปล ทดสอบ/.test(await p.textContent('#dash-view .acc-table')) && /1-1017-00000-00-1/.test(await p.textContent('#dash-view .acc-table')), 'PND 3 list: payee + formatted tax ID');
+  ok(/บุคคลธรรมดา/.test(await p.textContent('#dash-view .notice-warn')) && /ท\.ป\.4\/2528/.test(await p.textContent('#dash-view')), 'sole proprietor notice (no duty to withhold 3%)');
+  const [dl3] = await Promise.all([p.waitForEvent('download'), p.click('#dash-view button:has-text("ดาวน์โหลด CSV")')]);
+  const pnd3 = require('fs').readFileSync(await dl3.path(), 'utf8');
+  ok(/^\ufeffลำดับที่,เลขประจำตัวผู้เสียภาษีอากร \(ของผู้มีเงินได้\),สาขาที่,ชื่อ,ชื่อสกุล,ที่อยู่ของผู้มีเงินได้,วัน เดือน ปี ที่จ่าย,ประเภทเงินได้,อัตราภาษีร้อยละ/.test(pnd3) && /1,1101700000001,,ผู้แปล,ทดสอบ,/.test(pnd3) && /\/25\d\d,/.test(pnd3), 'PND 3 CSV: the columns of ใบแนบ ภ.ง.ด.3, name split, Buddhist-year date');
   await p.click('#dash-view .acc-table button:has-text("50 ทวิ")');
   await p.waitForSelector('.print-sheet .wht-doc');
   const docs = p.locator('.print-sheet .wht-doc');
   const dt = await docs.first().textContent();
   ok(await docs.count() === 2 && /ฉบับที่ 1/.test(dt) && /ฉบับที่ 2/.test(await docs.nth(1).textContent()), 'two copies with the same text (ฉบับที่ 1 / 2)');
   ok(/ตามมาตรา 50 ทวิ แห่งประมวลรัษฎากร/.test(dt) && /\(4\) ภ\.ง\.ด\.3/.test(dt) && /มาตรา 3 เตรส/.test(dt) && /ออกให้ตลอดไป/.test(dt) && /มาตรา 35/.test(dt), 'official form: all boxes, income row 5 (3 เตรส), payer options, warning');
+  ok(/\(13 หลัก\)\*/.test(dt) && /\(1\.4\) อัตราอื่น/.test(dt) && /equity method/.test(dt) && /กรมการปกครอง/.test(dt) && /ประทับตรา/.test(dt) && /\(บุคคล\)/.test(dt), 'as on the form: 13-digit labels, row 4 sub-lines, ID footnote, stamp place, person type');
   ok(/1-1005-00000-00-1/.test(dt) && /เก้าสิบหกบาทหกสิบสตางค์/.test(dt) && /3,220\.00/.test(dt) && /96\.60/.test(dt), 'payer tax ID, amount, tax and tax in Thai words');
   ok(await p.locator('.print-sheet .wht-doc .wht-tick .is-on').count() === 4, 'ticked: ภ.ง.ด.3 and "หัก ณ ที่จ่าย" on each copy');
   await p.screenshot({ path: out('acc-50tawi-1366.png'), fullPage: true });

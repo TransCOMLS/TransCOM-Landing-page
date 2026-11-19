@@ -1227,6 +1227,8 @@ window.I18N.en = {
     "dash.err.translator_profile": "Please fill in your translator details first.",
     "dash.err.bad_request": "Something was missing — please try again.",
     // Phase 8 — accounting
+    "acc.soleTrader": "The shop is a sole proprietor: under Revenue Department order ท.ป.4/2528 sections 8 and 12/1 only companies and other juristic persons withhold 3% on hire of work and services, so translator pay is not withheld. Record withholding only where the accountant confirms the law requires it.",
+    "tr.payRuleNoWht": "Pay is {rate}% of the translation fee before discounts, without certification and postage, for jobs delivered in each month — paid in full with no tax withheld (you file your own income tax) by day {day} of the next month.",
     "dash.role.accountant": "Accounts",
     "dash.role.auditor": "External accountant",
     "acc.g.books": "Accounts",
@@ -1320,7 +1322,7 @@ window.I18N.en = {
     "acc.description": "Item",
     "acc.amount": "Amount (THB)",
     "acc.amountHint": "Before withholding tax",
-    "acc.whtHintExpense": "If the shop withheld tax (e.g. 3%), fill in the payee's name, tax ID and address — a 50 Tawi is issued.",
+    "acc.whtHintExpense": "Only where the law requires the shop to withhold (a sole proprietor does not withhold 3% on services or hire of work). Needs the payee's name, tax ID and address; a 50 Tawi is issued.",
     "acc.whtHintIncome": "If the customer (a company) withheld tax, enter it and keep their 50 Tawi as evidence.",
     "acc.party": "Party (payer / payee)",
     "acc.partyTaxId": "Tax ID",

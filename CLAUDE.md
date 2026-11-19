@@ -349,8 +349,10 @@ provider manages all jobs from one Google Sheet, with no paid server.
       TOEIC 550, Cambridge 140, CU-TEP 35, TU-GET CBT 36, KU-EPT 33/80 (Thai tests from published mapping studies; TU-GET paper
       had no reliable table → "other"), CEFR B1; `checkTest_` refuses below_b1, "other" → testResult review) + a `test` proof file. Tests: unit/translators.js, e2e/translators.js, mock `g.translator(token, name)`.
       Owner 2026-11-19: Sheets turned the accepted version "2026-11-18" into a date ("not accepted" shown) — `translatorObj_` reads it with `day_`,
-      written with `keepText_`. Tax withheld when a month's pay is **≥** 1,000 (ท.ป.4/2528 exempts only payments under 1,000); translator-docs.js
-      ข้อ 4 / 5.1 still say "เกิน" — owner to decide on a new docs version (everyone re-accepts).
+      written with `keepText_`. Owner 2026-11-19 (after reading ท.ป.4/2528 the owner supplied): ข้อ 8 / 12/1 make only companies and other
+      juristic persons withhold 3% on hire of work / services and the shop is a sole proprietor → **no withholding on translator pay**
+      (`CONFIG.translator.withhold: false`); contract ข้อ 4, 5.1, 5.2 reworded, docs version **2026-11-19** (everyone re-accepts). With the switch
+      on: 3% when a month is ≥ 1,000 (ข้อ 12/7 counts per contract).
 - [x] Phase 8 — accounting (owner 2026-11-19; owner: tax documents must follow Revenue Department rules). Roles `accountant` (ฝ่ายบัญชี: records,
       closes months, marks translator pay sent, tax documents) and `auditor` (ผู้ตรวจบัญชีภายนอก: read + export only); neither sees jobs, customer
       files or users; refunds stay admin. Code.gs section "Phase 8": `ACC_WRITE`/`ACC_READ`; sheets Ledger (LEDGER_COLS; entries never deleted —
@@ -362,8 +364,11 @@ provider manages all jobs from one Google Sheet, with no paid server.
       options, มาตรา 35 warning; Thai form wording regardless of page language); translators open their own from t-earnings. ภ.ง.ด.3 list + CSV,
       due 7th / 15th online. Yearly summary (ภ.ง.ด.94/90) shows actual expenses; `CONFIG.accounting.flatExpensePercent` 0 = no flat-rate line
       until the accountant confirms. VAT watch: `vatWatch_` daily (from purgeDueJobs), emails at 80% and over 1.8 M once a year (`VAT_ALERT_<year>`).
-      Rules checked only via search results (rd.go.th unreachable from here); owner was asked for the official PDFs (50 ทวิ form, ภ.ง.ด.3 +
-      attachment, the 50 ทวิ announcement, ท.ป.4/2528, ruling 0706/7572) to check line by line.
+      Checked against the official PDFs the owner supplied (50 ทวิ form, ใบแนบ ภ.ง.ด.3 Mar 2017 print, ท.ป.4/2528 consolidated 25-06-2026,
+      ruling 0706/7572): the certificate reproduces every box/line of the form (13-digit labels, row 4 sub-lines, ID footnote, stamp place);
+      the ภ.ง.ด.3 CSV follows the attachment's columns (name / surname split, Buddhist-year dates, condition 1). A sole-proprietor notice
+      (`CONFIG.accounting.payerIsCompany: false`) explains that the shop rarely has to withhold. The other "50 ทวิ" PDF the owner sent is the
+      rough-gem trade variant — not used.
       Frontend: `js/accounting.js` (loaded on demand by portal.js `draw()` for `acc-*` views; uses `App.portal.h` helpers; exposes
       `App.accounting.whtDoc`). Tests: unit/accounting.js, e2e/accounting.js.
 - [x] Letterhead (owner 2026-11-19): `docPdf_(html, name)` = HTML → Google Doc (Drive API import with `ScriptApp.getOAuthToken()`) →
@@ -396,7 +401,7 @@ The owner asked to stop after each phase and show the result before continuing.
 
 ## Testing
 `node tests/run.js` runs every suite (see `tests/README.md`): `tests/unit/` = Code.gs against a mocked Apps Script
-(`tests/lib/mock.js`), `tests/e2e/` = the site in Playwright Chromium on port 8765 with the same mock. 35 suites, ~1,162 checks (2026-11-19). `tests/lib/browser.js` blocks the live Apps Script / Beam / site, and the runner fails any
+(`tests/lib/mock.js`), `tests/e2e/` = the site in Playwright Chromium on port 8765 with the same mock. 35 suites, ~1,166 checks (2026-11-19). `tests/lib/browser.js` blocks the live Apps Script / Beam / site, and the runner fails any
 suite that tried. Suites print `PASS `/`FAIL ` lines; update a test in the same commit as an intended change, and add
 one for each new feature. Still check by eye: every page in priority order — PC 1366, 1920, 1280, 1024; phone 390, 320;
 tablet 768 — in both languages and themes; `node --check js/*.js`; i18n keys match between th/en.

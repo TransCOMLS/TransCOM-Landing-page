@@ -524,6 +524,7 @@
       s.addEventListener("change", function () { show("acc-wht", s.value); });
       top.appendChild(H.fieldBox("acc.payMonth", s));
       top.appendChild(el("p", "notice", t("acc.whtDue", { month: H.monthName(res.month), due: longDate(res.due), online: longDate(res.dueOnline) })));
+      if (!res.payerIsCompany) top.appendChild(el("p", "notice notice-warn", t("acc.soleTrader")));
       if (!res.payer.taxId) top.appendChild(el("p", "notice notice-warn", t("acc.noPayerTaxId")));
       var g = el("div", "dash-stats");
       statBox(g, App.formatNumber(res.totals.count), "acc.whtCount");
@@ -539,8 +540,15 @@
         }), [t("acc.total"), "", "", "", money(res.totals.amount), money(res.totals.wht), ""]));
       lc.appendChild(el("p", "note", t("acc.whtCsvNote")));
       lc.appendChild(actions(csvButton(function () {
-        csv("pnd3-" + res.month + ".csv", [t("acc.seq"), t("acc.partyTaxId"), t("acc.payee"), t("acc.partyAddress"), t("acc.date"), t("acc.incomeType"), t("acc.rate"), t("acc.amount"), t("acc.whtTax"), t("acc.condition"), "50 ทวิ"],
-          res.rows.map(function (r, i) { return [i + 1, r.taxId, r.name, r.address, r.payDate, r.text, Math.round(r.wht / r.amount * 10000) / 100, r.amount, r.wht, 1, r.certNo]; }));
+        // the columns of ใบแนบ ภ.ง.ด.3 (Revenue Department form, Mar 2017 print): one line per payee
+        csv("pnd3-" + res.month + ".csv", ["ลำดับที่", "เลขประจำตัวผู้เสียภาษีอากร (ของผู้มีเงินได้)", "สาขาที่", "ชื่อ", "ชื่อสกุล", "ที่อยู่ของผู้มีเงินได้",
+          "วัน เดือน ปี ที่จ่าย", "ประเภทเงินได้", "อัตราภาษีร้อยละ", "จำนวนเงินที่จ่าย", "จำนวนเงินภาษีที่หักและนำส่ง", "เงื่อนไข", "เลขที่ 50 ทวิ"],
+          res.rows.map(function (r, i) {
+            var n = String(r.name || "").trim().split(/\s+/), last = n.length > 1 ? n.pop() : "";
+            var d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(r.payDate);
+            return [i + 1, r.taxId, "", n.join(" "), last, r.address, d ? d[3] + "/" + d[2] + "/" + (Number(d[1]) + 543) : r.payDate, r.text,
+                    Math.round(r.wht / r.amount * 10000) / 100, r.amount, r.wht, 1, r.certNo];
+          }));
       })));
     });
   };
@@ -593,24 +601,26 @@
     [["เล่มที่", c.book], ["เลขที่", c.no]].forEach(function (x) { var d = el("div"); d.appendChild(el("dt", null, x[0])); d.appendChild(el("dd", null, x[1])); no.appendChild(d); });
     head.appendChild(no);
     doc.appendChild(head);
-    function party(title, p, extra) {
+    function party(title, p, kind) {
       var s = el("section", "wht-party");
-      s.appendChild(el("h3", null, title));
+      s.appendChild(el("h3", null, title + " : -"));
       var g = el("dl", "wht-dl");
-      [["ชื่อ", p.name + (extra || "")], ["เลขประจำตัวผู้เสียภาษีอากร", taxIdText(p.taxId) || "-"], ["ที่อยู่", p.address || "-"]].forEach(function (x) {
+      [["เลขประจำตัวผู้เสียภาษีอากร (13 หลัก)*", taxIdText(p.taxId) || "-"], ["ชื่อ", p.name + " (" + kind + ")"], ["ที่อยู่", p.address || "-"]].forEach(function (x) {
         var d = el("div"); d.appendChild(el("dt", null, x[0])); d.appendChild(el("dd", null, x[1])); g.appendChild(d);
       });
       s.appendChild(g);
       return s;
     }
-    doc.appendChild(party("ผู้มีหน้าที่หักภาษี ณ ที่จ่าย", c.payer, c.payer.shop ? " (" + c.payer.shop + ")" : ""));
-    var payee = party("ผู้ถูกหักภาษี ณ ที่จ่าย", c.payee);
+    // the form asks to state whether the name is a person, a juristic person, a company, an association or a group
+    doc.appendChild(party("ผู้มีหน้าที่หักภาษี ณ ที่จ่าย", { name: c.payer.name + (c.payer.shop ? " — " + c.payer.shop : ""), taxId: c.payer.taxId, address: c.payer.address }, c.payerKind || "บุคคล"));
+    var payee = party("ผู้ถูกหักภาษี ณ ที่จ่าย", c.payee, c.payee.kind || "บุคคล");
     var forms = el("div", "wht-forms");
     var seq = el("p", "wht-seq");
     seq.appendChild(document.createTextNode("ลำดับที่ "));
     seq.appendChild(el("b", null, String(c.seq || "")));
     seq.appendChild(document.createTextNode(" ในแบบ"));
     forms.appendChild(seq);
+    forms.appendChild(el("p", "wht-small", "(ให้สามารถอ้างอิงหรือสอบยันกันได้ระหว่างลำดับที่ตามหนังสือรับรองฯ กับแบบยื่นรายการภาษีหักที่จ่าย)"));
     var boxes = el("div", "wht-ticks");
     [["pnd1a", "(1) ภ.ง.ด.1ก"], ["pnd1as", "(2) ภ.ง.ด.1ก พิเศษ"], ["pnd2", "(3) ภ.ง.ด.2"], ["pnd3", "(4) ภ.ง.ด.3"],
      ["pnd2a", "(5) ภ.ง.ด.2ก"], ["pnd3a", "(6) ภ.ง.ด.3ก"], ["pnd53", "(7) ภ.ง.ด.53"]].forEach(function (f) { boxes.appendChild(tick(c.form === f[0], f[1])); });
@@ -623,7 +633,17 @@
       ["1", "เงินเดือน ค่าจ้าง เบี้ยเลี้ยง โบนัส ฯลฯ ตามมาตรา 40 (1)"],
       ["2", "ค่าธรรมเนียม ค่านายหน้า ฯลฯ ตามมาตรา 40 (2)"],
       ["3", "ค่าแห่งลิขสิทธิ์ ฯลฯ ตามมาตรา 40 (3)"],
-      ["4", "ดอกเบี้ย เงินปันผล ส่วนแบ่งกำไร ฯลฯ ตามมาตรา 40 (4)"],
+      ["4", "(ก) ดอกเบี้ย ฯลฯ ตามมาตรา 40 (4) (ก)"],
+      ["", "(ข) เงินปันผล เงินส่วนแบ่งกำไร ฯลฯ ตามมาตรา 40 (4) (ข)"],
+      ["", "(1) กรณีผู้ได้รับเงินปันผลได้รับเครดิตภาษี โดยจ่ายจากกำไรสุทธิของกิจการที่ต้องเสียภาษีเงินได้นิติบุคคลในอัตราดังนี้", 1],
+      ["", "(1.1) อัตราร้อยละ 30 ของกำไรสุทธิ", 2], ["", "(1.2) อัตราร้อยละ 25 ของกำไรสุทธิ", 2], ["", "(1.3) อัตราร้อยละ 20 ของกำไรสุทธิ", 2],
+      ["", "(1.4) อัตราอื่น ๆ (ระบุ) ........ ของกำไรสุทธิ", 2],
+      ["", "(2) กรณีผู้ได้รับเงินปันผลไม่ได้รับเครดิตภาษี เนื่องจากจ่ายจาก", 1],
+      ["", "(2.1) กำไรสุทธิของกิจการที่ได้รับยกเว้นภาษีเงินได้นิติบุคคล", 2],
+      ["", "(2.2) เงินปันผลหรือเงินส่วนแบ่งของกำไรที่ได้รับยกเว้นไม่ต้องนำมารวมคำนวณเป็นรายได้เพื่อเสียภาษีเงินได้นิติบุคคล", 2],
+      ["", "(2.3) กำไรสุทธิส่วนที่ได้หักผลขาดทุนสุทธิยกมาไม่เกิน 5 ปี ก่อนรอบระยะเวลาบัญชีปีปัจจุบัน", 2],
+      ["", "(2.4) กำไรที่รับรู้ทางบัญชีโดยวิธีส่วนได้เสีย (equity method)", 2],
+      ["", "(2.5) อื่น ๆ (ระบุ)", 2],
       ["5", "การจ่ายเงินได้ที่ต้องหักภาษี ณ ที่จ่าย ตามคำสั่งกรมสรรพากรที่ออกตามมาตรา 3 เตรส เช่น รางวัล ส่วนลดหรือประโยชน์ใด ๆ เนื่องจากการส่งเสริมการขาย รางวัลในการประกวด การแข่งขัน การชิงโชค ค่าแสดงของนักแสดงสาธารณะ ค่าจ้างทำของ ค่าโฆษณา ค่าเช่า ค่าขนส่ง ค่าบริการ ค่าเบี้ยประกันวินาศภัย ฯลฯ"],
       ["6", "อื่น ๆ (ระบุ)"]
     ];
@@ -634,7 +654,7 @@
     var body = el("tbody");
     lines.forEach(function (l) {
       var ours = l[0] === String(c.row), tr = el("tr", ours ? "is-ours" : null);
-      var td = el("td", null, l[0] + ". " + l[1]);
+      var td = el("td", l[2] ? "wht-sub wht-sub-" + l[2] : null, (l[0] ? l[0] + ". " : "") + l[1]);
       if (ours && c.text) { td.appendChild(el("br")); td.appendChild(el("b", null, "— " + c.text)); }
       tr.appendChild(td);
       tr.appendChild(el("td", null, ours ? longThai(c.payDate) : ""));
@@ -666,8 +686,11 @@
     sign.appendChild(el("p", null, "( " + c.payer.name + " )"));
     sign.appendChild(el("p", null, longThai(c.payDate)));
     sign.appendChild(el("p", "wht-small", "(วัน เดือน ปี ที่ออกหนังสือรับรองฯ)"));
+    sign.appendChild(el("span", "wht-stamp", "ประทับตรา นิติบุคคล (ถ้ามี)"));
     foot.appendChild(sign);
     doc.appendChild(foot);
+    doc.appendChild(el("p", "wht-note", "หมายเหตุ เลขประจำตัวผู้เสียภาษีอากร (13 หลัก)* หมายถึง 1. กรณีบุคคลธรรมดาไทย ให้ใช้เลขประจำตัวประชาชนของกรมการปกครอง " +
+      "2. กรณีนิติบุคคล ให้ใช้เลขทะเบียนนิติบุคคลของกรมพัฒนาธุรกิจการค้า 3. กรณีอื่น ๆ นอกเหนือจาก 1. และ 2. ให้ใช้เลขประจำตัวผู้เสียภาษีอากร (13 หลัก) ของกรมสรรพากร"));
     return doc;
   }
   function longThai(iso) {

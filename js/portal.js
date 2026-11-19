@@ -1596,7 +1596,7 @@
     heading(box, "tr.earnings");
     trGate(box, function () {
       load(box, "translatorEarnings", {}, function (res) {
-        box.appendChild(el("p", "note", t("tr.payRule", { rate: res.rate, wht: res.whtPercent, min: App.formatNumber(res.whtMin), day: res.payDay })));
+        box.appendChild(el("p", "note", t(res.withhold === false ? "tr.payRuleNoWht" : "tr.payRule", { rate: res.rate, wht: res.whtPercent, min: App.formatNumber(res.whtMin), day: res.payDay })));
         res.months.forEach(function (m) {
           var c = card(box);
           var top = el("div", "job-top");
@@ -1637,7 +1637,7 @@
       ul.appendChild(li);
     });
     wrap.appendChild(ul);
-    wrap.appendChild(details([["tr.gross", money2(m.gross)], ["tr.wht", money2(m.wht)], ["tr.net", money2(m.net)], ["tr.ref", m.ref || ""]]));
+    wrap.appendChild(details([["tr.gross", money2(m.gross)], ["tr.wht", m.wht ? money2(m.wht) : ""], ["tr.net", money2(m.net)], ["tr.ref", m.ref || ""]]));
     return wrap;
   }
 

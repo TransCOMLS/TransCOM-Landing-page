@@ -1826,3 +1826,8 @@ body.print-sheet-open { overflow: hidden; }
   body.print-sheet-open .receipt { border: 0; box-shadow: none; max-width: none; padding: 0; margin: 0; }
   @page { size: A4; margin: 14mm; }
 }
+.wht-sub-1 { padding-left: 2em !important; }
+.wht-sub-2 { padding-left: 3.5em !important; }
+.wht-sign { position: relative; }
+.wht-stamp { position: absolute; right: 0; bottom: 0; width: 64px; height: 64px; border: 1px dashed #9aa3b2; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 0.6875rem; line-height: 1.2; color: #9aa3b2; padding: 6px; }
+.wht-note { margin: 10px 0 0; font-size: 0.75rem; color: #566072; }
